@@ -13,6 +13,7 @@ from src_files.models import create_model
 from src_files.loss_functions.losses import AsymmetricLoss
 from randaugment import RandAugment
 from torch.cuda.amp import GradScaler, autocast
+import torchvision.models as models
 
 parser = argparse.ArgumentParser(description='PyTorch MS_COCO Training')
 parser.add_argument('--data', type=str, default='data/coco')
@@ -38,7 +39,13 @@ def main():
 
     # Setup model
     print('creating model {}...'.format(args.model_name))
-    model = create_model(args).cuda()
+    # model = create_model(args).cuda()
+    model = models.resnet50(num_classes=args.num_classes)
+    state_dict = models.ResNet50_Weights.DEFAULT.get_state_dict(progress=True)
+    state_dict.pop('fc.weight')
+    state_dict.pop('fc.bias')
+    model.load_state_dict(state_dict, strict=False)
+    model.cuda()
 
     # local_rank = torch.distributed.get_rank()
     # torch.cuda.set_device(0)
@@ -122,7 +129,7 @@ def train_multi_label_coco(model, train_loader, val_loader, lr):
 
             ema.update(model)
             # store information
-            if i % 10 == 0:
+            if i % 1 == 0:
                 trainInfoList.append([epoch, i, loss.item()])
                 print('Epoch [{}/{}], Step [{}/{}], LR {:.1e}, Loss: {:.1f}'
                       .format(epoch, Epochs, str(i).zfill(3), str(steps_per_epoch).zfill(3),

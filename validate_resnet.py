@@ -7,6 +7,7 @@ import torch.nn.parallel
 import torch.optim
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
+import torchvision.models as models
 
 from src_files.helper_functions.bn_fusion import fuse_bn_recursively
 from src_files.models.tresnet.tresnet import InplacABN_to_ABN
@@ -24,9 +25,9 @@ parser.add_argument('-j', '--workers', default=8, type=int, metavar='N',
                     help='number of data loading workers')
 parser.add_argument('--thr', default=0.75, type=float,
                     metavar='N', help='threshold value')
-parser.add_argument('--batch-size', default=64, type=int,
+parser.add_argument('--batch-size', default=256, type=int,
                     metavar='N', help='mini-batch size')
-parser.add_argument('--print-freq', '-p', default=8, type=int,
+parser.add_argument('--print-freq', '-p', default=2, type=int,
                     metavar='N', help='print frequency (default: 64)')
 
 # ML-Decoder
@@ -41,9 +42,10 @@ def main():
 
     # Setup model
     print('creating model {}...'.format(args.model_name))
-    model = create_model(args).cuda()
+    # model = create_model(args, load_head=True).cuda()
+    model = models.resnet50(num_classes=args.num_classes)
     state = torch.load(args.model_path, map_location='cpu')
-    model.load_state_dict(state['model'], strict=True)
+    model.load_state_dict(state, strict=True)
     model.eval()
     ########### eliminate BN for faster inference ###########
     model = model.cpu()

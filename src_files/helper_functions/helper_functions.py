@@ -98,7 +98,7 @@ class CocoDetection(datasets.coco.CocoDetection):
         self.root = root
         self.coco = COCO(annFile)
 
-        self.ids = list(self.coco.imgToAnns.keys())
+        self.ids = list(self.coco.imgs.keys())
         self.transform = transform
         self.target_transform = target_transform
         self.cat2cat = dict()
