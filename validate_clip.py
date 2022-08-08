@@ -41,31 +41,35 @@ parser.add_argument('--decoder-embedding', default=768, type=int)
 parser.add_argument('--zsl', default=0, type=int)
 
 
-from typing import Iterable
-import torch.nn as nn
-class CLIP(nn.Module):
+if 'DEBUG' in os.environ:
+    from typing import Iterable
+    import torch.nn as nn
+    class CLIP(nn.Module):
 
-    def __init__(self, model: clip.model.CLIP, classes: Iterable[str]) -> None:
-        super().__init__()
-        self._model = model
-        self._class_features = self.encode_class(classes)
-        self._scaler = nn.Parameter(torch.tensor(20.0))
-        self._bias = nn.Parameter(torch.tensor(4.0))
+        def __init__(self, model: clip.model.CLIP, classes: Iterable[str]) -> None:
+            super().__init__()
+            breakpoint()
+            self._model = model
+            self._class_features = self.encode_class(classes).cuda()
+            self._scaler = nn.Parameter(torch.tensor(20.0))
+            self._bias = nn.Parameter(torch.tensor(4.0))
 
-    def encode_class(self, classes: Iterable[str]) -> torch.Tensor:
-        class_list = [f"a photo containing {class_['name']}" for class_ in classes]
-        class_tokens = clip.tokenize(class_list)
-        class_features: torch.Tensor = self._model.encode_text(class_tokens.cuda())
-        return class_features / class_features.norm(dim=-1, keepdim=True)
+        def encode_class(self, classes: Iterable[str]) -> torch.Tensor:
+            class_list = [f"a photo of a {class_}" for class_ in classes]
+            class_tokens = clip.tokenize(class_list)
+            class_features: torch.Tensor = self._model.encode_text(class_tokens)
+            return class_features / class_features.norm(dim=-1, keepdim=True)
 
-    def encode_image(self, input: torch.Tensor) -> torch.Tensor:
-        image_features: torch.Tensor = self._model.encode_image(input)
-        return image_features / image_features.norm(dim=-1, keepdim=True)
+        def encode_image(self, input: torch.Tensor) -> torch.Tensor:
+            image_features: torch.Tensor = self._model.encode_image(input)
+            return image_features / image_features.norm(dim=-1, keepdim=True)
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        image_features = self.encode_image(input)
-        output = image_features @ self._class_features.T
-        return output * self._scaler - self._bias
+        def forward(self, input: torch.Tensor) -> torch.Tensor:
+            image_features = self.encode_image(input)
+            output = image_features @ self._class_features.T
+            return output * self._scaler - self._bias
+else:
+    from coop import CustomCLIP as CLIP
 
 def main():
     args = parser.parse_args()
@@ -73,7 +77,7 @@ def main():
     # Setup model
     print('creating model {}...'.format(args.model_name))
     # model = create_model(args, load_head=True).cuda()
-    model, preprocess = clip.load('ViT-B/32')
+    model, preprocess = clip.load('ViT-B/32', 'cpu')
     #######################################################
     print('done')
 
@@ -89,8 +93,10 @@ def main():
         val_dataset, batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
-    model = CLIP(model, val_loader.dataset.coco.cats.values())
+    model = CLIP(model, [cat['name'] for cat in val_loader.dataset.coco.cats.values()])
     model.eval()
+    model.cuda()
+    # breakpoint()
     validate_multi(val_loader, model, args)
 
 

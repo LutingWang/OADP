@@ -1,3 +1,4 @@
+import copy
 import os
 import argparse
 
@@ -14,6 +15,10 @@ from src_files.loss_functions.losses import AsymmetricLoss
 from randaugment import RandAugment
 from torch.cuda.amp import GradScaler, autocast
 import torchvision.models as models
+import clip
+import clip.model
+
+import todd
 
 parser = argparse.ArgumentParser(description='PyTorch MS_COCO Training')
 parser.add_argument('--data', type=str, default='data/coco')
@@ -25,7 +30,7 @@ parser.add_argument('-j', '--workers', default=8, type=int, metavar='N',
                     help='number of data loading workers')
 parser.add_argument('--image-size', default=448, type=int,
                     metavar='N', help='input image size (default: 448)')
-parser.add_argument('--batch-size', default=28, type=int,
+parser.add_argument('--batch-size', default=56, type=int,
                     metavar='N', help='mini-batch size')
 
 # ML-Decoder
@@ -34,22 +39,47 @@ parser.add_argument('--num-of-groups', default=-1, type=int)  # full-decoding
 parser.add_argument('--decoder-embedding', default=768, type=int)
 parser.add_argument('--zsl', default=0, type=int)
 
+
+# from typing import Iterable
+# import torch.nn as nn
+# class CLIP(nn.Module):
+
+#     def __init__(self, model: clip.model.CLIP, classes: Iterable[str]) -> None:
+#         super().__init__()
+#         self._model = model.visual
+#         self._class_features = nn.Parameter(self.encode_class(model, classes), requires_grad=False)
+#         self._scaler = nn.Parameter(torch.tensor(20.0), requires_grad=True)
+#         self._bias = nn.Parameter(torch.tensor(4.0), requires_grad=True)
+
+#     @property
+#     def dtype(self) -> torch.dtype:
+#         return self._model.conv1.weight.dtype
+
+#     def encode_class(self, model: clip.model.CLIP, classes: Iterable[str]) -> torch.Tensor:
+#         class_list = [f"a photo containing {class_['name']}" for class_ in classes]
+#         class_tokens = clip.tokenize(class_list)
+#         class_features: torch.Tensor = model.encode_text(class_tokens.cuda())
+#         return class_features / class_features.norm(dim=-1, keepdim=True)
+
+#     def encode_image(self, input: torch.Tensor) -> torch.Tensor:
+#         image_features: torch.Tensor = self._model(input.type(self.dtype))
+#         return image_features / image_features.norm(dim=-1, keepdim=True)
+
+#     def forward(self, input: torch.Tensor) -> torch.Tensor:
+#         image_features = self.encode_image(input)
+#         output = image_features @ self._class_features.T
+#         return output * self._scaler - self._bias
+
+from coop import CustomCLIP as CLIP
+
 def main():
     args = parser.parse_args()
 
     # Setup model
     print('creating model {}...'.format(args.model_name))
     # model = create_model(args).cuda()
-    model = models.resnet50(num_classes=args.num_classes)
-    state_dict = models.ResNet50_Weights.DEFAULT.get_state_dict(progress=True)
-    state_dict.pop('fc.weight')
-    state_dict.pop('fc.bias')
-    model.load_state_dict(state_dict, strict=False)
-    model.cuda()
+    model, preprocess = clip.load('ViT-B/32', 'cpu')
 
-    # local_rank = torch.distributed.get_rank()
-    # torch.cuda.set_device(0)
-    # model = torch.nn.DataParallel(model,device_ids=[0])
 
     print('done')
 
@@ -62,20 +92,14 @@ def main():
     data_path_train = f'{args.data}/train2017'  # args.data
     val_dataset = CocoDetection(data_path_val,
                                 instances_path_val,
-                                transforms.Compose([
-                                    transforms.Resize((args.image_size, args.image_size)),
-                                    transforms.ToTensor(),
-                                    # normalize, # no need, toTensor does normalization
-                                ]))
+                                copy.deepcopy(preprocess),
+                                )
+    preprocess.transforms.insert(2, CutoutPIL(cutout_factor=0.5))
+    preprocess.transforms.insert(3, RandAugment())
     train_dataset = CocoDetection(data_path_train,
                                   instances_path_train,
-                                  transforms.Compose([
-                                      transforms.Resize((args.image_size, args.image_size)),
-                                      CutoutPIL(cutout_factor=0.5),
-                                      RandAugment(),
-                                      transforms.ToTensor(),
-                                      # normalize,
-                                  ]))
+                                  preprocess,
+                                  )
     print("len(val_dataset)): ", len(val_dataset))
     print("len(train_dataset)): ", len(train_dataset))
 
@@ -89,6 +113,18 @@ def main():
         num_workers=args.workers, pin_memory=False)
 
     # Actuall Training
+    model = CLIP(model, [cat['name'] for cat in train_loader.dataset.coco.cats.values()])
+    # model.load_state_dict(torch.load('models/model-4-2113.ckpt'))
+    model.float()
+    model.eval()
+    model.requires_grad_(False)
+    model.prompt_learner.train()
+    model.prompt_learner.requires_grad_()
+    # model.image_encoder.train()
+    # model.image_encoder.requires_grad_()
+    model._scaler.requires_grad_()
+    model._bias.requires_grad_()
+    model.cuda()
     train_multi_label_coco(model, train_loader, val_loader, args.lr)
 
 
@@ -96,7 +132,8 @@ def train_multi_label_coco(model, train_loader, val_loader, lr):
     ema = ModelEma(model, 0.9997)  # 0.9997^641=0.82
 
     # set optimizer
-    Epochs = 40
+    # Epochs = 40
+    Epochs = 10
     weight_decay = 1e-4
     criterion = AsymmetricLoss(gamma_neg=4, gamma_pos=0, clip=0.05, disable_torch_grad_focal_loss=True)
     parameters = add_weight_decay(model, weight_decay)
@@ -129,11 +166,12 @@ def train_multi_label_coco(model, train_loader, val_loader, lr):
 
             ema.update(model)
             # store information
-            if i % 1 == 0:
+            if i % 20 == 0:
                 trainInfoList.append([epoch, i, loss.item()])
                 print('Epoch [{}/{}], Step [{}/{}], LR {:.1e}, Loss: {:.1f}'
                       .format(epoch, Epochs, str(i).zfill(3), str(steps_per_epoch).zfill(3),
                               scheduler.get_last_lr()[0], \
+                            #   lr,
                               loss.item()))
 
         try:
