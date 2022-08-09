@@ -18,6 +18,7 @@ import torchvision.models as models
 import clip
 import clip.model
 import torchvision.transforms as tf
+import torch.nn.functional as F
 
 import todd
 
@@ -57,7 +58,7 @@ parser.add_argument('--zsl', default=0, type=int)
 #         return self._model.conv1.weight.dtype
 
 #     def encode_class(self, model: clip.model.CLIP, classes: Iterable[str]) -> torch.Tensor:
-#         class_list = [f"a photo containing {class_['name']}" for class_ in classes]
+#         class_list = [f"a photo containing {class_}" for class_ in classes]
 #         class_tokens = clip.tokenize(class_list)
 #         class_features: torch.Tensor = model.encode_text(class_tokens.cuda())
 #         return class_features / class_features.norm(dim=-1, keepdim=True)
@@ -79,15 +80,17 @@ def main():
     # Setup model
     print('creating model {}...'.format(args.model_name))
     # model = create_model(args).cuda()
-    model, _ = clip.load('ViT-B/32', 'cpu')
+    model, _ = clip.load('RN50', 'cpu')
     val_pipe = tf.Compose([
-        tf.Resize((224, 224), interpolation=tf.InterpolationMode.BICUBIC),
+        tf.Resize(args.image_size, interpolation=tf.InterpolationMode.BICUBIC),
+        tf.CenterCrop(args.image_size),
         lambda image: image.convert("RGB"),
         tf.ToTensor(),
         tf.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
     ])
     train_pipe = tf.Compose([
-        tf.Resize((224, 224), interpolation=tf.InterpolationMode.BICUBIC),
+        tf.Resize(args.image_size, interpolation=tf.InterpolationMode.BICUBIC),
+        tf.CenterCrop(args.image_size),
         CutoutPIL(cutout_factor=0.5),
         RandAugment(),
         lambda image: image.convert("RGB"),
@@ -129,9 +132,8 @@ def main():
     model = CLIP(model, [cat['name'] for cat in train_loader.dataset.coco.cats.values()])
     # model.load_state_dict(torch.load('models/model-4-2113.ckpt'))
     model.float()
-    model.eval()
+    model.train()
     model.requires_grad_(False)
-    model.prompt_learner.train()
     model.prompt_learner.requires_grad_()
     # model.image_encoder.train()
     # model.image_encoder.requires_grad_()
@@ -186,6 +188,7 @@ def train_multi_label_coco(model, train_loader, val_loader, lr):
                               scheduler.get_last_lr()[0], \
                             #   lr,
                               loss.item()))
+                print(model._scaler, model._bias)
 
         try:
             torch.save(model.state_dict(), os.path.join(

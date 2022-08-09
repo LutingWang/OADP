@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from clip import clip
 from clip.simple_tokenizer import SimpleTokenizer as _Tokenizer
@@ -38,9 +39,6 @@ class PromptLearner(nn.Module):
         ctx_init = "a photo of a"  # cfg.TRAINER.COOP.CTX_INIT
         dtype = clip_model.dtype
         ctx_dim = clip_model.ln_final.weight.shape[0]
-        clip_imsize = clip_model.visual.input_resolution
-        cfg_imsize = 224  # cfg.INPUT.SIZE[0]
-        assert cfg_imsize == clip_imsize, f"cfg_imsize ({cfg_imsize}) must equal to clip_imsize ({clip_imsize})"
 
         if ctx_init:
             # use given words to initialize context vectors
@@ -167,6 +165,11 @@ class CustomCLIP(nn.Module):
 
         self._scaler = nn.Parameter(torch.tensor(20.0), requires_grad=True)
         self._bias = nn.Parameter(torch.tensor(4.0), requires_grad=True)
+
+    def train(self, mode: bool = True):
+        super().train(False)
+        self.prompt_learner.train()
+        return self
 
     def forward(self, image):
         image_features = self.image_encoder(image.type(self.dtype))
