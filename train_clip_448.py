@@ -103,10 +103,12 @@ def main():
 
     # COCO Data loading
     instances_path_val = os.path.join(args.data, 'annotations/instances_val2017.json')
+    instances_path_train = os.path.join(args.data, 'annotations/instances_val2017.json')
     instances_path_train = os.path.join(args.data, 'annotations/instances_train2017.json')
     #data_path_val = args.data
     #data_path_train = args.data
     data_path_val = f'{args.data}/val2017'  # args.data
+    data_path_train = f'{args.data}/val2017'  # args.data
     data_path_train = f'{args.data}/train2017'  # args.data
     val_dataset = CocoDetection(data_path_val,
                                 instances_path_val,
@@ -133,22 +135,17 @@ def main():
     # model.load_state_dict(torch.load('models/model-4-2113.ckpt'))
     model.float()
     model.train()
-    model.requires_grad_(False)
-    model.prompt_learner.requires_grad_()
-    # model.image_encoder.train()
-    # model.image_encoder.requires_grad_()
-    model._scaler.requires_grad_()
-    model._bias.requires_grad_()
+    model.requires_grad_()
     model.cuda()
     train_multi_label_coco(model, train_loader, val_loader, args.lr)
 
 
 def train_multi_label_coco(model, train_loader, val_loader, lr):
-    ema = ModelEma(model, 0.9997)  # 0.9997^641=0.82
+    # ema = ModelEma(model, 0.9997)  # 0.9997^641=0.82
 
     # set optimizer
-    # Epochs = 40
-    Epochs = 10
+    Epochs = 40
+    # Epochs = 10
     weight_decay = 1e-4
     criterion = AsymmetricLoss(gamma_neg=4, gamma_pos=0, clip=0.05, disable_torch_grad_focal_loss=True)
     parameters = add_weight_decay(model, weight_decay)
@@ -179,7 +176,7 @@ def train_multi_label_coco(model, train_loader, val_loader, lr):
 
             scheduler.step()
 
-            ema.update(model)
+            # ema.update(model)
             # store information
             if i % 20 == 0:
                 trainInfoList.append([epoch, i, loss.item()])
@@ -198,7 +195,8 @@ def train_multi_label_coco(model, train_loader, val_loader, lr):
 
         model.eval()
 
-        mAP_score = validate_multi(val_loader, model, ema)
+        # mAP_score = validate_multi(val_loader, model, ema)
+        mAP_score = validate_multi(val_loader, model)
         model.train()
         if mAP_score > highest_mAP:
             highest_mAP = mAP_score
@@ -210,11 +208,11 @@ def train_multi_label_coco(model, train_loader, val_loader, lr):
         print('current_mAP = {:.2f}, highest_mAP = {:.2f}\n'.format(mAP_score, highest_mAP))
 
 
-def validate_multi(val_loader, model, ema_model):
+def validate_multi(val_loader, model):
     print("starting validation")
     Sig = torch.nn.Sigmoid()
     preds_regular = []
-    preds_ema = []
+    # preds_ema = []
     targets = []
     for i, (input, target) in enumerate(val_loader):
         target = target
@@ -223,17 +221,19 @@ def validate_multi(val_loader, model, ema_model):
         with torch.no_grad():
             with autocast():
                 output_regular = Sig(model(input.cuda())).cpu()
-                output_ema = Sig(ema_model.module(input.cuda())).cpu()
+                # output_ema = Sig(ema_model.module(input.cuda())).cpu()
 
         # for mAP calculation
         preds_regular.append(output_regular.cpu().detach())
-        preds_ema.append(output_ema.cpu().detach())
+        # preds_ema.append(output_ema.cpu().detach())
         targets.append(target.cpu().detach())
 
     mAP_score_regular = mAP(torch.cat(targets).numpy(), torch.cat(preds_regular).numpy())
-    mAP_score_ema = mAP(torch.cat(targets).numpy(), torch.cat(preds_ema).numpy())
-    print("mAP score regular {:.2f}, mAP score EMA {:.2f}".format(mAP_score_regular, mAP_score_ema))
-    return max(mAP_score_regular, mAP_score_ema)
+    # mAP_score_ema = mAP(torch.cat(targets).numpy(), torch.cat(preds_ema).numpy())
+    # print("mAP score regular {:.2f}, mAP score EMA {:.2f}".format(mAP_score_regular, mAP_score_ema))
+    print("mAP score regular {:.2f}".format(mAP_score_regular))
+    # return max(mAP_score_regular, mAP_score_ema)
+    return mAP_score_regular
 
 
 if __name__ == '__main__':

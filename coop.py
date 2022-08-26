@@ -1,9 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision
 
 from clip import clip
 from clip.simple_tokenizer import SimpleTokenizer as _Tokenizer
+import clip.model
+
+import todd
+import mmcv.cnn
 
 _tokenizer = _Tokenizer()
 
@@ -152,13 +157,77 @@ class PromptLearner(nn.Module):
 
         return prompts
 
+class ImageEncoder(nn.Module):  # TODO: train, requires_grad, init
+    def __init__(self, model: nn.Module) -> None:
+        super().__init__()
+        self._model = model
+        self._ladder = torchvision.models.resnet18(num_classes=1024)
+        self._adapts = todd.base.Workflow.build(
+            'adapts',
+            adapted=dict(
+                type='Conv2d',
+                fields=['feats'],
+                kernel_size=1,
+                parallel=[
+                    dict(in_channels=64, out_channels=64),
+                    dict(in_channels=256, out_channels=64),
+                    dict(in_channels=512, out_channels=128),
+                    dict(in_channels=1024, out_channels=256),
+                    dict(in_channels=2048, out_channels=512),
+                ],
+            ),
+        )
+        self.register_module('adapts', todd.distillers.BaseDistiller.workflow_to_module(self._adapts))
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        self._model.eval()
+        return self
+
+    def requires_grad_(self, requires_grad: bool = True):
+        super().requires_grad_(requires_grad)
+        self._model.requires_grad_(False)
+        return self
+
+    def forward(self, image: torch.Tensor) -> torch.Tensor:
+        _, feats = self._model(image)
+        feats = self._adapts(dict(feats=feats))['adapted']
+        x = self._ladder.conv1(image)
+        x = self._ladder.bn1(x)
+        x = self._ladder.relu(x)
+        x = self._ladder.maxpool(x)
+
+        x = self._ladder.layer1(x + feats[0])
+        x = self._ladder.layer2(x + feats[1])
+        x = self._ladder.layer3(x + feats[2])
+        x = self._ladder.layer4(x + feats[3])
+
+        x = self._ladder.avgpool(x + feats[4])
+        x = torch.flatten(x, 1)
+        x = self._ladder.fc(x)
+
+        return x
+
+        # image = image.type(self._ladder.conv1.weight.dtype)
+        # image = self._ladder.relu1(self._ladder.bn1(self._ladder.conv1(image)))
+        # image = self._ladder.relu2(self._ladder.bn2(self._ladder.conv2(image)))
+        # image = self._ladder.relu3(self._ladder.bn3(self._ladder.conv3(image)))
+        # image = self._ladder.avgpool(image)
+        # image = self._ladder.layer1(feats[0] + image)
+        # image = self._ladder.layer2(feats[1] + image)
+        # image = self._ladder.layer3(feats[2] + image)
+        # image = self._ladder.layer4(feats[3] + image)
+        # image = self._ladder.attnpool(feats[4] + image)
+
+        # return x + image * self._gate
+
 
 class CustomCLIP(nn.Module):
     def __init__(self, clip_model, classnames):
         super().__init__()
         self.prompt_learner = PromptLearner(classnames, clip_model)
         self.tokenized_prompts = self.prompt_learner.tokenized_prompts
-        self.image_encoder = clip_model.visual
+        self.image_encoder = ImageEncoder(clip_model.visual)
         self.text_encoder = TextEncoder(clip_model)
         # self.logit_scale = clip_model.logit_scale
         self.dtype = clip_model.dtype
@@ -168,7 +237,18 @@ class CustomCLIP(nn.Module):
 
     def train(self, mode: bool = True):
         super().train(False)
-        self.prompt_learner.train()
+        if mode:
+            self.prompt_learner.train()
+            self.image_encoder.train()
+        return self
+
+    def requires_grad_(self, requires_grad: bool = True):
+        super().requires_grad_(False)
+        if requires_grad:
+            self.prompt_learner.requires_grad_()
+            self.image_encoder.requires_grad_()
+            self._scaler.requires_grad_()
+            self._bias.requires_grad_()
         return self
 
     def forward(self, image):
