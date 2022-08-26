@@ -6,12 +6,12 @@ import torch
 import torch.nn.parallel
 import torch.optim
 import torch.utils.data.distributed
-import torchvision.transforms as transforms
+import clip
+import clip.model
 
-from src_files.helper_functions.bn_fusion import fuse_bn_recursively
-from src_files.models.tresnet.tresnet import InplacABN_to_ABN
+import todd
+
 from src_files.helper_functions.helper_functions import mAP, CocoDetection, AverageMeter
-from src_files.models import create_model
 
 parser = argparse.ArgumentParser(description='PyTorch MS_COCO validation')
 parser.add_argument('--data', type=str, default='data/coco')
@@ -24,9 +24,9 @@ parser.add_argument('-j', '--workers', default=8, type=int, metavar='N',
                     help='number of data loading workers')
 parser.add_argument('--thr', default=0.75, type=float,
                     metavar='N', help='threshold value')
-parser.add_argument('--batch-size', default=64, type=int,
+parser.add_argument('--batch-size', default=32, type=int,
                     metavar='N', help='mini-batch size')
-parser.add_argument('--print-freq', '-p', default=8, type=int,
+parser.add_argument('--print-freq', '-p', default=32, type=int,
                     metavar='N', help='print frequency (default: 64)')
 
 # ML-Decoder
@@ -36,20 +36,43 @@ parser.add_argument('--decoder-embedding', default=768, type=int)
 parser.add_argument('--zsl', default=0, type=int)
 
 
+if 'DEBUG' in os.environ:
+    from typing import Iterable
+    import torch.nn as nn
+    class CLIP(nn.Module):
+
+        def __init__(self, model: clip.model.CLIP, classes: Iterable[str]) -> None:
+            super().__init__()
+            breakpoint()
+            self._model = model
+            self._class_features = self.encode_class(classes).cuda()
+            self._scaler = nn.Parameter(torch.tensor(20.0))
+            self._bias = nn.Parameter(torch.tensor(4.0))
+
+        def encode_class(self, classes: Iterable[str]) -> torch.Tensor:
+            class_list = [f"a photo of a {class_}" for class_ in classes]
+            class_tokens = clip.tokenize(class_list)
+            class_features: torch.Tensor = self._model.encode_text(class_tokens)
+            return class_features / class_features.norm(dim=-1, keepdim=True)
+
+        def encode_image(self, input: torch.Tensor) -> torch.Tensor:
+            image_features: torch.Tensor = self._model.encode_image(input)
+            return image_features / image_features.norm(dim=-1, keepdim=True)
+
+        def forward(self, input: torch.Tensor) -> torch.Tensor:
+            image_features = self.encode_image(input)
+            output = image_features @ self._class_features.T
+            return output * self._scaler - self._bias
+else:
+    from coop import CustomCLIP as CLIP
+
 def main():
     args = parser.parse_args()
 
     # Setup model
     print('creating model {}...'.format(args.model_name))
-    model = create_model(args).cuda()
-    state = torch.load(args.model_path, map_location='cpu')
-    model.load_state_dict(state['model'], strict=True)
-    model.eval()
-    ########### eliminate BN for faster inference ###########
-    model = model.cpu()
-    model = InplacABN_to_ABN(model)
-    model = fuse_bn_recursively(model)
-    model = model.cuda().half().eval()
+    # model = create_model(args, load_head=True).cuda()
+    model, preprocess = clip.load('ViT-B/32', 'cpu')
     #######################################################
     print('done')
 
@@ -57,17 +80,18 @@ def main():
     data_path = os.path.join(args.data, 'val2017')
     val_dataset = CocoDetection(data_path,
                                 instances_path,
-                                transforms.Compose([
-                                    transforms.Resize((args.image_size, args.image_size)),
-                                    transforms.ToTensor(),
-                                    # normalize, # no need, toTensor does normalization
-                                ]))
+                                preprocess,
+                                )
 
     print("len(val_dataset)): ", len(val_dataset))
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
+    model = CLIP(model, [cat['name'] for cat in val_loader.dataset.coco.cats.values()])
+    model.eval()
+    model.cuda()
+    # breakpoint()
     validate_multi(val_loader, model, args)
 
 
@@ -154,11 +178,6 @@ def validate_multi(val_loader, model, args):
     print(' * P_C {:.2f} R_C {:.2f} F_C {:.2f} P_O {:.2f} R_O {:.2f} F_O {:.2f}'
           .format(mean_p_c, mean_r_c, mean_f_c, p_o, r_o, f_o))
 
-    import pickle as pkl
-    with open('targets.pkl', 'wb') as f:
-        pkl.dump(targets, f)
-    with open('preds.pkl', 'wb') as f:
-        pkl.dump(preds, f)
     mAP_score = mAP(torch.cat(targets).numpy(), torch.cat(preds).numpy())
     print("mAP score:", mAP_score)
 
