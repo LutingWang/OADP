@@ -11,11 +11,10 @@ import clip.model
 
 import todd
 
-from src_files.helper_functions.helper_functions import mAP, CocoDetection, AverageMeter
+from src_files.helper_functions import mAP, CocoDetection, AverageMeter
 
 parser = argparse.ArgumentParser(description='PyTorch MS_COCO validation')
 parser.add_argument('--data', type=str, default='data/coco')
-parser.add_argument('--model-name', default='tresnet_l')
 parser.add_argument('--model-path', default='model_path', type=str)
 parser.add_argument('--num-classes', default=80)
 parser.add_argument('--image-size', default=448, type=int,
@@ -28,12 +27,6 @@ parser.add_argument('--batch-size', default=32, type=int,
                     metavar='N', help='mini-batch size')
 parser.add_argument('--print-freq', '-p', default=32, type=int,
                     metavar='N', help='print frequency (default: 64)')
-
-# ML-Decoder
-parser.add_argument('--use-ml-decoder', default=1, type=int)
-parser.add_argument('--num-of-groups', default=-1, type=int)  # full-decoding
-parser.add_argument('--decoder-embedding', default=768, type=int)
-parser.add_argument('--zsl', default=0, type=int)
 
 
 if 'DEBUG' in os.environ:
@@ -70,8 +63,6 @@ def main():
     args = parser.parse_args()
 
     # Setup model
-    print('creating model {}...'.format(args.model_name))
-    # model = create_model(args, load_head=True).cuda()
     model, preprocess = clip.load('ViT-B/32', 'cpu')
     #######################################################
     print('done')

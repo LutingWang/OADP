@@ -6,9 +6,9 @@ import torch.nn.parallel
 import torch.optim
 import torch.utils.data.distributed
 from torch.optim import lr_scheduler
-from src_files.helper_functions.helper_functions import mAP, CocoDetection, CutoutPIL, \
+from src_files.helper_functions import mAP, CocoDetection, CutoutPIL, \
     add_weight_decay
-from src_files.loss_functions.losses import AsymmetricLoss
+from src_files.losses import AsymmetricLoss
 from randaugment import RandAugment
 from torch.cuda.amp import GradScaler, autocast
 import clip
@@ -20,8 +20,6 @@ import todd
 parser = argparse.ArgumentParser(description='PyTorch MS_COCO Training')
 parser.add_argument('--data', type=str, default='data/coco')
 parser.add_argument('--lr', default=1e-4, type=float)
-parser.add_argument('--model-name', default='tresnet_l')
-parser.add_argument('--model-path', default='https://miil-public-eu.oss-eu-central-1.aliyuncs.com/model-zoo/ML_Decoder/tresnet_l_pretrain_ml_decoder.pth', type=str)
 parser.add_argument('--num-classes', default=80)
 parser.add_argument('-j', '--workers', default=8, type=int, metavar='N',
                     help='number of data loading workers')
@@ -29,12 +27,6 @@ parser.add_argument('--image-size', default=448, type=int,
                     metavar='N', help='input image size (default: 448)')
 parser.add_argument('--batch-size', default=56, type=int,
                     metavar='N', help='mini-batch size')
-
-# ML-Decoder
-parser.add_argument('--use-ml-decoder', default=1, type=int)
-parser.add_argument('--num-of-groups', default=-1, type=int)  # full-decoding
-parser.add_argument('--decoder-embedding', default=768, type=int)
-parser.add_argument('--zsl', default=0, type=int)
 
 
 # from typing import Iterable
@@ -73,8 +65,6 @@ def main():
     args = parser.parse_args()
 
     # Setup model
-    print('creating model {}...'.format(args.model_name))
-    # model = create_model(args).cuda()
     model, _ = clip.load('RN50', 'cpu')
     val_pipe = tf.Compose([
         tf.Resize(args.image_size, interpolation=tf.InterpolationMode.BICUBIC),
@@ -93,15 +83,10 @@ def main():
         tf.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
     ])
 
-
-    print('done')
-
     # COCO Data loading
     instances_path_val = os.path.join(args.data, 'annotations/instances_val2017.json')
     instances_path_train = os.path.join(args.data, 'annotations/instances_val2017.json')
     instances_path_train = os.path.join(args.data, 'annotations/instances_train2017.json')
-    #data_path_val = args.data
-    #data_path_train = args.data
     data_path_val = f'{args.data}/val2017'  # args.data
     data_path_train = f'{args.data}/val2017'  # args.data
     data_path_train = f'{args.data}/train2017'  # args.data
