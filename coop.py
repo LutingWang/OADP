@@ -8,7 +8,6 @@ from clip.simple_tokenizer import SimpleTokenizer as _Tokenizer
 import clip.model
 
 import todd
-import mmcv.cnn
 
 _tokenizer = _Tokenizer()
 

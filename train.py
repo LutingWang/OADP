@@ -85,11 +85,13 @@ def main():
 
     # COCO Data loading
     instances_path_val = os.path.join(args.data, 'annotations/instances_val2017.json')
-    instances_path_train = os.path.join(args.data, 'annotations/instances_val2017.json')
     instances_path_train = os.path.join(args.data, 'annotations/instances_train2017.json')
+    if os.getenv('DEBUG'):
+        instances_path_train = os.path.join(args.data, 'annotations/instances_val2017.json')
     data_path_val = f'{args.data}/val2017'  # args.data
-    data_path_train = f'{args.data}/val2017'  # args.data
     data_path_train = f'{args.data}/train2017'  # args.data
+    if os.getenv('DEBUG'):
+        data_path_train = f'{args.data}/val2017'  # args.data
     val_dataset = CocoDetection(data_path_val,
                                 instances_path_val,
                                 val_pipe,
