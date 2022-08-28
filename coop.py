@@ -226,7 +226,8 @@ class CustomCLIP(nn.Module):
         super().__init__()
         self.prompt_learner = PromptLearner(classnames, clip_model)
         self.tokenized_prompts = self.prompt_learner.tokenized_prompts
-        self.image_encoder = ImageEncoder(clip_model.visual)
+        # self.image_encoder = ImageEncoder(clip_model.visual)
+        self.image_encoder = clip_model.visual
         self.text_encoder = TextEncoder(clip_model)
         # self.logit_scale = clip_model.logit_scale
         self.dtype = clip_model.dtype
@@ -238,20 +239,20 @@ class CustomCLIP(nn.Module):
         super().train(False)
         if mode:
             self.prompt_learner.train()
-            self.image_encoder.train()
+            # self.image_encoder.train()
         return self
 
     def requires_grad_(self, requires_grad: bool = True):
         super().requires_grad_(False)
         if requires_grad:
             self.prompt_learner.requires_grad_()
-            self.image_encoder.requires_grad_()
+            # self.image_encoder.requires_grad_()
             self._scaler.requires_grad_()
             self._bias.requires_grad_()
         return self
 
     def forward(self, image):
-        image_features = self.image_encoder(image.type(self.dtype))
+        image_features, _ = self.image_encoder(image.type(self.dtype))
 
         prompts = self.prompt_learner()
         tokenized_prompts = self.tokenized_prompts
