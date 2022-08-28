@@ -1,3 +1,6 @@
 pycocotools
 randaugment
 todd_ai==0.2.3a5
+ftfy
+regex
+tqdm
