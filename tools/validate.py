@@ -11,7 +11,7 @@ import clip.model
 
 import todd
 
-from src_files.helper_functions import mAP, CocoDetection, AverageMeter
+from mldec.helper_functions import mAP, CocoDetection, AverageMeter
 
 parser = argparse.ArgumentParser(description='PyTorch MS_COCO validation')
 parser.add_argument('--data', type=str, default='data/coco')
@@ -36,7 +36,6 @@ if 'DEBUG' in os.environ:
 
         def __init__(self, model: clip.model.CLIP, classes: Iterable[str]) -> None:
             super().__init__()
-            breakpoint()
             self._model = model
             self._class_features = self.encode_class(classes).cuda()
             self._scaler = nn.Parameter(torch.tensor(20.0))
@@ -57,7 +56,7 @@ if 'DEBUG' in os.environ:
             output = image_features @ self._class_features.T
             return output * self._scaler - self._bias
 else:
-    from coop import CustomCLIP as CLIP
+    from mldec.coop import CustomCLIP as CLIP
 
 def main():
     args = parser.parse_args()
@@ -82,7 +81,6 @@ def main():
     model = CLIP(model, [cat['name'] for cat in val_loader.dataset.coco.cats.values()])
     model.eval()
     model.cuda()
-    # breakpoint()
     validate_multi(val_loader, model, args)
 
 

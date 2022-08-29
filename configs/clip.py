@@ -9,7 +9,7 @@ val = dict(
     root=data_root + 'val2017',
     annFile=data_root + 'annotations/instances_val2017.json',
 )
-batch_size = 48
+batch_size = 64
 workers = 8
 
 epoch = 40
