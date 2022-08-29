@@ -66,8 +66,8 @@ def main():
     work_dir.mkdir(parents=True, exist_ok=True)
 
     if not Debug.CPU:
-        torch.cuda.set_device(todd.base.get_rank())
         torch.distributed.init_process_group(backend='nccl')
+        torch.cuda.set_device(todd.base.get_rank())
 
     if todd.base.get_rank() == 0:
         timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
@@ -113,9 +113,13 @@ def main():
 
     model, _ = clip.load('RN50', 'cpu')
     model = coop.CustomCLIP(model, [cat['name'] for cat in train_loader.dataset.coco.cats.values()])
-    model.float().requires_grad_()
+    model.float()
+    model.requires_grad_()
     if not Debug.CPU:
-        model = torch.nn.parallel.DistributedDataParallel(model.cuda())
+        model = torch.nn.parallel.DistributedDataParallel(
+            model.cuda(),
+            device_ids=[torch.cuda.current_device()],
+        )
 
     criterion = AsymmetricLoss(gamma_neg=4, gamma_pos=0, clip=0.05, disable_torch_grad_focal_loss=True)
     parameters = add_weight_decay(model, cfg.weight_decay)
@@ -131,6 +135,9 @@ def main():
             train_sampler.set_epoch(epoch)
         model.train()
         for i, (inputData, target) in enumerate(train_loader):
+            if not Debug.CPU:
+                inputData = inputData.cuda()
+                target = target.cuda()
             target = target.max(dim=1)[0]
             output = model(inputData).float()  # sigmoid will be done in loss !
             loss = criterion(output, target)
@@ -168,6 +175,9 @@ def main():
         targets = []
         with torch.no_grad():
             for i, (input, target) in enumerate(val_loader):
+                if not Debug.CPU:
+                    input = input.cuda()
+                    target = target.cuda()
                 pred = model(input).sigmoid()
                 target = target.max(dim=1)[0]
                 preds.append(pred)

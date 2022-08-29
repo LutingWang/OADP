@@ -8,8 +8,6 @@ import torch
 from PIL import ImageDraw
 from pycocotools.coco import COCO
 
-from .debug import Debug
-
 
 def average_precision(output, target):
     epsilon = 1e-8
@@ -116,9 +114,6 @@ class CocoDetection(datasets.coco.CocoDetection):
 
         if self.target_transform is not None:
             target = self.target_transform(target)
-        if not Debug.CPU:
-            img = img.cuda()
-            target = target.cuda()
         return img, target
 
 
