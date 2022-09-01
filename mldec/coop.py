@@ -65,7 +65,7 @@ class Classnames(todd.base.Module):
         self.register_buffer('classname_embeddings', classname_embeddings, persistent=False)
 
 
-class TextEncoder(todd.reproduction.FrozenMixin, todd.base.Module):
+class TextEncoder(todd.base.Module):
 
     def __init__(
         self,
@@ -75,7 +75,7 @@ class TextEncoder(todd.reproduction.FrozenMixin, todd.base.Module):
         classnames_kwargs: Dict[str, Any],
         **kwargs
     ) -> None:
-        todd.base.Module.__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._prompt = Prompt(
             embedding=clip_model.token_embedding,
             **prompt_kwargs,
@@ -90,11 +90,6 @@ class TextEncoder(todd.reproduction.FrozenMixin, todd.base.Module):
         self.ln_final = clip_model.ln_final
         self.text_projection = clip_model.text_projection
 
-        todd.reproduction.FrozenMixin.__init__(
-            self,
-            no_grad_config=dict(names=['transformer', 'positional_embedding', 'ln_final', 'text_projection']),
-            eval_config=dict(names=['transformer', 'ln_final']),
-        )
 
     def forward(self) -> torch.Tensor:
         x: torch.Tensor = self._classnames.classname_embeddings
@@ -110,7 +105,7 @@ class TextEncoder(todd.reproduction.FrozenMixin, todd.base.Module):
         return x
 
 
-class ImageEncoder(todd.reproduction.FrozenMixin, todd.base.Module):
+class ImageEncoder(todd.base.Module):
 
     def __init__(
         self,
@@ -118,20 +113,15 @@ class ImageEncoder(todd.reproduction.FrozenMixin, todd.base.Module):
         clip_model: clip.model.CLIP,
         **kwargs
     ) -> None:
-        todd.base.Module.__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._model = clip_model.visual
-        todd.reproduction.FrozenMixin.__init__(
-            self,
-            no_grad_config=dict(names=['_model']),
-            eval_config=dict(names=['_model']),
-        )
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         x, feats = self._model(image)
         return x
 
 
-class CustomCLIP(todd.base.Module):
+class CustomCLIP(todd.reproduction.FrozenMixin, todd.base.Module):
     def __init__(
         self,
         *args,
@@ -139,9 +129,9 @@ class CustomCLIP(todd.base.Module):
         classnames: Sequence[str],
         **kwargs,
     ) -> None:
-        super().__init__(*args, **kwargs)
+        todd.base.Module.__init__(self, *args, **kwargs)
         # self.image_encoder = ImageEncoder(clip_model.visual)
-        self.image_encoder = ImageEncoder(
+        self._image_encoder = ImageEncoder(
             clip_model=clip_model,
         )
         self._text_encoder = TextEncoder(
@@ -152,8 +142,28 @@ class CustomCLIP(todd.base.Module):
         self._scaler = nn.Parameter(torch.tensor(20.0), requires_grad=True)
         self._bias = nn.Parameter(torch.tensor(4.0), requires_grad=True)
 
+        todd.reproduction.FrozenMixin.__init__(
+            self,
+            no_grad_config=dict(
+                names=[
+                    '._text_encoder.transformer',
+                    '._text_encoder.positional_embedding',
+                    '._text_encoder.ln_final',
+                    '._text_encoder.text_projection',
+                    '._image_encoder._model',
+                ],
+            ),
+            eval_config=dict(
+                names=[
+                    '._text_encoder.transformer',
+                    '._text_encoder.ln_final',
+                    '._image_encoder._model',
+                ],
+            ),
+        )
+
     def forward(self, image: torch.Tensor) -> torch.Tensor:
-        image_features = self.image_encoder(image)
+        image_features = self._image_encoder(image)
         text_features = self._text_encoder()
 
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
