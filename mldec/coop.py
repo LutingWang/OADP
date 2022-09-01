@@ -131,11 +131,19 @@ class ImageEncoder(todd.reproduction.FrozenMixin, todd.base.Module):
         return x
 
 
-class CustomCLIP(nn.Module):
-    def __init__(self, clip_model, classnames):
-        super().__init__()
+class CustomCLIP(todd.base.Module):
+    def __init__(
+        self,
+        *args,
+        clip_model: clip.model.CLIP,
+        classnames: Sequence[str],
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
         # self.image_encoder = ImageEncoder(clip_model.visual)
-        self.image_encoder = ImageEncoder(clip_model)
+        self.image_encoder = ImageEncoder(
+            clip_model=clip_model,
+        )
         self._text_encoder = TextEncoder(
             clip_model=clip_model,
             prompt_kwargs=dict(prompt='a X photo of a X'),

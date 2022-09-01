@@ -117,8 +117,11 @@ def main():
         num_workers=cfg.workers,
         )
 
-    model, _ = clip.load('pretrained/clip/RN50.pt', 'cpu')
-    model = coop.CustomCLIP(model, [cat['name'] for cat in train_loader.dataset.coco.cats.values()])
+    clip_model, _ = clip.load('pretrained/clip/RN50.pt', 'cpu')
+    model = coop.CustomCLIP(
+        clip_model=clip_model,
+        classnames=[cat['name'] for cat in train_loader.dataset.coco.cats.values()],
+    )
     model.float()
     model.requires_grad_()
     if not debug.CPU:
