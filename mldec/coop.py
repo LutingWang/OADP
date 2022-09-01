@@ -111,14 +111,31 @@ class TextEncoder(todd.reproduction.FrozenMixin, todd.base.Module):
 
 
 class ImageEncoder(todd.reproduction.FrozenMixin, todd.base.Module):
-    pass
+
+    def __init__(
+        self,
+        *args,
+        clip_model: clip.model.CLIP,
+        **kwargs
+    ) -> None:
+        todd.base.Module.__init__(self, *args, **kwargs)
+        self._model = clip_model.visual
+        todd.reproduction.FrozenMixin.__init__(
+            self,
+            no_grad_config=dict(names=['_model']),
+            eval_config=dict(names=['_model']),
+        )
+
+    def forward(self, image: torch.Tensor) -> torch.Tensor:
+        x, feats = self._model(image)
+        return x
 
 
 class CustomCLIP(nn.Module):
     def __init__(self, clip_model, classnames):
         super().__init__()
         # self.image_encoder = ImageEncoder(clip_model.visual)
-        self.image_encoder = clip_model.visual
+        self.image_encoder = ImageEncoder(clip_model)
         self._text_encoder = TextEncoder(
             clip_model=clip_model,
             prompt_kwargs=dict(prompt='a X photo of a X'),
@@ -127,19 +144,12 @@ class CustomCLIP(nn.Module):
         self._scaler = nn.Parameter(torch.tensor(20.0), requires_grad=True)
         self._bias = nn.Parameter(torch.tensor(4.0), requires_grad=True)
 
-    def forward(self, image):
-        image_features, _ = self.image_encoder(image)
-
+    def forward(self, image: torch.Tensor) -> torch.Tensor:
+        image_features = self.image_encoder(image)
         text_features = self._text_encoder()
 
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-
-        # logit_scale = self.logit_scale.exp()
-        # logits = logit_scale * image_features @ text_features.t()
-
-        # return logits
-
         output = image_features @ text_features.T
         return output * self._scaler - self._bias
 
