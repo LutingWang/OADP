@@ -33,10 +33,11 @@ class Convert:
         return image.convert("RGB")
 
 
-def odps_init():
+def odps_init(kwargs: todd.base.Config) -> None:
     logger = todd.base.get_logger()
     logger.debug("ODPS initializing.")
-    os.environ['LOCAL_RANK'] = '0'
+    kwargs.setdefault('LOCAL_RANK', '0')
+    os.environ.update(kwargs)
     if not os.path.lexists('data'):
         os.symlink('/data/oss_bucket_0', 'data')
     if not os.path.lexists('pretrained'):
@@ -50,9 +51,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Train')
     parser.add_argument('config', type=pathlib.Path)
     parser.add_argument('job_name', type=pathlib.Path)
-    parser.add_argument('--odps', action='store_true')
-    parser.add_argument('--debug', action='store_true')
-    parser.add_argument('--cfg-options', nargs='?', action=todd.base.DictAction)
+    parser.add_argument('--odps', action=todd.base.DictAction)
+    parser.add_argument('--cfg-options', action=todd.base.DictAction)
     args = parser.parse_args()
     return args
 
@@ -61,9 +61,9 @@ def main():
     args = parse_args()
     cfg = todd.base.Config.load(args.config)
     work_dir: pathlib.Path = 'work_dirs' / args.job_name
-    if args.odps:
-        odps_init()
-    debug.init(debug=args.debug, config=cfg)
+    if args.odps is not None:
+        odps_init(args.odps)
+    debug.init(config=cfg)
     if args.cfg_options is not None:
         for k, v in args.cfg_options.items():
             todd.base.setattr_recur(cfg, k, v)
@@ -77,8 +77,9 @@ def main():
     if todd.base.get_rank() == 0:
         timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
         log_file = work_dir / f'{timestamp}.log'
-        todd.base._extensions.logging.init_log_file(log_file)  # TODO: fix this in the next version of todd
+        todd.base.init_log_file(log_file)
     logger = todd.base.get_logger()
+    logger.info(f"Version: {todd.base.git_commit_id()}")
 
     train_pipe = tf.Compose([
         tf.Resize(cfg.image_size, interpolation=tf.InterpolationMode.BICUBIC),

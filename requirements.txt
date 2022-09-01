@@ -1,7 +1,7 @@
 pycocotools
 randaugment
-# todd_ai==0.2.3a6
-http://mvap-data.oss-cn-zhangjiakou.aliyuncs.com/zhax/wangluting/wheels3/todd_ai-0.2.3a6-py3-none-any.whl
+# todd_ai==0.2.3a9
+http://mvap-data.oss-cn-zhangjiakou.aliyuncs.com/zhax/wangluting/wheels3/todd_ai-0.2.3a10-py3-none-any.whl
 ftfy
 regex
 tqdm

@@ -24,7 +24,16 @@ set -e
 JOB_NAME=$1
 CONFIG=$2
 GPUS=$3
-PY_ARGS=${@:4}
+PY_ARGS="${@:4} --odps GIT_COMMIT_ID:\\\'$(git rev-parse --short HEAD)\\\'"
+
+if [[ -z "${DEBUG}" ]]; then
+    if [[ ! -z "$(git status --porcelain)" ]]; then
+        echo "changes detected."
+        exit 1
+    fi
+else
+    PY_ARGS="${PY_ARGS} TRAIN_WITH_VAL_DATASET:\\\'1\\\' LESS_DATA:\\\'1\\\' SMALLER_BATCH_SIZE:\\\'1\\\'"
+fi
 
 PROJECT_NAME=${PROJECT_NAME:-mldec}
 ENTRY_FILE=${ENTRY_FILE:-tools/train.py}
@@ -47,7 +56,7 @@ pai -name pytorch180
     -Dscript=\"file:///tmp/${PROJECT_NAME}.tar.gz\"
     -DentryFile=\"${ENTRY_FILE}\"
     -DworkerCount=${GPUS}
-    -DuserDefinedParameters=\"${CONFIG} ${JOB_NAME} --odps ${PY_ARGS}\"
+    -DuserDefinedParameters=\"${CONFIG} ${JOB_NAME} ${PY_ARGS}\"
     -Dbuckets=\"oss://mvap-data/zhax/wangluting/?role_arn=acs:ram::1367265699002728:role/${ROLEARN}4pai&host=cn-zhangjiakou.oss.aliyuncs.com\";
 "
 # set odps.algo.hybrid.deploy.info=LABEL:V100:OPER_EQUAL;
