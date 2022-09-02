@@ -153,7 +153,7 @@ def main():
             model.cuda(),
             device_ids=[torch.cuda.current_device()],
         )
-        model.load_state_dict(torch.load('pretrained/mldec_prompt.pth'))
+        model.load_state_dict(torch.load('pretrained/mldec_prompt.pth'), strict=False)
 
     criterion = AsymmetricLoss(gamma_neg=4, gamma_pos=0, clip=0.05, disable_torch_grad_focal_loss=True)
     parameters = add_weight_decay(model, cfg.weight_decay)
