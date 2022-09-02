@@ -1,6 +1,7 @@
-from typing import Any, Dict, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 import clip
 import clip.model
@@ -105,6 +106,37 @@ class TextEncoder(todd.base.Module):
         return x
 
 
+class FPN(todd.base.Module):
+
+    def __init__(
+        self,
+        *args,
+        in_channels_list: List[int],
+        out_channels: int,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self._lateral_convs = nn.ModuleList([
+            nn.Conv2d(in_channels, out_channels, 1)
+            for in_channels in in_channels_list
+        ])
+        self._fpn_convs = nn.ModuleList([
+            nn.Conv2d(out_channels, out_channels, 3, padding=1)
+            for _ in in_channels_list
+        ])
+
+    def forward(self, inputs: Sequence[torch.Tensor]) -> Tuple[torch.Tensor]:
+        laterals: List[torch.Tensor] = [
+            conv(input_) for conv, input_ in zip(self._lateral_convs, inputs)
+        ]
+        for top, bottom in zip(laterals[-1:0:-1], laterals[-2::-1]):
+            bottom += F.interpolate(top, size=bottom.shape[2:], mode='nearest')
+        outs = tuple(
+            conv(lateral) for conv, lateral in zip(self._fpn_convs, laterals)
+        )
+        return outs
+
+
 class ImageEncoder(todd.base.Module):
 
     def __init__(
@@ -115,10 +147,18 @@ class ImageEncoder(todd.base.Module):
     ) -> None:
         super().__init__(*args, **kwargs)
         self._model = clip_model.visual
+        self._fpn = FPN(
+            in_channels_list=[64, 256, 512, 1024, 2048],
+            out_channels=256,
+        )
+        self._fpn_out = nn.Linear(256, clip_model.visual.attnpool.c_proj.out_features)
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         x, feats = self._model(image)
-        return x
+        feats: Tuple[torch.Tensor, ...] = self._fpn(feats)
+        feat = sum(f.sum(dim=(2, 3)) for f in feats)
+        feat = self._fpn_out(feat)
+        return feat
 
 
 class CustomCLIP(todd.reproduction.FrozenMixin, todd.base.Module):
@@ -127,6 +167,7 @@ class CustomCLIP(todd.reproduction.FrozenMixin, todd.base.Module):
         *args,
         clip_model: clip.model.CLIP,
         classnames: Sequence[str],
+        frozen_config: todd.base.Config,
         **kwargs,
     ) -> None:
         todd.base.Module.__init__(self, *args, **kwargs)
@@ -142,25 +183,7 @@ class CustomCLIP(todd.reproduction.FrozenMixin, todd.base.Module):
         self._scaler = nn.Parameter(torch.tensor(20.0), requires_grad=True)
         self._bias = nn.Parameter(torch.tensor(4.0), requires_grad=True)
 
-        todd.reproduction.FrozenMixin.__init__(
-            self,
-            no_grad_config=dict(
-                names=[
-                    '._text_encoder.transformer',
-                    '._text_encoder.positional_embedding',
-                    '._text_encoder.ln_final',
-                    '._text_encoder.text_projection',
-                    '._image_encoder._model',
-                ],
-            ),
-            eval_config=dict(
-                names=[
-                    '._text_encoder.transformer',
-                    '._text_encoder.ln_final',
-                    '._image_encoder._model',
-                ],
-            ),
-        )
+        todd.reproduction.FrozenMixin.__init__(self, **frozen_config)
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         image_features = self._image_encoder(image)

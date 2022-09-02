@@ -121,6 +121,30 @@ def main():
     model = coop.CustomCLIP(
         clip_model=clip_model,
         classnames=[cat['name'] for cat in train_loader.dataset.coco.cats.values()],
+        frozen_config=todd.base.Config(
+            no_grad_config=dict(
+                names=[
+                    # '._text_encoder.transformer',
+                    # '._text_encoder.positional_embedding',
+                    # '._text_encoder.ln_final',
+                    # '._text_encoder.text_projection',
+                    # '._image_encoder._model',
+                    '_text_encoder',
+                    '._image_encoder._model',
+                    '_scaler',
+                    '_bias',
+                ],
+            ),
+            eval_config=dict(
+                names=[
+                    # '._text_encoder.transformer',
+                    # '._text_encoder.ln_final',
+                    # '._image_encoder._model',
+                    '_text_encoder',
+                    '._image_encoder._model',
+                ],
+            ),
+        ),
     )
     model.float()
     model.requires_grad_()
@@ -129,6 +153,7 @@ def main():
             model.cuda(),
             device_ids=[torch.cuda.current_device()],
         )
+        model.load_state_dict(torch.load('pretrained/mldec_prompt.pth'))
 
     criterion = AsymmetricLoss(gamma_neg=4, gamma_pos=0, clip=0.05, disable_torch_grad_focal_loss=True)
     parameters = add_weight_decay(model, cfg.weight_decay)
