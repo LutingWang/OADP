@@ -236,8 +236,8 @@ class CustomCLIP(todd.reproduction.FrozenMixin, todd.base.Module):
             outputs.append(output * self._scaler[0, i] - self._bias[0, i])
         return outputs
 
-    def state_dict(self) -> Dict[str, Any]:
-        state_dict = super().state_dict()
+    def state_dict(self, *args, **kwargs) -> Dict[str, Any]:
+        state_dict: Dict[str, Any] = super().state_dict(*args, **kwargs)
         return {
             k: v for k, v in state_dict.items()
             if (
@@ -246,68 +246,3 @@ class CustomCLIP(todd.reproduction.FrozenMixin, todd.base.Module):
                 and not k.startswith('_text_encoder._classnames')
             )
         }
-
-
-# class ImageEncoder(nn.Module):  # TODO: train, requires_grad, init
-#     def __init__(self, model: nn.Module) -> None:
-#         super().__init__()
-#         self._model = model
-#         self._ladder = torchvision.models.resnet18(num_classes=1024)
-#         self._adapts = todd.base.Workflow.build(
-#             'adapts',
-#             adapted=dict(
-#                 type='Conv2d',
-#                 fields=['feats'],
-#                 kernel_size=1,
-#                 parallel=[
-#                     dict(in_channels=64, out_channels=64),
-#                     dict(in_channels=256, out_channels=64),
-#                     dict(in_channels=512, out_channels=128),
-#                     dict(in_channels=1024, out_channels=256),
-#                     dict(in_channels=2048, out_channels=512),
-#                 ],
-#             ),
-#         )
-#         self.register_module('adapts', todd.distillers.BaseDistiller.workflow_to_module(self._adapts))
-
-#     def train(self, mode: bool = True):
-#         super().train(mode)
-#         self._model.eval()
-#         return self
-
-#     def requires_grad_(self, requires_grad: bool = True):
-#         super().requires_grad_(requires_grad)
-#         self._model.requires_grad_(False)
-#         return self
-
-#     def forward(self, image: torch.Tensor) -> torch.Tensor:
-#         _, feats = self._model(image)
-#         feats = self._adapts(dict(feats=feats))['adapted']
-#         x = self._ladder.conv1(image)
-#         x = self._ladder.bn1(x)
-#         x = self._ladder.relu(x)
-#         x = self._ladder.maxpool(x)
-
-#         x = self._ladder.layer1(x + feats[0])
-#         x = self._ladder.layer2(x + feats[1])
-#         x = self._ladder.layer3(x + feats[2])
-#         x = self._ladder.layer4(x + feats[3])
-
-#         x = self._ladder.avgpool(x + feats[4])
-#         x = torch.flatten(x, 1)
-#         x = self._ladder.fc(x)
-
-#         return x
-
-#         # image = image.type(self._ladder.conv1.weight.dtype)
-#         # image = self._ladder.relu1(self._ladder.bn1(self._ladder.conv1(image)))
-#         # image = self._ladder.relu2(self._ladder.bn2(self._ladder.conv2(image)))
-#         # image = self._ladder.relu3(self._ladder.bn3(self._ladder.conv3(image)))
-#         # image = self._ladder.avgpool(image)
-#         # image = self._ladder.layer1(feats[0] + image)
-#         # image = self._ladder.layer2(feats[1] + image)
-#         # image = self._ladder.layer3(feats[2] + image)
-#         # image = self._ladder.layer4(feats[3] + image)
-#         # image = self._ladder.attnpool(feats[4] + image)
-
-#         # return x + image * self._gate

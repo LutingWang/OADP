@@ -162,7 +162,6 @@ def main():
             if not debug.CPU:
                 inputData = inputData.cuda()
                 target = target.cuda()
-            target = target.max(dim=1)[0]
             outputs = model(inputData)  # sigmoid will be done in loss !
             loss = sum(criterion(output, target) for output in outputs)
             model.zero_grad()
@@ -208,7 +207,6 @@ def main():
                     input = input.cuda()
                     target = target.cuda()
                 pred = functools.reduce(torch.max, model(input)).sigmoid()
-                target = target.max(dim=1)[0]
                 preds.append(pred)
                 targets.append(target)
                 if i % cfg.print_freq == 0:

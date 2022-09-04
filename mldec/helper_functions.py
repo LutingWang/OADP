@@ -98,14 +98,9 @@ class CocoDetection(datasets.coco.CocoDetection):
         ann_ids = coco.getAnnIds(imgIds=img_id)
         target = coco.loadAnns(ann_ids)
 
-        output = torch.zeros((3, 80), dtype=torch.long)
+        output = torch.zeros(80, dtype=torch.long)
         for obj in target:
-            if obj['area'] < 32 * 32:
-                output[0][self.cat2cat[obj['category_id']]] = 1
-            elif obj['area'] < 96 * 96:
-                output[1][self.cat2cat[obj['category_id']]] = 1
-            else:
-                output[2][self.cat2cat[obj['category_id']]] = 1
+            output[self.cat2cat[obj['category_id']]] = 1
         target = output
         path = coco.loadImgs(img_id)[0]['file_name']
         img = Image.open(os.path.join(self.root, path)).convert('RGB')
