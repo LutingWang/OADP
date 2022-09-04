@@ -1,4 +1,5 @@
 import argparse
+import functools
 import os
 import sys
 import pathlib
@@ -124,24 +125,14 @@ def main():
         frozen_config=todd.base.Config(
             no_grad_config=dict(
                 names=[
-                    # '._text_encoder.transformer',
-                    # '._text_encoder.positional_embedding',
-                    # '._text_encoder.ln_final',
-                    # '._text_encoder.text_projection',
-                    # '._image_encoder._model',
-                    '_text_encoder',
-                    '._image_encoder._model',
-                    '_scaler',
-                    '_bias',
+                    '._text_encoder._clip_text_encoder',
+                    '._image_encoder._clip_image_encoder',
                 ],
             ),
             eval_config=dict(
                 names=[
-                    # '._text_encoder.transformer',
-                    # '._text_encoder.ln_final',
-                    # '._image_encoder._model',
-                    '_text_encoder',
-                    '._image_encoder._model',
+                    '._text_encoder._clip_text_encoder',
+                    '._image_encoder._clip_image_encoder',
                 ],
             ),
         ),
@@ -153,7 +144,6 @@ def main():
             model.cuda(),
             device_ids=[torch.cuda.current_device()],
         )
-        model.load_state_dict(torch.load('pretrained/mldec_prompt.pth'), strict=False)
 
     criterion = AsymmetricLoss(gamma_neg=4, gamma_pos=0, clip=0.05, disable_torch_grad_focal_loss=True)
     parameters = add_weight_decay(model, cfg.weight_decay)
@@ -173,8 +163,8 @@ def main():
                 inputData = inputData.cuda()
                 target = target.cuda()
             target = target.max(dim=1)[0]
-            output = model(inputData).float()  # sigmoid will be done in loss !
-            loss = criterion(output, target)
+            outputs = model(inputData)  # sigmoid will be done in loss !
+            loss = sum(criterion(output, target) for output in outputs)
             model.zero_grad()
 
             loss.backward()
@@ -190,10 +180,15 @@ def main():
                         f'LR {scheduler.get_last_lr()[0]:.2e} '
                         f'Loss {loss.item():.1f}'
                     )
-                if not debug.CPU:
+                if debug.CPU:
                     logger.debug(
-                        f'Scaler {model.module._scaler.item():.4f} '
-                        f'Bias {model.module._bias.item():.4f}'
+                        f'Scaler {model._scaler.tolist()} '
+                        f'Bias {model._bias.tolist()}'
+                    )
+                else:
+                    logger.debug(
+                        f'Scaler {model.module._scaler.tolist()} '
+                        f'Bias {model.module._bias.tolist()}'
                     )
                 if debug.LESS_DATA: break
 
@@ -212,7 +207,7 @@ def main():
                 if not debug.CPU:
                     input = input.cuda()
                     target = target.cuda()
-                pred = model(input).sigmoid()
+                pred = functools.reduce(torch.max, model(input)).sigmoid()
                 target = target.max(dim=1)[0]
                 preds.append(pred)
                 targets.append(target)

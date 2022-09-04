@@ -11,6 +11,7 @@ import todd
 
 
 class Prompt(todd.base.Module):
+    _pad_embedding: torch.Tensor
 
     def __init__(
         self,
@@ -20,11 +21,13 @@ class Prompt(todd.base.Module):
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
-        prompt_tokens = clip.tokenize([prompt])
+        prompt_tokens = clip.tokenize([prompt])[0, 1:-1]
         with torch.no_grad():
             prompt_embedding: torch.Tensor = embedding(prompt_tokens)
-        prompt_embedding = prompt_embedding[0, 1:-1, :]
+            pad_embedding: torch.Tensor = embedding(prompt_tokens.new_zeros([]))
         self._prompt_embedding = nn.Parameter(prompt_embedding)
+        self.register_buffer('_pad_embedding', pad_embedding, persistent=False)
+
 
     def __len__(self) -> int:
         return self._prompt_embedding.shape[0]
@@ -33,14 +36,21 @@ class Prompt(todd.base.Module):
         self,
         text_embeddings: torch.Tensor,
         text_lengths: torch.Tensor,
+        pad_length: int,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         prompt_embedding = einops.repeat(
             self._prompt_embedding,
             'l d -> n l d',
             n=text_embeddings.shape[0],
         )
+        pad_embedding = einops.repeat(
+            self._pad_embedding,
+            'd -> n l d',
+            n=text_embeddings.shape[0],
+            l=pad_length,
+        )
         text_embeddings = torch.cat(
-            [text_embeddings[:, :1, :], prompt_embedding, text_embeddings[:, 1:, :]],
+            [text_embeddings[:, :1], prompt_embedding, text_embeddings[:, 1:], pad_embedding],
             dim=1,
         )
         text_lengths = text_lengths + len(self)
@@ -66,44 +76,66 @@ class Classnames(todd.base.Module):
         self.register_buffer('classname_embeddings', classname_embeddings, persistent=False)
 
 
+class CLIPTextEncoder(todd.base.Module):
+
+    def __init__(self, clip_model: clip.model.CLIP) -> None:
+        super().__init__()
+        self._transformer = clip_model.transformer
+        self._pe = clip_model.positional_embedding
+        self._ln = clip_model.ln_final
+        self._proj = clip_model.text_projection
+
+    def forward(self, x: torch.Tensor, l: torch.Tensor) -> torch.Tensor:
+        x = x + self._pe[:x.shape[1]]
+        x = einops.rearrange(x, 'n l d -> l n d')
+        x = self._transformer(x)
+        x = einops.rearrange(x, 'l n d -> n l d')
+        x = self._ln(x)
+        x = x[torch.arange(x.shape[0]), l]
+        x = x @ self._proj
+        x = x / x.norm(dim=-1, keepdim=True)
+        return x
+
+
 class TextEncoder(todd.base.Module):
 
     def __init__(
         self,
         *args,
         clip_model: clip.model.CLIP,
-        prompt_kwargs: Dict[str, Any],
-        classnames_kwargs: Dict[str, Any],
+        prompt_kwargs: Sequence[todd.base.Config],
+        classnames_kwargs: todd.base.Config,
         **kwargs
     ) -> None:
         super().__init__(*args, **kwargs)
-        self._prompt = Prompt(
-            embedding=clip_model.token_embedding,
-            **prompt_kwargs,
+        self._clip_text_encoder = CLIPTextEncoder(clip_model)
+        self._prompts = todd.base.ModuleList(
+            Prompt(
+                embedding=clip_model.token_embedding,
+                **kwargs,
+            ) for kwargs in prompt_kwargs
         )
         self._classnames = Classnames(
             embedding=clip_model.token_embedding,
             **classnames_kwargs,
         )
 
-        self.transformer = clip_model.transformer
-        self.positional_embedding = clip_model.positional_embedding
-        self.ln_final = clip_model.ln_final
-        self.text_projection = clip_model.text_projection
+        self._max_prompt_length = len(max(self._prompts, key=len))
 
+    def __len__(self) -> int:
+        return len(self._prompts)
 
-    def forward(self) -> torch.Tensor:
-        x: torch.Tensor = self._classnames.classname_embeddings
-        l = self._classnames.classname_lengths
-        x, l = self._prompt(x, l)
-        x = x + self.positional_embedding[:x.shape[1]]
-        x = einops.rearrange(x, 'n l d -> l n d')
-        x = self.transformer(x)
-        x = einops.rearrange(x, 'l n d -> n l d')
-        x = self.ln_final(x)
-        x = x[torch.arange(x.shape[0]), l]
-        x = x @ self.text_projection
-        return x
+    def forward(self) -> List[torch.Tensor]:
+        embeddings = []
+        for prompt in self._prompts:
+            x, l = prompt(
+                self._classnames.classname_embeddings,
+                self._classnames.classname_lengths,
+                pad_length=self._max_prompt_length - len(prompt),
+            )
+            x = self._clip_text_encoder.forward(x, l)
+            embeddings.append(x)
+        return embeddings
 
 
 class FPN(todd.base.Module):
@@ -146,22 +178,25 @@ class ImageEncoder(todd.base.Module):
         **kwargs
     ) -> None:
         super().__init__(*args, **kwargs)
-        self._model = clip_model.visual
-        self._fpn = FPN(
-            in_channels_list=[64, 256, 512, 1024, 2048],
-            out_channels=256,
-        )
-        self._fpn_out = nn.Linear(256, clip_model.visual.attnpool.c_proj.out_features)
+        self._clip_image_encoder = clip_model.visual
+        # self._fpn = FPN(
+        #     in_channels_list=[64, 256, 512, 1024, 2048],
+        #     out_channels=256,
+        # )
+        # self._fpn_out = nn.Linear(256, clip_model.visual.attnpool.c_proj.out_features)
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
-        x, feats = self._model(image)
-        feats: Tuple[torch.Tensor, ...] = self._fpn(feats)
-        feat = sum(f.sum(dim=(2, 3)) for f in feats)
-        feat = self._fpn_out(feat)
-        return feat
+        image, feats = self._clip_image_encoder(image)
+        # feats: Tuple[torch.Tensor, ...] = self._fpn(feats)
+        # feat = sum(f.sum(dim=(2, 3)) for f in feats)
+        # feat = self._fpn_out(feat)
+        # return feat
+        image = image / image.norm(dim=-1, keepdim=True)
+        return image
 
 
 class CustomCLIP(todd.reproduction.FrozenMixin, todd.base.Module):
+
     def __init__(
         self,
         *args,
@@ -177,22 +212,30 @@ class CustomCLIP(todd.reproduction.FrozenMixin, todd.base.Module):
         )
         self._text_encoder = TextEncoder(
             clip_model=clip_model,
-            prompt_kwargs=dict(prompt='a X photo of a X'),
+            prompt_kwargs=[
+                dict(prompt='a photo of a'),
+                dict(prompt='there is a'),
+            ],
             classnames_kwargs=dict(classnames=classnames),
         )
-        self._scaler = nn.Parameter(torch.tensor(20.0), requires_grad=True)
-        self._bias = nn.Parameter(torch.tensor(4.0), requires_grad=True)
+
+        self._scaler = nn.Parameter(torch.full(self.shape, 20.0), requires_grad=True)
+        self._bias = nn.Parameter(torch.full(self.shape, 4.0), requires_grad=True)
 
         todd.reproduction.FrozenMixin.__init__(self, **frozen_config)
 
-    def forward(self, image: torch.Tensor) -> torch.Tensor:
-        image_features = self._image_encoder(image)
-        text_features = self._text_encoder()
+    @property
+    def shape(self) -> torch.Size:
+        return torch.Size([1, len(self._text_encoder)])
 
-        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-        output = image_features @ text_features.T
-        return output * self._scaler - self._bias
+    def forward(self, image: torch.Tensor) -> List[torch.Tensor]:
+        image_feature = self._image_encoder(image)
+        text_features = self._text_encoder()
+        outputs = []
+        for i, text_feature in enumerate(text_features):
+            output = image_feature @ text_feature.T
+            outputs.append(output * self._scaler[0, i] - self._bias[0, i])
+        return outputs
 
 
 # class ImageEncoder(nn.Module):  # TODO: train, requires_grad, init
