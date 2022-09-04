@@ -161,6 +161,7 @@ class ModifiedResNet(nn.Module):
         x4 = self.layer4(x3)
         x = self.attnpool(x4)
 
+        # return x
         return x, [x0, x1, x2, x3, x4]
 
 

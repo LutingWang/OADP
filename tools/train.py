@@ -83,8 +83,8 @@ def main():
     logger.info(f"Version: {todd.base.git_commit_id()}")
 
     train_pipe = tf.Compose([
-        tf.Resize(cfg.image_size, interpolation=tf.InterpolationMode.BICUBIC),
-        tf.CenterCrop(cfg.image_size),
+        tf.Resize((cfg.image_size, cfg.image_size), interpolation=tf.InterpolationMode.BICUBIC),
+        # tf.CenterCrop(cfg.image_size),
         CutoutPIL(cutout_factor=0.5),
         RandAugment(),
         Convert(),
@@ -102,8 +102,8 @@ def main():
         )
 
     val_pipe = tf.Compose([
-        tf.Resize(cfg.image_size, interpolation=tf.InterpolationMode.BICUBIC),
-        tf.CenterCrop(cfg.image_size),
+        tf.Resize((cfg.image_size, cfg.image_size), interpolation=tf.InterpolationMode.BICUBIC),
+        # tf.CenterCrop(cfg.image_size),
         Convert(),
         tf.ToTensor(),
         tf.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),

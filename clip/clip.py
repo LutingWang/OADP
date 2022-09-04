@@ -199,6 +199,7 @@ def tokenize(texts: List[str]) -> torch.IntTensor:
     sot_token = _tokenizer.encoder["<|startoftext|>"]
     eot_token = _tokenizer.encoder["<|endoftext|>"]
     all_tokens = [[sot_token] + _tokenizer.encode(text) + [eot_token] for text in texts]
+    # result = torch.zeros(len(all_tokens), 77, dtype=torch.int)
     result = torch.zeros(len(all_tokens), len(max(all_tokens, key=len)), dtype=torch.int)
 
     for i, tokens in enumerate(all_tokens):

@@ -28,7 +28,6 @@ class Prompt(todd.base.Module):
         self._prompt_embedding = nn.Parameter(prompt_embedding)
         self.register_buffer('_pad_embedding', pad_embedding, persistent=False)
 
-
     def __len__(self) -> int:
         return self._prompt_embedding.shape[0]
 
@@ -236,6 +235,17 @@ class CustomCLIP(todd.reproduction.FrozenMixin, todd.base.Module):
             output = image_feature @ text_feature.T
             outputs.append(output * self._scaler[0, i] - self._bias[0, i])
         return outputs
+
+    def state_dict(self) -> Dict[str, Any]:
+        state_dict = super().state_dict()
+        return {
+            k: v for k, v in state_dict.items()
+            if (
+                not k.startswith('_image_encoder._clip_image_encoder')
+                and not k.startswith('_text_encoder._clip_text_encoder')
+                and not k.startswith('_text_encoder._classnames')
+            )
+        }
 
 
 # class ImageEncoder(nn.Module):  # TODO: train, requires_grad, init
