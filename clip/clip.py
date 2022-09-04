@@ -194,13 +194,12 @@ def load(name: str, device: Union[str, torch.device] = "cuda" if torch.cuda.is_a
     return model, _transform(model.input_resolution.item())
 
 
-def tokenize(texts: List[str]) -> torch.IntTensor:
+def tokenize(texts: List[str], length: int = None) -> torch.IntTensor:
     assert isinstance(texts, list)
     sot_token = _tokenizer.encoder["<|startoftext|>"]
     eot_token = _tokenizer.encoder["<|endoftext|>"]
     all_tokens = [[sot_token] + _tokenizer.encode(text) + [eot_token] for text in texts]
-    # result = torch.zeros(len(all_tokens), 77, dtype=torch.int)
-    result = torch.zeros(len(all_tokens), len(max(all_tokens, key=len)), dtype=torch.int)
+    result = torch.zeros(len(all_tokens), length or len(max(all_tokens, key=len)), dtype=torch.int)
 
     for i, tokens in enumerate(all_tokens):
         result[i, :len(tokens)] = torch.tensor(tokens)

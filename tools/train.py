@@ -22,7 +22,7 @@ import todd
 sys.path.insert(0, '')
 import clip
 import clip.model
-from mldec.helper_functions import mAP, CocoDetection, CutoutPIL, add_weight_decay
+from mldec.helper_functions import mAP, CocoDetection, CutoutPIL
 from mldec.losses import AsymmetricLoss
 from mldec.debug import debug
 import mldec.coop as coop
@@ -146,8 +146,7 @@ def main():
         )
 
     criterion = AsymmetricLoss(gamma_neg=4, gamma_pos=0, clip=0.05, disable_torch_grad_focal_loss=True)
-    parameters = add_weight_decay(model, cfg.weight_decay)
-    optimizer = torch.optim.Adam(params=parameters, lr=cfg.lr, weight_decay=0)  # true wd, filter_bias_and_bn
+    optimizer = torch.optim.Adam(params=model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer, max_lr=cfg.lr, steps_per_epoch=len(train_loader), epochs=cfg.epoch, pct_start=0.2,
     )

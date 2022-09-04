@@ -1,12 +1,10 @@
-import os
 import random
+from typing import Any, Tuple
 
 import numpy as np
-from PIL import Image
 from torchvision import datasets as datasets
 import torch
 from PIL import ImageDraw
-from pycocotools.coco import COCO
 
 
 def average_precision(output, target):
@@ -80,37 +78,19 @@ class AverageMeter(object):
 
 
 class CocoDetection(datasets.coco.CocoDetection):
-    def __init__(self, root, annFile, transform=None, target_transform=None):
-        self.root = root
-        self.coco = COCO(annFile)
-
-        self.ids = list(self.coco.imgs.keys())
-        self.transform = transform
-        self.target_transform = target_transform
-        self.cat2cat = dict()
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._cat2label = dict()
         for cat in self.coco.cats.keys():
-            self.cat2cat[cat] = len(self.cat2cat)
-        # print(self.cat2cat)
+            self._cat2label[cat] = len(self._cat2label)
 
-    def __getitem__(self, index):
-        coco = self.coco
-        img_id = self.ids[index]
-        ann_ids = coco.getAnnIds(imgIds=img_id)
-        target = coco.loadAnns(ann_ids)
-
-        output = torch.zeros(80, dtype=torch.long)
-        for obj in target:
-            output[self.cat2cat[obj['category_id']]] = 1
-        target = output
-        path = coco.loadImgs(img_id)[0]['file_name']
-        img = Image.open(os.path.join(self.root, path)).convert('RGB')
-        if self.transform is not None:
-            img = self.transform(img)
-
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-        return img, target
-
+    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        image, annos = super().__getitem__(index)
+        image_labels = torch.zeros(80, dtype=torch.long)
+        bboxes = torch.tensor([anno['bbox'] for anno in annos])
+        bbox_labels = torch.tensor([self._cat2label[anno['category_id']] for anno in annos])
+        image_labels[bbox_labels] = 1
+        return image, image_labels
 
 
 class CutoutPIL(object):
@@ -133,18 +113,3 @@ class CutoutPIL(object):
         img_draw.rectangle([x1, y1, x2, y2], fill=fill_color)
 
         return x
-
-
-def add_weight_decay(model, weight_decay=1e-4, skip_list=()):
-    decay = []
-    no_decay = []
-    for name, param in model.named_parameters():
-        if not param.requires_grad:
-            continue  # frozen weights
-        if len(param.shape) == 1 or name.endswith(".bias") or name in skip_list:
-            no_decay.append(param)
-        else:
-            decay.append(param)
-    return [
-        {'params': no_decay, 'weight_decay': 0.},
-        {'params': decay, 'weight_decay': weight_decay}]
