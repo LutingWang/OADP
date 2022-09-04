@@ -88,7 +88,7 @@ class CocoDetection(datasets.coco.CocoDetection):
         image, annos = super().__getitem__(index)
         image_labels = torch.zeros(80, dtype=torch.long)
         bboxes = torch.tensor([anno['bbox'] for anno in annos])
-        bbox_labels = torch.tensor([self._cat2label[anno['category_id']] for anno in annos])
+        bbox_labels = torch.tensor([self._cat2label[anno['category_id']] for anno in annos], dtype=torch.long)
         image_labels[bbox_labels] = 1
         return image, image_labels
 

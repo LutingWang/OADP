@@ -22,12 +22,6 @@ from mldec.helper_functions import mAP, CocoDetection
 from mldec.debug import debug
 
 
-class Convert:
-
-    def __call__(self, image: Image.Image) -> Image.Image:
-        return image.convert("RGB")
-
-
 def odps_init(kwargs: todd.base.Config) -> None:
     logger = todd.base.get_logger()
     logger.debug("ODPS initializing.")
@@ -68,10 +62,7 @@ def main():
     model, transform = clip.load('pretrained/clip/RN50.pt', 'cpu')
     model.requires_grad_(False)
     if not debug.CPU:
-        model = torch.nn.parallel.DistributedDataParallel(
-            model.cuda(),
-            device_ids=[torch.cuda.current_device()],
-        )
+        model = model.cuda()
 
     val_dataset = CocoDetection(transform=transform, **cfg.val)
     val_sampler = (
@@ -86,7 +77,10 @@ def main():
     preds = []
     targets = []
     classnames = [f'a photo of a {cat["name"]}' for cat in val_dataset.coco.cats.values()]
-    text_features = model.encode_text(clip.tokenize(classnames, 77))
+    tokens = clip.tokenize(classnames, 77)
+    if not debug.CPU:
+        tokens = tokens.cuda()
+    text_features = model.encode_text(tokens)
     text_features = text_features / text_features.norm(dim=1, keepdim=True)
     for i, (input, target) in enumerate(val_loader):
         if not debug.CPU:
