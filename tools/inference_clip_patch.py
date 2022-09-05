@@ -45,6 +45,8 @@ class Transform:
         return result
 
     def __call__(self, image: Image.Image) -> List[torch.Tensor]:
+        if image.width < self._patch_size or image.height < self._patch_size:
+            return [self._transform(image)]
         patches = []
         for x in self._cut(image.width):
             for y in self._cut(image.height):
@@ -131,7 +133,7 @@ def main():
         targets.append(target)
         if i % cfg.print_freq == 0:
             print(f'Val Step [{i}/{len(val_loader)}]')
-            if debug.LESS_DATA: break
+            if debug.LESS_DATA and i: break
     if not debug.CPU:
         preds_ = torch.cat(preds)
         targets_ = torch.cat(targets)

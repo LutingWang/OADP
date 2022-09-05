@@ -92,7 +92,7 @@ def main():
         targets.append(target)
         if i % cfg.print_freq == 0:
             print(f'Val Step [{i}/{len(val_loader)}]')
-            if debug.LESS_DATA: break
+            if debug.LESS_DATA and i: break
     if not debug.CPU:
         preds_ = torch.cat(preds)
         targets_ = torch.cat(targets)
