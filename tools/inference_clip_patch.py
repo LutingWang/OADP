@@ -26,10 +26,11 @@ from mldec.debug import debug
 
 class Transform:
 
-    def __init__(self, transform: tf.Compose, max_stride: int = 122) -> None:
+    def __init__(self, transform: tf.Compose) -> None:
         self._transform = transform
-        self._max_stride = max_stride
+        self._max_stride = 224
         self._patch_size = 224
+        self._rescale = 1.5
 
     def _cut(self, length: int) -> List[int]:
         assert length >= self._patch_size
@@ -45,13 +46,13 @@ class Transform:
         return result
 
     def __call__(self, image: Image.Image) -> List[torch.Tensor]:
-        if image.width < self._patch_size or image.height < self._patch_size:
-            return [self._transform(image)]
-        patches = []
-        for x in self._cut(image.width):
-            for y in self._cut(image.height):
-                patch = image.crop((x, y, x + self._patch_size, y + self._patch_size))
-                patches.append(self._transform(patch))
+        patches = [self._transform(image)]
+        while image.width >= self._patch_size and image.height >= self._patch_size:
+            for x in self._cut(image.width):
+                for y in self._cut(image.height):
+                    patch = image.crop((x, y, x + self._patch_size, y + self._patch_size))
+                    patches.append(self._transform(patch))
+            image = image.resize((int(image.width / self._rescale), int(image.height / self._rescale)))
         return patches
 
     @staticmethod
@@ -116,7 +117,7 @@ def main():
 
     preds = []
     targets = []
-    classnames = [f'a photo of a {cat["name"]}' for cat in val_dataset.coco.cats.values()]
+    classnames = [f'a photo containing a {cat["name"]}' for cat in val_dataset.coco.cats.values()]
     tokens = clip.tokenize(classnames, 77)
     if not debug.CPU:
         tokens = tokens.cuda()
