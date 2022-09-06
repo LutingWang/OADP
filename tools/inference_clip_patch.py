@@ -92,7 +92,7 @@ def main():
         image_features = image_features / image_features.norm(dim=1, keepdim=True)
         pred = image_features @ text_features.t()
         preds.extend(p.max(0, keepdim=True).values for p in pred.split(num_patches.tolist()))
-        targets.append(target)
+        targets.extend(t[[0]] for t in target.split(num_patches.tolist()))
         if i % cfg.log_interval == 0:
             print(f'Val Step [{i}/{len(val_loader)}]')
             if debug.LESS_DATA and i: break

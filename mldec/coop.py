@@ -92,7 +92,6 @@ class CLIPTextEncoder(todd.base.Module):
         x = self._ln(x)
         x = x[torch.arange(x.shape[0]), l]
         x = x @ self._proj
-        x = x / x.norm(dim=-1, keepdim=True)
         return x
 
 
@@ -133,6 +132,7 @@ class TextEncoder(todd.base.Module):
                 pad_length=self._max_prompt_length - len(prompt),
             )
             x = self._clip_text_encoder.forward(x, l)
+            x = x / x.norm(dim=-1, keepdim=True)
             embeddings.append(x)
         return embeddings
 
