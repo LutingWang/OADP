@@ -17,4 +17,4 @@ lr = 1e-2
 weight_decay = 1e-4
 
 thr = 0.75
-print_freq = 8
+log_interval = 8

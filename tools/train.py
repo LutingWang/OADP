@@ -98,7 +98,7 @@ def main():
     )
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=cfg.batch_size, sampler=train_sampler,
-        num_workers=cfg.workers,
+        num_workers=cfg.workers, collate_fn=train_dataset.collate,
         )
 
     val_pipe = tf.Compose([
@@ -115,7 +115,7 @@ def main():
     )
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=cfg.batch_size, sampler=val_sampler,
-        num_workers=cfg.workers,
+        num_workers=cfg.workers, collate_fn=val_dataset.collate,
         )
 
     clip_model, _ = clip.load('pretrained/clip/RN50.pt', 'cpu')
@@ -157,7 +157,7 @@ def main():
             torch.distributed.barrier()
             train_sampler.set_epoch(epoch)
         model.train()
-        for i, (inputData, target) in enumerate(train_loader):
+        for i, (inputData, target, num_patches) in enumerate(train_loader):
             if not debug.CPU:
                 inputData = inputData.cuda()
                 target = target.cuda()
@@ -171,7 +171,7 @@ def main():
 
             scheduler.step()
 
-            if i % cfg.print_freq == 0:
+            if i % cfg.log_interval == 0:
                 logger.info(
                         f'Epoch [{epoch}/{cfg.epoch}] '
                         f'Train Step [{i}/{len(train_loader)}] '
@@ -188,7 +188,7 @@ def main():
                         f'Scaler {model.module._scaler.tolist()} '
                         f'Bias {model.module._bias.tolist()}'
                     )
-                if debug.LESS_DATA: break
+                if debug.LESS_DATA and i: break
 
         if todd.base.get_rank() == 0:
             todd.base.save_checkpoint(
@@ -201,19 +201,20 @@ def main():
         preds = []
         targets = []
         with torch.no_grad():
-            for i, (input, target) in enumerate(val_loader):
+            for i, (input, target, num_patches) in enumerate(val_loader):
                 if not debug.CPU:
                     input = input.cuda()
                     target = target.cuda()
-                pred = functools.reduce(torch.max, model(input)).sigmoid()
-                preds.append(pred)
-                targets.append(target)
-                if i % cfg.print_freq == 0:
+                pred = model(input)
+                pred_ = functools.reduce(torch.max, pred)
+                preds.extend(p.max(0, keepdim=True).values for p in pred_.split(num_patches.tolist()))
+                targets.extend(t[[0]] for t in target.split(num_patches.tolist()))
+                if i % cfg.log_interval == 0:
                     logger.info(
                         f'Epoch [{epoch}/{cfg.epoch}] '
                         f'Val Step [{i}/{len(val_loader)}]'
                     )
-                    if debug.LESS_DATA: break
+                    if debug.LESS_DATA and i: break
         if not debug.CPU:
             preds_ = torch.cat(preds)
             targets_ = torch.cat(targets)

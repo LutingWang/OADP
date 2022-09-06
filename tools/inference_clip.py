@@ -90,7 +90,7 @@ def main():
         image_features = image_features / image_features.norm(dim=1, keepdim=True)
         preds.append(image_features @ text_features.t())
         targets.append(target)
-        if i % cfg.print_freq == 0:
+        if i % cfg.log_interval == 0:
             print(f'Val Step [{i}/{len(val_loader)}]')
             if debug.LESS_DATA and i: break
     if not debug.CPU:

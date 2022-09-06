@@ -31,7 +31,7 @@ class AsymmetricLoss(nn.Module):
 
         # Basic CE calculation
         los_pos = y * torch.log(xs_pos.clamp(min=self.eps))
-        los_neg = (1 - y) * torch.log(xs_neg.clamp(min=self.eps))
+        los_neg = ~y * torch.log(xs_neg.clamp(min=self.eps))
         loss = los_pos + los_neg
 
         # Asymmetric Focusing
@@ -39,9 +39,9 @@ class AsymmetricLoss(nn.Module):
             if self.disable_torch_grad_focal_loss:
                 torch.set_grad_enabled(False)
             pt0 = xs_pos * y
-            pt1 = xs_neg * (1 - y)  # pt = p if t > 0 else 1-p
+            pt1 = xs_neg * ~y  # pt = p if t > 0 else 1-p
             pt = pt0 + pt1
-            one_sided_gamma = self.gamma_pos * y + self.gamma_neg * (1 - y)
+            one_sided_gamma = self.gamma_pos * y + self.gamma_neg * ~y
             one_sided_w = torch.pow(1 - pt, one_sided_gamma)
             if self.disable_torch_grad_focal_loss:
                 torch.set_grad_enabled(True)

@@ -213,7 +213,6 @@ class CustomCLIP(todd.reproduction.FrozenMixin, todd.base.Module):
             clip_model=clip_model,
             prompt_kwargs=[
                 dict(prompt='a photo of a'),
-                dict(prompt='there is a'),
             ],
             classnames_kwargs=dict(classnames=classnames),
         )

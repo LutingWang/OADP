@@ -1,10 +1,14 @@
 import random
-from typing import Any, Tuple
+from typing import Any, List, Tuple
 
 import numpy as np
 from torchvision import datasets as datasets
 import torch
+import torch.utils.data
+import torch.utils.data.dataloader
 from PIL import ImageDraw
+
+import todd
 
 
 def average_precision(output, target):
@@ -80,17 +84,68 @@ class AverageMeter(object):
 class CocoDetection(datasets.coco.CocoDetection):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self._max_stride = 224
+        self._patch_size = 224
+        self._rescale = 1.5
+
         self._cat2label = dict()
         for cat in self.coco.cats.keys():
             self._cat2label[cat] = len(self._cat2label)
 
+    def _cut(self, length: int) -> List[int]:
+        assert length >= self._patch_size
+        if length == self._patch_size:
+            return [0]
+        n = (length - self._patch_size - 1) // self._max_stride + 1
+        stride = (length - self._patch_size) // n
+        mod = (length - self._patch_size) % n
+
+        result = [0]
+        for i in range(n):
+            result.append(result[-1] + stride + (i < mod))
+        return result
+
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
-        image, annos = super().__getitem__(index)
-        image_labels = torch.zeros(80, dtype=torch.long)
-        bboxes = torch.tensor([anno['bbox'] for anno in annos])
-        bbox_labels = torch.tensor([self._cat2label[anno['category_id']] for anno in annos], dtype=torch.long)
-        image_labels[bbox_labels] = 1
-        return image, image_labels
+        id = self.ids[index]
+        image = self._load_image(id)
+        target = self._load_target(id)
+
+        empty = len(target) == 0
+        if empty:
+            target = [dict(bbox=[0, 0, 0, 0], category_id=1)]
+
+        bboxes = torch.tensor([anno['bbox'] for anno in target])
+        bbox_labels = torch.tensor([self._cat2label[anno['category_id']] for anno in target], dtype=torch.long)
+
+        patches = [self.transforms.transform(image)]
+        patch_labels = [bbox_labels]
+        while image.width >= self._patch_size and image.height >= self._patch_size:
+            bboxes_xywh = todd.base.BBoxesXYWH(bboxes)
+            for x in self._cut(image.width):
+                for y in self._cut(image.height):
+                    patch = image.crop((x, y, x + self._patch_size, y + self._patch_size))
+                    patches.append(self.transforms.transform(patch))
+                    patch_bbox_xywh = todd.base.BBoxesXYWH(torch.tensor([[x, y, self._patch_size, self._patch_size]]))
+                    patch_labels.append(bbox_labels[bboxes_xywh.intersections(patch_bbox_xywh).squeeze(-1) > 0])
+            rescaled_size = (int(image.width / self._rescale), int(image.height / self._rescale))
+            image = image.resize(rescaled_size)
+            bboxes = bboxes / self._rescale
+
+        for i, label in enumerate(patch_labels):
+            label_ = torch.zeros(80, dtype=torch.bool)
+            if not empty:
+                label_[label] = 1
+            patch_labels[i] = label_
+
+        return patches, patch_labels
+
+    @staticmethod
+    def collate(batch: List[Tuple[List[torch.Tensor], List[torch.Tensor]]]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        patches, patch_labels = zip(*batch)
+        num_patches = list(map(len, patches))
+        patches = sum(patches, [])
+        patch_labels = sum(patch_labels, [])
+        return tuple(map(torch.utils.data.dataloader.default_collate, (patches, patch_labels, num_patches)))
 
 
 class CutoutPIL(object):
