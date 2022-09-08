@@ -5,6 +5,7 @@ import sys
 import pathlib
 from typing import List, Tuple
 
+import sklearn.metrics
 import torch
 import torch.distributed
 import torch.nn
@@ -20,7 +21,7 @@ import todd
 sys.path.insert(0, '')
 import clip
 import clip.model
-from mldec.helper_functions import mAP, CocoDetection
+from mldec.datasets import CocoDetection
 from mldec.debug import debug
 
 
@@ -107,7 +108,7 @@ def main():
     if todd.base.get_rank() == 0:
         preds_ = torch.cat(preds)
         targets_ = torch.cat(targets)
-        mAP_score = mAP(targets_.cpu().numpy(), preds_.cpu().numpy())
+        mAP_score = sklearn.metrics.average_precision_score(targets_.cpu().numpy(), preds_.cpu().numpy())
         print(f'mAP = {mAP_score:.2f}')
 
 

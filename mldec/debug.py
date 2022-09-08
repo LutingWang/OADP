@@ -15,9 +15,9 @@ class Debug(todd.base.BaseDebug):
     def init(self, *, config: todd.base.Config, **kwargs) -> None:
         super().init(**kwargs)
         if self.TRAIN_WITH_VAL_DATASET:
-            config.train = config.val
+            config.train.dataset = config.val.dataset
         if self.SMALLER_BATCH_SIZE:
-            config.batch_size = 2
+            config.train.batch_size = config.val.batch_size = 2
 
 
 debug = Debug()

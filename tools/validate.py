@@ -11,7 +11,7 @@ import clip.model
 
 import todd
 
-from mldec.helper_functions import mAP, CocoDetection, AverageMeter
+from mldec.datasets import mAP, CocoDetection, AverageMeter
 
 parser = argparse.ArgumentParser(description='PyTorch MS_COCO validation')
 parser.add_argument('--data', type=str, default='data/coco')

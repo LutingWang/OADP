@@ -3,6 +3,7 @@ import functools
 import os
 import sys
 import pathlib
+from typing import List, Tuple
 
 import torch
 import torch.distributed
@@ -11,6 +12,7 @@ import torch.nn.parallel
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
+import torchvision.transforms as tf
 from PIL import Image
 
 import todd
@@ -19,6 +21,7 @@ sys.path.insert(0, '')
 import clip
 import clip.model
 from mldec.datasets import mAP, CocoDetection
+import mldec.coop
 from mldec.debug import debug
 
 
@@ -60,9 +63,6 @@ def main():
         torch.cuda.set_device(todd.base.get_local_rank())
 
     model, transform = clip.load('pretrained/clip/RN50.pt', 'cpu')
-    model.requires_grad_(False)
-    if not debug.CPU:
-        model = model.cuda()
 
     val_dataset = CocoDetection(transform=transform, **cfg.val)
     val_sampler = (
@@ -71,41 +71,58 @@ def main():
     )
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=cfg.batch_size, sampler=val_sampler,
-        num_workers=cfg.workers,
+        num_workers=cfg.workers, collate_fn=val_dataset.collate,
         )
+
+    classnames = [cat['name'] for cat in val_dataset.coco.cats.values()]
+    model = mldec.coop.CustomCLIP(clip_model=model, classnames=classnames, frozen_config=todd.base.Config())
+    model.requires_grad_(False)
+    if not debug.CPU:
+        model = model.cuda()
+    state_dict = torch.load('pretrained/mldec_prompt.pth.bak')
+    model.load_state_dict(state_dict, strict=False)
 
     preds = []
     targets = []
-    classnames = [f'a photo of a {cat["name"]}' for cat in val_dataset.coco.cats.values()]
-    tokens = clip.tokenize(classnames, 77)
-    if not debug.CPU:
-        tokens = tokens.cuda()
-    text_features = model.encode_text(tokens)
-    text_features = text_features / text_features.norm(dim=1, keepdim=True)
-    for i, (input, target) in enumerate(val_loader):
+    ids = []
+    for i, (input, target, num_patches, ids_) in enumerate(val_loader):
         if not debug.CPU:
             input = input.cuda()
             target = target.cuda()
-        image_features, _ = model.encode_image(input)
-        image_features = image_features / image_features.norm(dim=1, keepdim=True)
-        preds.append(image_features @ text_features.t())
-        targets.append(target)
+            ids_ = ids_.cuda()
+        pred = model(input)
+        preds.extend(p.max(0, keepdim=True).values for p in pred[0].split(num_patches.tolist()))
+        targets.extend(t[[0]] for t in target.split(num_patches.tolist()))
+        ids.append(ids_)
         if i % cfg.log_interval == 0:
             print(f'Val Step [{i}/{len(val_loader)}]')
             if debug.LESS_DATA and i: break
     if not debug.CPU:
         preds_ = torch.cat(preds)
         targets_ = torch.cat(targets)
+        ids_ = torch.cat(ids)
         preds = [torch.zeros_like(preds_) for _ in range(todd.base.get_world_size())]
         targets = [torch.zeros_like(targets_) for _ in range(todd.base.get_world_size())]
+        ids = [torch.zeros_like(ids_) for _ in range(todd.base.get_world_size())]
         torch.distributed.all_gather(preds, preds_)
         torch.distributed.all_gather(targets, targets_)
+        torch.distributed.all_gather(ids, ids_)
 
     if todd.base.get_rank() == 0:
-        preds_ = torch.cat(preds)
-        targets_ = torch.cat(targets)
-        mAP_score = mAP(targets_.cpu().numpy(), preds_.cpu().numpy())
-        print(f'mAP = {mAP_score:.2f}')
+        preds_ = torch.cat(preds).argsort(descending=True)
+        targets_ = torch.cat(targets).gather(-1, preds_)
+        ids_ = torch.cat(ids)
+        with open('index.html', 'w') as f:
+            for i in range(preds_.shape[0]):
+                f.write(f'data/coco/val2017/{ids_[i]:012d}.jpg\n<br/>\n')
+                for j in range(preds_.shape[1]):
+                    if targets_[i][j]:
+                        f.write('<div style="color:red;display:inline-block">')
+                    f.write(classnames[preds_[i][j]])
+                    if targets_[i][j]:
+                        f.write('</div>\n')
+                    f.write(',\n')
+                f.write(f'<img src="data/coco/val2017/{ids_[i]:012d}.jpg">\n<br/>\n')
 
 
 if __name__ == '__main__':

@@ -4,7 +4,9 @@ import os
 import sys
 import pathlib
 import time
+from typing import Generator, Optional, Tuple, Union
 
+import sklearn.metrics
 import torch
 import torch.distributed
 import torch.nn
@@ -15,23 +17,16 @@ import torch.utils.data.distributed
 import torch.optim.lr_scheduler
 from randaugment import RandAugment
 import torchvision.transforms as tf
-from PIL import Image
 
 import todd
 
 sys.path.insert(0, '')
 import clip
 import clip.model
-from mldec.helper_functions import mAP, CocoDetection, CutoutPIL
+import mldec.datasets
 from mldec.losses import AsymmetricLoss
 from mldec.debug import debug
-import mldec.coop as coop
-
-
-class Convert:
-
-    def __call__(self, image: Image.Image) -> Image.Image:
-        return image.convert("RGB")
+import mldec.coop
 
 
 def odps_init(kwargs: todd.base.Config) -> None:
@@ -51,170 +46,177 @@ def odps_init(kwargs: todd.base.Config) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Train')
     parser.add_argument('config', type=pathlib.Path)
-    parser.add_argument('job_name', type=pathlib.Path)
+    parser.add_argument('name')
     parser.add_argument('--odps', action=todd.base.DictAction)
-    parser.add_argument('--cfg-options', action=todd.base.DictAction)
+    parser.add_argument('--config-options', action=todd.base.DictAction)
     args = parser.parse_args()
     return args
 
 
-def main():
-    args = parse_args()
-    cfg = todd.base.Config.load(args.config)
-    work_dir: pathlib.Path = 'work_dirs' / args.job_name
-    if args.odps is not None:
-        odps_init(args.odps)
-    debug.init(config=cfg)
-    if args.cfg_options is not None:
-        for k, v in args.cfg_options.items():
-            todd.base.setattr_recur(cfg, k, v)
+class Runner:
 
-    work_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(
+        self,
+        config_file: pathlib.Path,
+        name: str,
+        config_options: Optional[todd.base.Config],
+    ) -> None:
+        self.config = todd.base.Config.load(config_file)
+        self.name = name
 
-    if not debug.CPU:
-        torch.distributed.init_process_group(backend='nccl')
-        torch.cuda.set_device(todd.base.get_local_rank())
+        if config_options is not None:
+            for k, v in config_options.items():
+                todd.base.setattr_recur(self.config, k, v)
 
-    if todd.base.get_rank() == 0:
-        timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-        log_file = work_dir / f'{timestamp}.log'
-        todd.base.init_log_file(log_file)
-    logger = todd.base.get_logger()
-    logger.info(f"Version: {todd.base.git_commit_id()}")
-
-    train_pipe = tf.Compose([
-        tf.Resize((cfg.image_size, cfg.image_size), interpolation=tf.InterpolationMode.BICUBIC),
-        # tf.CenterCrop(cfg.image_size),
-        CutoutPIL(cutout_factor=0.5),
-        RandAugment(),
-        Convert(),
-        tf.ToTensor(),
-        tf.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
-    ])
-    train_dataset = CocoDetection(transform=train_pipe, **cfg.train)
-    train_sampler = (
-        None if debug.CPU else
-        torch.utils.data.distributed.DistributedSampler(train_dataset)
-    )
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=cfg.batch_size, sampler=train_sampler,
-        num_workers=cfg.workers, collate_fn=train_dataset.collate,
-        )
-
-    val_pipe = tf.Compose([
-        tf.Resize((cfg.image_size, cfg.image_size), interpolation=tf.InterpolationMode.BICUBIC),
-        # tf.CenterCrop(cfg.image_size),
-        Convert(),
-        tf.ToTensor(),
-        tf.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
-    ])
-    val_dataset = CocoDetection(transform=val_pipe, **cfg.val)
-    val_sampler = (
-        None if debug.CPU else
-        torch.utils.data.distributed.DistributedSampler(val_dataset, shuffle=False)
-    )
-    val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=cfg.batch_size, sampler=val_sampler,
-        num_workers=cfg.workers, collate_fn=val_dataset.collate,
-        )
-
-    clip_model, _ = clip.load('pretrained/clip/RN50.pt', 'cpu')
-    model = coop.CustomCLIP(
-        clip_model=clip_model,
-        classnames=[cat['name'] for cat in train_loader.dataset.coco.cats.values()],
-        frozen_config=todd.base.Config(
-            no_grad_config=dict(
-                names=[
-                    '._text_encoder._clip_text_encoder',
-                    '._image_encoder._clip_image_encoder',
-                ],
-            ),
-            eval_config=dict(
-                names=[
-                    '._text_encoder._clip_text_encoder',
-                    '._image_encoder._clip_image_encoder',
-                ],
-            ),
-        ),
-    )
-    model.float()
-    model.requires_grad_()
-    if not debug.CPU:
-        model = torch.nn.parallel.DistributedDataParallel(
-            model.cuda(),
-            device_ids=[torch.cuda.current_device()],
-        )
-
-    criterion = AsymmetricLoss(gamma_neg=4, gamma_pos=0, clip=0.05, disable_torch_grad_focal_loss=True)
-    optimizer = torch.optim.Adam(params=model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(
-        optimizer, max_lr=cfg.lr, steps_per_epoch=len(train_loader), epochs=cfg.epoch, pct_start=0.2,
-    )
-
-    highest_mAP = 0
-    for epoch in range(cfg.epoch):
-        if not debug.CPU:
-            torch.distributed.barrier()
-            train_sampler.set_epoch(epoch)
-        model.train()
-        for i, (inputData, target, num_patches) in enumerate(train_loader):
-            if not debug.CPU:
-                inputData = inputData.cuda()
-                target = target.cuda()
-            outputs = model(inputData)  # sigmoid will be done in loss !
-            loss = sum(criterion(output, target) for output in outputs)
-            model.zero_grad()
-
-            loss.backward()
-
-            optimizer.step()
-
-            scheduler.step()
-
-            if i % cfg.log_interval == 0:
-                logger.info(
-                        f'Epoch [{epoch}/{cfg.epoch}] '
-                        f'Train Step [{i}/{len(train_loader)}] '
-                        f'LR {scheduler.get_last_lr()[0]:.2e} '
-                        f'Loss {loss.item():.1f}'
-                    )
-                if debug.CPU:
-                    logger.debug(
-                        f'Scaler {model._scaler.tolist()} '
-                        f'Bias {model._bias.tolist()}'
-                    )
-                else:
-                    logger.debug(
-                        f'Scaler {model.module._scaler.tolist()} '
-                        f'Bias {model.module._bias.tolist()}'
-                    )
-                if debug.LESS_DATA and i: break
+        self.work_dir = pathlib.Path(f'work_dirs/{name}')
+        self.work_dir.mkdir(parents=True, exist_ok=True)
 
         if todd.base.get_rank() == 0:
-            todd.base.save_checkpoint(
-                model, work_dir / f'model-{epoch+1}.ckpt',
-                optimizer=optimizer, scheduler=scheduler,
+            timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+            log_file = self.work_dir / f'{timestamp}.log'
+            todd.base.init_log_file(log_file)
+        self.logger = todd.base.get_logger()
+        self.logger.info(f"Version: {todd.base.git_commit_id()}")
+
+    def build_train_fixtures(self) -> None:
+        self.criterion = AsymmetricLoss(gamma_neg=4, gamma_pos=0, clip=0.05, disable_torch_grad_focal_loss=True)
+        self.optimizer = torch.optim.Adam(params=self.model.parameters(), lr=self.config.lr, weight_decay=self.config.weight_decay)
+        self.scheduler = torch.optim.lr_scheduler.OneCycleLR(
+            self.optimizer, max_lr=self.config.lr, steps_per_epoch=len(self.train_loader), epochs=self.config.epoch, pct_start=0.2,
+        )
+
+    def build_train_dataloader(self, transform: tf.Compose) -> None:
+        transforms = list(transform.transforms)
+        transforms.insert(2, mldec.datasets.CutoutPIL(cutout_factor=0.5))
+        transforms.insert(3, RandAugment())
+        self.train_transform = tf.Compose(transforms)
+        self.train_dataset = mldec.datasets.CocoClassification(transform=self.train_transform, **self.config.train.dataset)
+        self.train_sampler = (
+            None if debug.CPU else
+            torch.utils.data.distributed.DistributedSampler(self.train_dataset)
+        )
+        self.train_loader = torch.utils.data.DataLoader(
+            self.train_dataset, batch_size=self.config.train.batch_size, sampler=self.train_sampler,
+            num_workers=self.config.train.workers,
             )
 
-        model.eval()
+    def build_val_dataloader(self, transform: tf.Compose) -> None:
+        transforms = list(transform.transforms)
+        self.val_transform = tf.Compose(transforms)
+        self.val_dataset = mldec.datasets.PatchedCocoClassification(transform=self.val_transform, **self.config.val.dataset)
+        self.val_sampler = (
+            None if debug.CPU else
+            torch.utils.data.distributed.DistributedSampler(self.val_dataset, shuffle=False)
+        )
+        self.val_loader = torch.utils.data.DataLoader(
+            self.val_dataset, batch_size=self.config.val.batch_size, sampler=self.val_sampler,
+            num_workers=self.config.val.workers, collate_fn=self.val_dataset.collate,
+            )
 
+    def build_model(
+        self,
+        clip_model: clip.model.CLIP,
+    ) -> None:
+        model = mldec.coop.CustomCLIP(
+            clip_model=clip_model,
+            classnames=self.train_dataset.classnames,
+            frozen_config=todd.base.Config(
+                no_grad_config=dict(
+                    names=[
+                        '._text_encoder._clip_text_encoder',
+                        '._image_encoder._clip_image_encoder',
+                    ],
+                ),
+                eval_config=dict(
+                    names=[
+                        '._text_encoder._clip_text_encoder',
+                        '._image_encoder._clip_image_encoder',
+                    ],
+                ),
+            ),
+        )
+        model.float()
+        model.requires_grad_()
+        if not debug.CPU:
+            model = torch.nn.parallel.DistributedDataParallel(
+                model.cuda(),
+                device_ids=[torch.cuda.current_device()],
+            )
+        self.model = model
+
+    def train(self) -> float:
+        record = -1
+        for epoch in range(self.config.epoch):
+            if not debug.CPU:
+                torch.distributed.barrier()
+                self.train_sampler.set_epoch(epoch)
+            self.model.train()
+            self.train_epoch(epoch)
+            self.model.eval()
+            mAP = self.val_epoch(epoch)
+            if mAP > record:
+                record = mAP
+            if todd.base.get_rank() == 0:
+                self.logger.info(f'mAP = {mAP * 100:.2f}, record = {record * 100:.2f}')
+        return record
+
+    def train_epoch(self, epoch: int) -> None:
+        for i, batch in enumerate(self.train_loader):
+            loss = self.train_iter(*batch)
+            if i % self.config.log_interval != 0:
+                continue
+            self.logger.info(
+                f'Epoch [{epoch}/{self.config.epoch}] '
+                f'Train Step [{i}/{len(self.train_loader)}] '
+                f'LR {self.scheduler.get_last_lr()[0]:.2e} '
+                f'Loss {loss:.1f}'
+            )
+            if debug.CPU:
+                self.logger.debug(
+                    f'Scaler {self.model._scaler.tolist()} '
+                    f'Bias {self.model._bias.tolist()}'
+                )
+            else:
+                self.logger.debug(
+                    f'Scaler {self.model.module._scaler.tolist()} '
+                    f'Bias {self.model.module._bias.tolist()}'
+                )
+            if debug.LESS_DATA and i: break
+
+        if todd.base.get_rank() == 0:
+            breakpoint()
+            todd.base.save_checkpoint(
+                self.model, self.work_dir / f'epoch_{epoch+1}.pth',
+                optimizer=self.optimizer, scheduler=self.scheduler,
+            )
+
+    def train_iter(self, inputData: torch.Tensor, target: torch.Tensor) -> float:
+        if not debug.CPU:
+            inputData = inputData.cuda()
+            target = target.cuda()
+        outputs = self.model(inputData)
+        loss = sum(self.criterion(output.sigmoid(), target) for output in outputs)
+        self.model.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        self.scheduler.step()
+        return loss.item()
+
+    @torch.no_grad()
+    def val_epoch(self, epoch: int) -> float:
         preds = []
         targets = []
-        with torch.no_grad():
-            for i, (input, target, num_patches) in enumerate(val_loader):
-                if not debug.CPU:
-                    input = input.cuda()
-                    target = target.cuda()
-                pred = model(input)
-                pred_ = functools.reduce(torch.max, pred)
-                preds.extend(p.max(0, keepdim=True).values for p in pred_.split(num_patches.tolist()))
-                targets.extend(t[[0]] for t in target.split(num_patches.tolist()))
-                if i % cfg.log_interval == 0:
-                    logger.info(
-                        f'Epoch [{epoch}/{cfg.epoch}] '
-                        f'Val Step [{i}/{len(val_loader)}]'
-                    )
-                    if debug.LESS_DATA and i: break
+        for i, batch in enumerate(self.val_loader):
+            pred, target = self.val_iter(*batch)
+            preds.append(pred)
+            targets.append(target)
+            if i % self.config.log_interval != 0:
+                continue
+            self.logger.info(
+                f'Epoch [{epoch}/{self.config.epoch}] '
+                f'Val Step [{i}/{len(self.val_loader)}]'
+            )
+            if debug.LESS_DATA and i: break
         if not debug.CPU:
             preds_ = torch.cat(preds)
             targets_ = torch.cat(targets)
@@ -224,13 +226,44 @@ def main():
             torch.distributed.all_gather(targets, targets_)
 
         if todd.base.get_rank() == 0:
-            preds_ = torch.cat(preds)
-            targets_ = torch.cat(targets)
-            mAP_score = mAP(targets_.cpu().numpy(), preds_.cpu().numpy())
-            if mAP_score > highest_mAP:
-                highest_mAP = mAP_score
-            logger.info(f'current_mAP = {mAP_score:.2f}, highest_mAP = {highest_mAP:.2f}')
+            preds_ = torch.cat(preds).cpu().numpy()
+            targets_ = torch.cat(targets).cpu().numpy()
+            return sklearn.metrics.average_precision_score(targets_, preds_)
+        else:
+            return -1
 
+    def val_iter(
+        self,
+        input: torch.Tensor,
+        target: torch.Tensor,
+        num_patches: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        if not debug.CPU:
+            input = input.cuda()
+            target = target.cuda()
+        pred = self.model(input)
+        pred_ = functools.reduce(torch.max, pred)
+        pred_ = torch.stack(tuple(p.max(0).values for p in pred_.split(num_patches.tolist())))
+        return pred_, target
+
+
+def main() -> float:
+    args = parse_args()
+    if args.odps is not None:
+        odps_init(args.odps)
+    runner = Runner(args.config, args.name, args.config_options)
+
+    debug.init(config=runner.config)
+    if not debug.CPU:
+        torch.distributed.init_process_group(backend='nccl')
+        torch.cuda.set_device(todd.base.get_local_rank())
+
+    clip_model, clip_transform = clip.load('pretrained/clip/RN50.pt', 'cpu')
+    runner.build_train_dataloader(clip_transform)
+    runner.build_val_dataloader(clip_transform)
+    runner.build_model(clip_model)
+    runner.build_train_fixtures()
+    return runner.train()
 
 if __name__ == '__main__':
     main()

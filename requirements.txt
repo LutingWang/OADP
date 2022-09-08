@@ -6,3 +6,4 @@ ftfy
 regex
 tqdm
 ipdb
+scikit-learn

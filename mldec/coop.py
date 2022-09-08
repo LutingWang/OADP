@@ -240,8 +240,7 @@ class CustomCLIP(todd.reproduction.FrozenMixin, todd.base.Module):
         return {
             k: v for k, v in state_dict.items()
             if (
-                not k.startswith('_image_encoder._clip_image_encoder')
-                and not k.startswith('_text_encoder._clip_text_encoder')
-                and not k.startswith('_text_encoder._classnames')
+                '_image_encoder._clip_image_encoder' not in k
+                and '_text_encoder._clip_text_encoder' not in k
             )
         }
