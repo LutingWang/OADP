@@ -35,11 +35,10 @@ def main() -> float:
         torch.cuda.set_device(todd.base.get_local_rank())
 
     clip_model, clip_transform = clip.load('pretrained/clip/RN50.pt', 'cpu')
-    runner.build_train_dataloader(clip_transform)
     runner.build_val_dataloader(clip_transform)
     runner.build_model(clip_model)
-    runner.build_train_fixtures()
-    return runner.train()
+    runner.load_checkpoint(40)
+    return runner.val()
 
 if __name__ == '__main__':
     main()
