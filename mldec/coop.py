@@ -1,4 +1,5 @@
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, Dict, Generator, List, Mapping, MutableMapping, Sequence, Tuple
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -194,6 +195,53 @@ class ImageEncoder(todd.base.Module):
         return image
 
 
+class PositionEmbeddingSineHW(todd.base.Module):
+    def __init__(
+        self,
+        num_pos_feats: int,
+        temperatureH: float = 20.0,
+        temperatureW: float = 20.0,
+        normalize: bool = True,
+    ) -> None:
+        super().__init__()
+        self.num_pos_feats = num_pos_feats
+        self.temperatureH = temperatureH
+        self.temperatureW = temperatureW
+        self.normalize = normalize
+        self.scale = 2 * math.pi
+
+    def forward(self, tensor_list: NestedTensor):
+        x = tensor_list.tensors
+        mask = tensor_list.mask
+        assert mask is not None
+        not_mask = ~mask
+        y_embed = not_mask.cumsum(1, dtype=torch.float32)
+        x_embed = not_mask.cumsum(2, dtype=torch.float32)
+
+        # import ipdb; ipdb.set_trace()
+
+        if self.normalize:
+            eps = 1e-6
+            y_embed = y_embed / (y_embed[:, -1:, :] + eps) * self.scale
+            x_embed = x_embed / (x_embed[:, :, -1:] + eps) * self.scale
+
+        dim_tx = torch.arange(self.num_pos_feats, dtype=torch.float32, device=x.device)
+        dim_tx = self.temperatureW ** (2 * (dim_tx // 2) / self.num_pos_feats)
+        pos_x = x_embed[:, :, :, None] / dim_tx
+
+        dim_ty = torch.arange(self.num_pos_feats, dtype=torch.float32, device=x.device)
+        dim_ty = self.temperatureH ** (2 * (dim_ty // 2) / self.num_pos_feats)
+        pos_y = y_embed[:, :, :, None] / dim_ty
+
+        pos_x = torch.stack((pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)
+        pos_y = torch.stack((pos_y[:, :, :, 0::2].sin(), pos_y[:, :, :, 1::2].cos()), dim=4).flatten(3)
+        pos = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)
+
+        # import ipdb; ipdb.set_trace()
+
+        return pos
+
+
 class CustomCLIP(todd.reproduction.FrozenMixin, todd.base.Module):
 
     def __init__(
@@ -222,6 +270,8 @@ class CustomCLIP(todd.reproduction.FrozenMixin, todd.base.Module):
 
         todd.reproduction.FrozenMixin.__init__(self, **frozen_config)
 
+        self._register_state_dict_hook(self._state_dict_hook)
+
     @property
     def shape(self) -> torch.Size:
         return torch.Size([1, len(self._text_encoder)])
@@ -235,12 +285,16 @@ class CustomCLIP(todd.reproduction.FrozenMixin, todd.base.Module):
             outputs.append(output * self._scaler[0, i] - self._bias[0, i])
         return outputs
 
-    def state_dict(self, *args, **kwargs) -> Dict[str, Any]:
-        state_dict: Dict[str, Any] = super().state_dict(*args, **kwargs)
-        return {
-            k: v for k, v in state_dict.items()
+    @staticmethod
+    def _state_dict_hook(
+        self,
+        destination: MutableMapping[str, Any],
+        prefix,
+        local_metadata,
+    ) -> None:
+        for k in list(destination.keys()):
             if (
-                '_image_encoder._clip_image_encoder' not in k
-                and '_text_encoder._clip_text_encoder' not in k
-            )
-        }
+                '_image_encoder._clip_image_encoder' in k
+                or '_text_encoder._clip_text_encoder' in k
+            ):
+                destination.pop(k)

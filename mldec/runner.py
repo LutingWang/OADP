@@ -76,8 +76,8 @@ class Runner:
 
     def build_train_dataloader(self, transform: tf.Compose) -> None:
         transforms = list(transform.transforms)
-        transforms.insert(2, mldec.datasets.CutoutPIL(cutout_factor=0.5))
-        transforms.insert(3, RandAugment())
+        # transforms.insert(2, mldec.datasets.CutoutPIL(cutout_factor=0.5))
+        # transforms.insert(3, RandAugment())
         self.train_transform = tf.Compose(transforms)
         self.train_dataset = mldec.datasets.CocoClassification(transform=self.train_transform, **self.config.train.dataset)
         self.train_sampler = (
