@@ -1,6 +1,8 @@
-work_dir_root = 'work_dirs/patch_features/'
+work_dir_root = 'work_dirs/patch_features_debug/'
 data_root = 'data/coco/'
 train = dict(
+    batch_size=16,
+    num_workers=4,
     work_dir=work_dir_root + 'train',
     dataset=dict(
         root=data_root + 'train2017',
@@ -8,6 +10,8 @@ train = dict(
     ),
 )
 val = dict(
+    batch_size=16,
+    num_workers=4,
     work_dir=work_dir_root + 'val',
     dataset=dict(
         root=data_root + 'val2017',
@@ -15,4 +19,4 @@ val = dict(
     ),
 )
 
-log_interval = 512
+log_interval = 32

@@ -1,27 +1,27 @@
+from collections import namedtuple
 import itertools
-from typing import List, Tuple
+from typing import List, Literal, Tuple
 
 import argparse
 import sys
 import pathlib
 
 import todd
+import torch
 import torch.cuda
-import torch.distributed
+import torch.nn.functional as F
+import torch.utils.data
+import torchvision.datasets
 
 sys.path.insert(0, '')
 import clip
+import clip.model
 from mldec.debug import debug
 
-from torchvision import datasets as datasets
-import torch
-import torch.nn.functional as F
-import torch.utils.data
-import torch.utils.data.dataloader
-import torch.utils.data.distributed
+Batch = namedtuple('Batch', ['patches', 'bboxes', 'image_ids', 'num_patches'])
 
 
-class PatchedCocoClassification(datasets.coco.CocoDetection):
+class PatchedCocoClassification(torchvision.datasets.coco.CocoDetection):
 
     def __init__(
         self,
@@ -79,6 +79,72 @@ class PatchedCocoClassification(datasets.coco.CocoDetection):
 
         return patches_, bboxes_, image_id
 
+    @staticmethod
+    def collate(
+        batch: List[Tuple[torch.Tensor, torch.Tensor, int]],
+    ) -> Batch:
+        patches_list, bboxes, image_ids = zip(*batch)
+        patches = torch.cat(patches_list)
+        num_patches = [p.shape[0] for p in patches_list]
+        return Batch(patches, bboxes, image_ids, num_patches)
+
+
+class Runner:
+
+    def __init__(self, config: todd.base.Config) -> None:
+        self._config = config
+        self.logger = todd.base.get_logger()
+
+        if debug.CPU:
+            self._model, self._transform = clip.load('pretrained/clip/RN50.pt', 'cpu')
+        else:
+            self._model, self._transform = clip.load('pretrained/clip/RN50.pt')
+        self._model.requires_grad_(False)
+
+    def _run_iter(self, batch: Batch, work_dir: pathlib.Path) -> None:
+        if not debug.CPU:
+            batch = Batch(
+                batch.patches.cuda(),
+                batch.bboxes,
+                batch.image_ids,
+                batch.num_patches,
+            )
+        patch_features = self._model.encode_image(batch.patches)
+        patch_features = F.normalize(patch_features)
+        for patch_features_, bboxes_, image_id in zip(
+            patch_features.split(batch.num_patches),
+            batch.bboxes,
+            batch.image_ids,
+        ):
+            torch.save(
+                dict(patches=patch_features_.clone(), bboxes=bboxes_),
+                work_dir / f'{image_id:012d}.pth',
+            )
+
+    def _run(self, mode: Literal['train', 'val']) -> None:
+        config = self._config[mode]
+        dataset = PatchedCocoClassification(transform=self._transform, **config.dataset)
+        dataloader = torch.utils.data.DataLoader(
+            dataset,
+            batch_size=config.batch_size,
+            num_workers=config.num_workers,
+            collate_fn=dataset.collate,
+        )
+        work_dir = pathlib.Path(config.work_dir)
+        work_dir.mkdir(parents=True, exist_ok=True)
+        for i, batch in enumerate(dataloader):
+            breakpoint()
+            self._run_iter(batch, work_dir)
+            if i % self._config.log_interval == 0:
+                self.logger.info(f"{mode.capitalize()} [{i * dataloader.batch_size}/{len(dataset)}]")
+                if debug.LESS_DATA and i: break
+
+    def train(self) -> None:
+        self._run('train')
+
+    def val(self) -> None:
+        self._run('val')
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Train')
@@ -87,46 +153,11 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def main() -> None:
+if __name__ == '__main__':
     args = parse_args()
     config = todd.base.Config.load(args.config)
-
-    logger = todd.base.get_logger()
-
     debug.init(config=config)
 
-    clip_model, clip_transform = clip.load('pretrained/clip/RN50.pt', 'cpu')
-    if not debug.CPU:
-        clip_model = clip_model.cuda()
-
-    dataset = PatchedCocoClassification(transform=clip_transform, **config.train.dataset)
-    work_dir = pathlib.Path(config.train.work_dir)
-    work_dir.mkdir(parents=True, exist_ok=True)
-    for i in range(len(dataset)):
-        patches, bboxes, image_id = dataset[i]
-        if not debug.CPU:
-            patches = patches.cuda()
-        patch_features = clip_model.encode_image(patches)
-        patch_features = F.normalize(patch_features)
-        torch.save(dict(patches=patch_features, bboxes=bboxes), work_dir / f'{image_id:012d}.pth')
-        if i % config.log_interval == 0:
-            logger.info(f"Train [{i}/{len(dataset)}]")
-        if debug.LESS_DATA and i: break
-
-    dataset = PatchedCocoClassification(transform=clip_transform, **config.val.dataset)
-    work_dir = pathlib.Path(config.val.work_dir)
-    work_dir.mkdir(parents=True, exist_ok=True)
-    for i in range(len(dataset)):
-        patches, bboxes, image_id = dataset[i]
-        if not debug.CPU:
-            patches = patches.cuda()
-        patch_features = clip_model.encode_image(patches)
-        patch_features = F.normalize(patch_features)
-        torch.save(dict(patches=patch_features, bboxes=bboxes), work_dir / f'{image_id:012d}.pth')
-        if i % config.log_interval == 0:
-            logger.info(f"Val [{i}/{len(dataset)}]")
-        if debug.LESS_DATA and i: break
-
-
-if __name__ == '__main__':
-    main()
+    runner = Runner(config)
+    runner.train()
+    runner.val()
