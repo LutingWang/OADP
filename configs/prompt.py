@@ -2,21 +2,28 @@ data_root = 'data/coco/'
 patches_root = data_root + 'patches/'
 train = dict(
     batch_size=16,
-    num_workers=4,
-    patches_root=patches_root + 'train',
+    workers=2,
     dataset=dict(
         root=data_root + 'train2017',
         annFile=data_root + 'annotations/instances_train2017.json',
+        patches_root=patches_root + 'train',
     ),
 )
 val = dict(
     batch_size=16,
-    num_workers=4,
-    patches_root=patches_root + 'val',
+    workers=2,
     dataset=dict(
         root=data_root + 'val2017',
         annFile=data_root + 'annotations/instances_val2017.json',
+        patches_root=patches_root + 'val',
     ),
 )
 
-log_interval = 32
+epoch = 10
+lr = 1e-3
+weight_decay = 1e-4
+
+thr = 0.75
+log_interval = 8
+
+prompt = 'a photo of a'

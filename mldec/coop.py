@@ -210,7 +210,7 @@ class PositionEmbeddingSineHW(todd.base.Module):
         self.normalize = normalize
         self.scale = 2 * math.pi
 
-    def forward(self, tensor_list: NestedTensor):
+    def forward(self, tensor_list):
         x = tensor_list.tensors
         mask = tensor_list.mask
         assert mask is not None

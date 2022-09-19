@@ -11,12 +11,12 @@ import torch
 import torch.cuda
 import torch.nn.functional as F
 import torch.utils.data
-import torchvision.datasets
+import torchvision
 
-sys.path.insert(0, '')
 import clip
 import clip.model
-from mldec.debug import debug
+
+from .debug import debug
 
 Batch = namedtuple('Batch', ['patches', 'bboxes', 'image_ids', 'num_patches'])
 
@@ -93,7 +93,7 @@ class Runner:
 
     def __init__(self, config: todd.base.Config) -> None:
         self._config = config
-        self.logger = todd.base.get_logger()
+        self._logger = todd.base.get_logger()
 
         if debug.CPU:
             self._model, self._transform = clip.load('pretrained/clip/RN50.pt', 'cpu')
@@ -101,7 +101,7 @@ class Runner:
             self._model, self._transform = clip.load('pretrained/clip/RN50.pt')
         self._model.requires_grad_(False)
 
-    def _run_iter(self, batch: Batch, work_dir: pathlib.Path) -> None:
+    def _run_iter(self, batch: Batch, patches_root: pathlib.Path) -> None:
         if not debug.CPU:
             batch = Batch(
                 batch.patches.cuda(),
@@ -118,7 +118,7 @@ class Runner:
         ):
             torch.save(
                 dict(patches=patch_features_.clone(), bboxes=bboxes_),
-                work_dir / f'{image_id:012d}.pth',
+                patches_root / f'{image_id:012d}.pth',
             )
 
     def _run(self, mode: Literal['train', 'val']) -> None:
@@ -130,13 +130,12 @@ class Runner:
             num_workers=config.num_workers,
             collate_fn=dataset.collate,
         )
-        work_dir = pathlib.Path(config.work_dir)
-        work_dir.mkdir(parents=True, exist_ok=True)
+        patches_root = pathlib.Path(config.patches_root)
+        patches_root.mkdir(parents=True, exist_ok=True)
         for i, batch in enumerate(dataloader):
-            breakpoint()
-            self._run_iter(batch, work_dir)
+            self._run_iter(batch, patches_root)
             if i % self._config.log_interval == 0:
-                self.logger.info(f"{mode.capitalize()} [{i * dataloader.batch_size}/{len(dataset)}]")
+                self._logger.info(f"{mode.capitalize()} [{i * dataloader.batch_size}/{len(dataset)}]")
                 if debug.LESS_DATA and i: break
 
     def train(self) -> None:

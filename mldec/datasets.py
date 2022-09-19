@@ -1,111 +1,92 @@
-import random
-from typing import Any, List, Tuple
+from collections import namedtuple
+import pathlib
+from typing import Any, Dict, List, Tuple
 
-import numpy as np
-from torchvision import datasets as datasets
+import torchvision
 import torch
-import torch.utils.data
 import torch.utils.data.dataloader
-import torch.nn.functional as F
-from PIL import Image, ImageDraw
 
 import todd
 
+from .debug import debug
 
-class CocoClassification(datasets.coco.CocoDetection):
+Batch = namedtuple(
+    'Batch',
+    ['images', 'image_labels', 'patches', 'patch_labels', 'num_patches'],
+)
 
-    def __init__(self, *args, **kwargs) -> None:
+
+class CocoClassification(torchvision.datasets.CocoDetection):
+    def __init__(
+        self,
+        *args,
+        patches_root: str,
+        **kwargs,
+    ) -> None:
         super().__init__(*args, **kwargs)
-        self._cat2label = {cat: i for i, cat in enumerate(self.coco.cats.keys())}
+        self._patches_root = pathlib.Path(patches_root)
+        self._cat2label = {cat: i for i, cat in enumerate(self.coco.cats)}
 
     @property
     def classnames(self) -> List[str]:
         return [cat['name'] for cat in self.coco.cats.values()]
 
-    def _load_target(self, *args, **kwargs) -> torch.Tensor:
-        target = super()._load_target(*args, **kwargs)
-        bbox_labels = [self._cat2label[anno['category_id']] for anno in target]
-        image_labels = torch.zeros(len(self._cat2label), dtype=torch.bool)
+    @property
+    def num_classes(self) -> int:
+        return len(self.coco.cats)
+
+    def _load_patch(self, id_: int) -> Dict[str, torch.Tensor]:
+        map_location = 'cpu' if debug.CPU else None
+        return torch.load(self._patches_root / f'{id_:012d}.pth', map_location)
+
+    def _load_patch_features(self, patch: Dict[str, torch.Tensor]) -> torch.Tensor:
+        return patch['patches']
+
+    def _load_patch_bboxes(self, patch: Dict[str, torch.Tensor]) -> todd.base.BBoxesXYWH:
+        return todd.base.BBoxesXYWH(patch['bboxes'])
+
+    def _load_bboxes(self, target: List[Any]) -> todd.base.BBoxesXYWH:
+        return todd.base.BBoxesXYWH([anno['bbox'] for anno in target])
+
+    def _load_bbox_labels(self, target: List[Any]) -> torch.Tensor:
+        return torch.tensor([self._cat2label[anno['category_id']] for anno in target])
+
+    def _load_image_labels(self, bbox_labels: torch.Tensor) -> torch.Tensor:
+        image_labels = torch.zeros(self.num_classes, dtype=torch.bool)
         image_labels[bbox_labels] = True
         return image_labels
 
-
-class PatchedCocoClassification(CocoClassification):
-    def __init__(
-        self,
-        *args,
-        patch_size: int = 224,
-        max_stride: int = 224,
-        rescale: float = 1.5,
-        **kwargs,
-    ) -> None:
-        super().__init__(*args, **kwargs)
-        self._patch_size = patch_size
-        self._max_stride = max_stride
-        self._rescale = rescale
-
-    def _cut_patches(self, length: int) -> List[int]:
-        assert length >= self._patch_size
-        if length == self._patch_size:
-            return [0]
-        n = (length - self._patch_size - 1) // self._max_stride + 1
-        stride = (length - self._patch_size) // n
-        mod = (length - self._patch_size) % n
-
-        result = [0]
-        for i in range(n):
-            result.append(result[-1] + stride + (i < mod))
-        return result
-
-    def __getitem__(self, index: int) -> Tuple[List[torch.Tensor], torch.Tensor]:
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         id_ = self.ids[index]
-        image = self._load_image(id_)
         target = self._load_target(id_)
+        bboxes = self._load_bboxes(target)
+        bbox_labels = self._load_bbox_labels(target)
+        image_labels = self._load_image_labels(bbox_labels)
 
-        patches = [image]
-        while image.width >= self._patch_size and image.height >= self._patch_size:
-            for x in self._cut_patches(image.width):
-                for y in self._cut_patches(image.height):
-                    patch_box = (x, y, x + self._patch_size, y + self._patch_size)
-                    patch = image.crop(patch_box)
-                    patches.append(patch)
-            rescaled_size = (int(image.width / self._rescale), int(image.height / self._rescale))
-            image = image.resize(rescaled_size)
-        patches = list(map(self.transforms.transform, patches))
+        patch = self._load_patch(id_)
+        patch_features = self._load_patch_features(patch)
+        image_feature = patch_features[0]
 
-        return patches, target
+        patch_bboxes = self._load_patch_bboxes(patch)
+        patch_labels = torch.zeros((len(patch_bboxes), self.num_classes), dtype=torch.bool)
+        patch_id, bbox_id = torch.where(patch_bboxes.intersections(bboxes) > 0)
+        patch_labels[patch_id, bbox_labels[bbox_id]] = True
+
+        return image_feature, image_labels, patch_features, patch_labels
 
     @staticmethod
-    def collate(batch: List[Tuple[List[torch.Tensor], torch.Tensor]]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        patches_list, targets = zip(*batch)
-        patches = sum(patches_list, [])
-        num_patches = list(map(len, patches_list))
-        return tuple(map(torch.utils.data.dataloader.default_collate, (patches, targets, num_patches)))
-
-
-class CutoutPIL(object):
-    def __init__(self, cutout_factor=0.5):
-        self.cutout_factor = cutout_factor
-
-    def __call__(self, x):
-        img_draw = ImageDraw.Draw(x)
-        h, w = x.size[0], x.size[1]  # HWC
-        h_cutout = int(self.cutout_factor * h + 0.5)
-        w_cutout = int(self.cutout_factor * w + 0.5)
-        y_c = np.random.randint(h)
-        x_c = np.random.randint(w)
-
-        y1 = np.clip(y_c - h_cutout // 2, 0, h)
-        y2 = np.clip(y_c + h_cutout // 2, 0, h)
-        x1 = np.clip(x_c - w_cutout // 2, 0, w)
-        x2 = np.clip(x_c + w_cutout // 2, 0, w)
-        fill_color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-        img_draw.rectangle([x1, y1, x2, y2], fill=fill_color)
-
-        return x
-
-
-class Convert:
-
-    def __call__(self, image: Image.Image) -> Image.Image:
-        return image.convert("RGB")
+    def collate(
+        batch: List[
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+        ],
+    ) -> Batch:
+        image_feature_list, image_labels_list, patch_features_list, patch_labels_list = zip(*batch)
+        image_features: torch.Tensor = torch.utils.data.dataloader.default_collate(image_feature_list)
+        image_labels: torch.Tensor = torch.utils.data.dataloader.default_collate(image_labels_list)
+        patch_features = torch.cat(patch_features_list)
+        patch_labels = torch.cat(patch_labels_list)
+        num_patches: torch.Tensor = torch.utils.data.dataloader.default_collate([p.shape[0] for p in patch_features_list])
+        if debug.CPU:
+            image_features = image_features.float()
+            patch_features = patch_features.float()
+        return Batch(image_features, image_labels, patch_features, patch_labels, num_patches)
