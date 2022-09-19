@@ -1,7 +1,7 @@
 import argparse
 import pathlib
 import time
-from typing import Any, Dict, Generator, Iterator, List, Mapping, MutableMapping, Optional, Sequence, Tuple
+from typing import Any, Dict, Generator, Iterator, List, Mapping, MutableMapping, Optional, Sequence, Tuple, Union
 import math
 import sklearn.metrics
 import torch
@@ -133,7 +133,6 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
         *args,
         clip_model: clip.model.CLIP,
         prompt: str,
-        classnames: Sequence[str],
         **kwargs
     ) -> None:
         todd.base.Module.__init__(self, *args, **kwargs)
@@ -141,10 +140,6 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
         self._prompt = Prompt(
             prompt=prompt,
             embedding=clip_model.token_embedding.cpu(),
-        )
-        self._classnames = Classnames(
-            classnames=classnames,
-            embedding=clip_model.token_embedding,
         )
         self._scaler = nn.Parameter(torch.tensor(20.0), requires_grad=True)
         self._bias = nn.Parameter(torch.tensor(4.0), requires_grad=True)
@@ -158,21 +153,15 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
 
         self._register_state_dict_hook(self._state_dict_hook)
 
-    def get_classes(self) -> torch.Tensor:
-        x, l = self._prompt(
-            self._classnames,
-        )
-        x = self._clip_text_encoder.forward(x, l)
-        x = F.normalize(x)
-        return x
-
     def forward(
         self,
         images: torch.Tensor,
-        classes: Optional[torch.Tensor],
+        classes: Union[Classnames, torch.Tensor],
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        if classes is None:
-            classes = self.get_classes()
+        if isinstance(classes, Classnames):
+            classes, l = self._prompt(classes)
+            classes = self._clip_text_encoder.forward(classes, l)
+            classes = F.normalize(classes)
         return (images @ classes.T) * self._scaler - self._bias, classes
 
     def state_dict(self, *args, terse: bool = False, **kwargs):
@@ -191,24 +180,23 @@ class Runner:
         self._build_logger()
         self._build_dataloader()
 
-        if debug.CPU:
-            clip_model, _ = clip.load('pretrained/clip/RN50.pt', 'cpu')
-        else:
-            clip_model, _ = clip.load('pretrained/clip/RN50.pt')
-        clip_model.float()
-
+        clip_model, _ = clip.load('pretrained/clip/RN50.pt', 'cpu')
+        classnames = Classnames(
+            classnames=self._dataset.classnames,
+            embedding=clip_model.token_embedding,
+        )
         model = Model(
             clip_model=clip_model,
             prompt=config.prompt,
-            classnames=self._dataset.classnames,
         )
         if not debug.CPU:
+            classnames = classnames.cuda()
             model = torch.nn.parallel.DistributedDataParallel(
                 model.cuda(),
                 device_ids=[torch.cuda.current_device()],
             )
-        self._model = model
-        self._model.requires_grad_(False)
+        self._classnames = classnames
+        self._model = model.requires_grad_(False)
 
     def _build_logger(self):
         if todd.base.get_rank() == 0:
@@ -247,7 +235,7 @@ class Runner:
 
     @torch.no_grad()
     def run(self) -> Tuple[float, float]:
-        classes = None
+        classes = self._classnames
         results = []
         for i, batch in enumerate(self._dataloader):
             *result, classes = self.run_iter(batch, classes)
@@ -274,7 +262,7 @@ class Runner:
             return -1, -1
 
     def run_iter(
-        self, batch: Batch, classes: Optional[torch.Tensor],
+        self, batch: Batch, classes: Union[Classnames, torch.Tensor],
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         if not debug.CPU:
             batch = Batch(*[x.cuda() for x in batch])
@@ -389,7 +377,7 @@ class Trainer(Runner):
     def train_iter(self, batch: Batch) -> float:
         if not debug.CPU:
             batch = Batch(*[x.cuda() for x in batch])
-        outputs, _ = self._model(batch.patches, None)
+        outputs, _ = self._model(batch.patches, self._classnames)
         loss: torch.Tensor = self._criterion(outputs.sigmoid(), batch.patch_labels)
         self._model.zero_grad()
         loss.backward()
