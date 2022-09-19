@@ -1,8 +1,9 @@
 import argparse
 import pathlib
 import time
-from typing import Any, Dict, Generator, Iterator, List, Mapping, MutableMapping, Sequence, Tuple
+from typing import Any, Dict, Generator, Iterator, List, Mapping, MutableMapping, Optional, Sequence, Tuple
 import math
+import sklearn.metrics
 import torch
 import torch.distributed
 import torch.utils.data
@@ -13,7 +14,6 @@ import torch.nn.functional as F
 import clip
 import clip.model
 import einops
-import sklearn.metrics
 
 import todd
 
@@ -140,7 +140,7 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
         self._clip_text_encoder = CLIPTextEncoder(clip_model=clip_model)
         self._prompt = Prompt(
             prompt=prompt,
-            embedding=clip_model.token_embedding,
+            embedding=clip_model.token_embedding.cpu(),
         )
         self._classnames = Classnames(
             classnames=classnames,
@@ -166,8 +166,14 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
         x = F.normalize(x)
         return x
 
-    def forward(self, images: torch.Tensor, classes: torch.Tensor) -> torch.Tensor:
-        return (images @ classes.T) * self._scaler - self._bias
+    def forward(
+        self,
+        images: torch.Tensor,
+        classes: Optional[torch.Tensor],
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        if classes is None:
+            classes = self.get_classes()
+        return (images @ classes.T) * self._scaler - self._bias, classes
 
     def state_dict(self, *args, terse: bool = False, **kwargs):
         if not terse:
@@ -189,6 +195,7 @@ class Runner:
             clip_model, _ = clip.load('pretrained/clip/RN50.pt', 'cpu')
         else:
             clip_model, _ = clip.load('pretrained/clip/RN50.pt')
+        clip_model.float()
 
         model = Model(
             clip_model=clip_model,
@@ -240,10 +247,10 @@ class Runner:
 
     @torch.no_grad()
     def run(self) -> Tuple[float, float]:
-        classes = self._model.get_classes()
+        classes = None
         results = []
         for i, batch in enumerate(self._dataloader):
-            result = self.run_iter(batch, classes)
+            *result, classes = self.run_iter(batch, classes)
             results.append(result)
             if i % self._config.log_interval != 0:
                 continue
@@ -267,13 +274,20 @@ class Runner:
             return -1, -1
 
     def run_iter(
-        self, batch: Batch, classes: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        self, batch: Batch, classes: Optional[torch.Tensor],
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         if not debug.CPU:
             batch = Batch(*[x.cuda() for x in batch])
-        image_logits = self._model(batch.images, classes)
-        patch_logits = self._model(batch.patches, classes)
-        return image_logits, batch.image_labels, patch_logits, batch.patch_labels
+        patch_logits, classes = self._model(batch.patches, classes)
+        image_logits = torch.stack(
+            list(
+                map(
+                    lambda x: x.max(0).values,
+                    patch_logits.split(batch.num_patches.tolist()),
+                ),
+            ),
+        )
+        return image_logits, batch.image_labels, patch_logits, batch.patch_labels, classes
 
 
 class Trainer(Runner):
@@ -370,12 +384,8 @@ class Trainer(Runner):
     def train_iter(self, batch: Batch) -> float:
         if not debug.CPU:
             batch = Batch(*[x.cuda() for x in batch])
-        classes = self._model.get_classes()
-        outputs: torch.Tensor = self._model(batch.patches, classes)
-        loss: torch.Tensor = sum(
-            self._criterion(output.sigmoid(), batch.patch_labels)
-            for output in outputs
-        )
+        outputs, _ = self._model(batch.patches, None)
+        loss: torch.Tensor = self._criterion(outputs.sigmoid(), batch.patch_labels)
         self._model.zero_grad()
         loss.backward()
         self._optimizer.step()

@@ -1,6 +1,6 @@
 from collections import namedtuple
 import pathlib
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 import torchvision
 import torch
@@ -36,11 +36,10 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         return len(self.coco.cats)
 
     def _load_patch(self, id_: int) -> Dict[str, torch.Tensor]:
-        map_location = 'cpu' if debug.CPU else None
-        return torch.load(self._patches_root / f'{id_:012d}.pth', map_location)
+        return torch.load(self._patches_root / f'{id_:012d}.pth', 'cpu')
 
     def _load_patch_features(self, patch: Dict[str, torch.Tensor]) -> torch.Tensor:
-        return patch['patches']
+        return patch['patches'].float()
 
     def _load_patch_bboxes(self, patch: Dict[str, torch.Tensor]) -> todd.base.BBoxesXYWH:
         return todd.base.BBoxesXYWH(patch['bboxes'])
@@ -49,7 +48,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         return todd.base.BBoxesXYWH([anno['bbox'] for anno in target])
 
     def _load_bbox_labels(self, target: List[Any]) -> torch.Tensor:
-        return torch.tensor([self._cat2label[anno['category_id']] for anno in target])
+        return torch.tensor([self._cat2label[anno['category_id']] for anno in target], dtype=torch.long)
 
     def _load_image_labels(self, bbox_labels: torch.Tensor) -> torch.Tensor:
         image_labels = torch.zeros(self.num_classes, dtype=torch.bool)
