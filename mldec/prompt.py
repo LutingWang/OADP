@@ -321,15 +321,19 @@ class Trainer(Runner):
         )
         self._optimizer = torch.optim.Adam(
             params=self._model.parameters(),
-            lr=self._config.lr,
-            weight_decay=self._config.weight_decay,
+            lr=config.lr,
+            weight_decay=config.weight_decay,
         )
-        self._scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        # self._scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        #     self._optimizer,
+        #     max_lr=self._config.lr,
+        #     steps_per_epoch=len(self._train_dataloader),
+        #     epochs=self._config.epoch,
+        #     pct_start=0.2,
+        # )
+        self._scheduler = torch.optim.lr_scheduler.MultiStepLR(
             self._optimizer,
-            max_lr=self._config.lr,
-            steps_per_epoch=len(self._train_dataloader),
-            epochs=self._config.epoch,
-            pct_start=0.2,
+            **config.lr_scheduler,
         )
 
     def load_checkpoint(self, epoch: int) -> None:
@@ -348,7 +352,7 @@ class Trainer(Runner):
     def train(self) -> Tuple[float, float]:
         image_record = -1
         patch_record = -1
-        for epoch in range(self._config.epoch):
+        for epoch in range(self._config.train.epoch):
             if not debug.CPU:
                 torch.distributed.barrier()
                 self._train_sampler.set_epoch(epoch)
@@ -371,13 +375,14 @@ class Trainer(Runner):
             if i % self._config.log_interval != 0:
                 continue
             self._logger.info(
-                f'Epoch [{epoch}/{self._config.epoch}] '
+                f'Epoch [{epoch}/{self._config.train.epoch}] '
                 f'Train Step [{i}/{len(self._train_dataloader)}] '
                 f'LR {self._scheduler.get_last_lr()[0]:.2e} '
                 f'Loss {loss:.1f}'
             )
             if debug.LESS_DATA and i: break
 
+        self._scheduler.step()
         if todd.base.get_rank() == 0:
             self.save_checkpoint(epoch)
 
@@ -389,7 +394,6 @@ class Trainer(Runner):
         self._model.zero_grad()
         loss.backward()
         self._optimizer.step()
-        self._scheduler.step()
         return loss.item()
 
 

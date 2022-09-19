@@ -1,6 +1,13 @@
 data_root = 'data/coco/'
 patches_root = data_root + 'patches/'
 train = dict(
+    epoch=2,
+    lr=5e-4,
+    lr_scheduler=dict(
+        milestones=[1],
+    ),
+    weight_decay=1e-4,
+
     batch_size=16,
     workers=2,
     dataset=dict(
@@ -19,11 +26,7 @@ val = dict(
     ),
 )
 
-epoch = 10
-lr = 1e-3
-weight_decay = 1e-4
-
 thr = 0.75
-log_interval = 8
+log_interval = 64
 
 prompt = 'a photo of a'
