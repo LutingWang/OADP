@@ -8,21 +8,23 @@ train = dict(
     ),
     weight_decay=1e-4,
 
-    batch_size=16,
-    workers=2,
+    batch_size=32,
+    workers=4,
     dataset=dict(
         root=data_root + 'train2017',
         annFile=data_root + 'annotations/instances_train2017.json',
         patches_root=patches_root + 'train',
+        split='COCO_48',
     ),
 )
 val = dict(
-    batch_size=16,
-    workers=2,
+    batch_size=32,
+    workers=4,
     dataset=dict(
         root=data_root + 'val2017',
         annFile=data_root + 'annotations/instances_val2017.json',
         patches_root=patches_root + 'val',
+        split='COCO_17',
     ),
 )
 

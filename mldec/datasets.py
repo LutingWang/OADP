@@ -1,6 +1,6 @@
 from collections import namedtuple
 import pathlib
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional, Container, Sequence
 
 import torchvision
 import torch
@@ -15,25 +15,57 @@ Batch = namedtuple(
     ['images', 'image_labels', 'patches', 'patch_labels', 'num_patches'],
 )
 
+COCO_48 = (
+    'person', 'bicycle', 'car', 'motorcycle', 'truck', 'boat', 'bench', 'bird',
+    'horse', 'sheep', 'zebra', 'giraffe', 'backpack', 'handbag', 'skis',
+    'kite', 'surfboard', 'bottle', 'spoon', 'bowl', 'banana', 'apple',
+    'orange', 'broccoli', 'carrot', 'pizza', 'donut', 'chair', 'bed', 'tv',
+    'laptop', 'remote', 'microwave', 'oven', 'refrigerator', 'book', 'clock',
+    'vase', 'toothbrush', 'train', 'bear', 'suitcase', 'frisbee', 'fork',
+    'sandwich', 'toilet', 'mouse', 'toaster',
+)
+COCO_17 = (
+    'bus', 'dog', 'cow', 'elephant', 'umbrella', 'tie', 'skateboard', 'cup',
+    'knife', 'cake', 'couch', 'keyboard', 'sink', 'scissors', 'airplane',
+    'cat', 'snowboard',
+)
+COCO_48_17 = COCO_48 + COCO_17
+
 
 class CocoClassification(torchvision.datasets.CocoDetection):
+
     def __init__(
         self,
         *args,
         patches_root: str,
+        split: Optional[str] = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
         self._patches_root = pathlib.Path(patches_root)
-        self._cat2label = {cat: i for i, cat in enumerate(self.coco.cats)}
+        if split is None:
+            self._classnames = [cat['name'] for cat in self.coco.cats.values()]
+            self._cat2label = {cat: i for i, cat in enumerate(self.coco.cats)}
+        else:
+            classnames = eval(split)
+            self._classnames = []
+            self._cat2label = dict()
+            for cat in self.coco.cats.values():
+                if cat['name'] in classnames:
+                    self._classnames.append(cat['name'])
+                    self._cat2label[cat['id']] = len(self._cat2label)
 
     @property
-    def classnames(self) -> List[str]:
-        return [cat['name'] for cat in self.coco.cats.values()]
+    def classnames(self) -> Tuple[str]:
+        return self._classnames
 
     @property
     def num_classes(self) -> int:
-        return len(self.coco.cats)
+        return len(self._classnames)
+
+    def _load_target(self, *args, **kwargs) -> List[Any]:
+        target = super()._load_target(*args, **kwargs)
+        return [anno for anno in target if anno['category_id'] in self._cat2label]
 
     def _load_patch(self, id_: int) -> Dict[str, torch.Tensor]:
         return torch.load(self._patches_root / f'{id_:012d}.pth', 'cpu')

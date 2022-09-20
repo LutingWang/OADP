@@ -10,6 +10,7 @@ import torch.utils.data
 import torch.utils.data.distributed
 import torch.nn as nn
 import torch.nn.functional as F
+# import torch.nn.modules.module
 
 import clip
 import clip.model
@@ -114,6 +115,9 @@ class CLIPTextEncoder(todd.base.Module):
 
 class Model(todd.reproduction.FrozenMixin, todd.base.Module):
 
+    def _is_frozen(self, key: str) -> bool:
+        return any(name in key for name in self._frozen_names)
+
     @staticmethod
     def _state_dict_hook(
         self: 'Model',
@@ -121,12 +125,19 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
         prefix,
         local_metadata,
     ) -> None:
-
-        def is_frozen(key: str) -> bool:
-            return any(name in key for name in self._frozen_names)
-
-        for k in list(filter(is_frozen, destination.keys())):
+        for k in list(filter(self._is_frozen, destination.keys())):
             destination.pop(k)
+
+    @staticmethod
+    def _load_state_dict_post_hook(self: 'Model', keys: nn.modules.module._IncompatibleKeys) -> None:
+        missing_keys = keys.missing_keys
+
+        i = 0
+        while i < len(missing_keys):
+            if self._is_frozen(missing_keys[i]):
+                missing_keys.pop(i)
+            else:
+                i += 1
 
     def __init__(
         self,
@@ -152,6 +163,7 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
         )
 
         self._register_state_dict_hook(self._state_dict_hook)
+        self.register_load_state_dict_post_hook(self._load_state_dict_post_hook)
 
     def forward(
         self,
@@ -172,7 +184,7 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
 
 class Runner:
 
-    def __init__(self, name: str, config: todd.base.Config) -> None:
+    def __init__(self, name: str, config: todd.base.Config, load: Optional[int]) -> None:
         self._name = name
         self._config = config
 
@@ -181,14 +193,17 @@ class Runner:
         self._build_dataloader()
 
         clip_model, _ = clip.load('pretrained/clip/RN50.pt', 'cpu')
+        self._token_embedding = clip_model.token_embedding
+
         classnames = Classnames(
             classnames=self._dataset.classnames,
-            embedding=clip_model.token_embedding,
+            embedding=self._token_embedding,
         )
+        # `requires_grad_` must be called on `Model` and nowhere else
         model = Model(
             clip_model=clip_model,
             prompt=config.prompt,
-        )
+        ).requires_grad_()
         if not debug.CPU:
             classnames = classnames.cuda()
             model = torch.nn.parallel.DistributedDataParallel(
@@ -196,7 +211,10 @@ class Runner:
                 device_ids=[torch.cuda.current_device()],
             )
         self._classnames = classnames
-        self._model = model.requires_grad_(False)
+        self._model = model
+
+        if load is not None:
+            self.load_checkpoint(load)
 
     def _build_logger(self):
         if todd.base.get_rank() == 0:
@@ -204,7 +222,8 @@ class Runner:
             log_file = self._work_dir / f'{timestamp}.log'
             todd.base.init_log_file(log_file)
         self._logger = todd.base.get_logger()
-        self._logger.info(f"Version: {todd.base.git_commit_id()}")
+        self._logger.info(f"Version {todd.base.git_commit_id()}")
+        self._logger.info(f"Config\n{self._config.dumps()}")
 
     def _build_work_dir(self) -> None:
         self._work_dir = pathlib.Path(f'work_dirs/{self._name}')
@@ -235,6 +254,7 @@ class Runner:
 
     @torch.no_grad()
     def run(self) -> Tuple[float, float]:
+        self._model.eval()
         classes = self._classnames
         results = []
         for i, batch in enumerate(self._dataloader):
@@ -282,8 +302,6 @@ class Trainer(Runner):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._model.requires_grad_()
-
         config = self._config.train
         self._train_dataset = CocoClassification(**config.dataset)
         self._train_sampler = (
@@ -300,6 +318,14 @@ class Trainer(Runner):
             num_workers=config.workers,
             collate_fn=self._train_dataset.collate,
         )
+
+        classnames = Classnames(
+            classnames=self._train_dataset.classnames,
+            embedding=self._token_embedding,
+        )
+        if not debug.CPU:
+            classnames = classnames.cuda()
+        self._train_classnames = classnames
 
         self._criterion = AsymmetricLoss(
             gamma_neg=4,
@@ -324,12 +350,15 @@ class Trainer(Runner):
             **config.lr_scheduler,
         )
 
+        self._start_epoch = 0
+
     def load_checkpoint(self, epoch: int) -> None:
         todd.base.load_checkpoint(
             self._model, self._work_dir / f'epoch_{epoch}.pth',
             optimizer=self._optimizer,
             scheduler=self._scheduler,
         )
+        self._start_epoch = epoch + 1
 
     def save_checkpoint(self, epoch: int) -> None:
         todd.base.save_checkpoint(
@@ -340,13 +369,11 @@ class Trainer(Runner):
     def train(self) -> Tuple[float, float]:
         image_record = -1
         patch_record = -1
-        for epoch in range(self._config.train.epoch):
+        for epoch in range(self._start_epoch, self._config.train.epoch):
             if not debug.CPU:
                 torch.distributed.barrier()
                 self._train_sampler.set_epoch(epoch)
-            self._model.train()
             self.train_epoch(epoch)
-            self._model.eval()
             image_mAP, patch_mAP = self.run()
             image_record = max(image_record, image_mAP)
             patch_record = max(patch_record, patch_mAP)
@@ -358,6 +385,8 @@ class Trainer(Runner):
         return image_record, patch_record
 
     def train_epoch(self, epoch: int) -> None:
+        self._model.train()
+
         for i, batch in enumerate(self._train_dataloader):
             loss = self.train_iter(batch)
             if i % self._config.log_interval != 0:
@@ -377,7 +406,7 @@ class Trainer(Runner):
     def train_iter(self, batch: Batch) -> float:
         if not debug.CPU:
             batch = Batch(*[x.cuda() for x in batch])
-        outputs, _ = self._model(batch.patches, self._classnames)
+        outputs, _ = self._model(batch.patches, self._train_classnames)
         loss: torch.Tensor = self._criterion(outputs.sigmoid(), batch.patch_labels)
         self._model.zero_grad()
         loss.backward()
@@ -392,6 +421,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('config', type=pathlib.Path)
     parser.add_argument('--odps', action=todd.base.DictAction)
     parser.add_argument('--override', action=todd.base.DictAction)
+    parser.add_argument('--load', type=int)
     args = parser.parse_args()
     return args
 
@@ -411,11 +441,8 @@ if __name__ == '__main__':
         torch.cuda.set_device(todd.base.get_local_rank())
 
     if args.mode == 'train':
-        runner = Trainer(args.name, config)
-    else:
-        runner = Runner(args.name, config)
-
-    if args.mode == 'train':
+        runner = Trainer(args.name, config, args.load)
         runner.train()
     else:
+        runner = Runner(args.name, config, args.load)
         runner.run()
