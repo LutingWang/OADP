@@ -1,5 +1,6 @@
 import argparse
 import pathlib
+import re
 import time
 from typing import Any, Dict, Generator, Iterator, List, Mapping, MutableMapping, Optional, Sequence, Tuple, Union
 import math
@@ -18,7 +19,7 @@ import einops
 
 import todd
 
-from .losses import AsymmetricLoss
+from . import losses
 
 from .datasets import Batch, CocoClassification
 from .debug import debug
@@ -113,6 +114,44 @@ class CLIPTextEncoder(todd.base.Module):
         return x
 
 
+IMAGE_REFINERS = todd.base.Registry('image refiners')
+
+
+@IMAGE_REFINERS.register_module(name='Base')
+class BaseImageRefiner(todd.base.Module):
+
+    def forward(self, batch: Batch, classes: torch.Tensor) -> torch.Tensor:
+        return batch.patches
+
+
+@IMAGE_REFINERS.register_module(name='TransformerEncoderLayer')
+class TransformerEncoderLayerImageRefiner(todd.base.Module):
+
+    def __init__(self, *args, num_channels: int, num_heads: int, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._pe = nn.Linear(4, num_channels, bias=False)
+        self._transformer = nn.TransformerEncoderLayer(num_channels, num_heads, batch_first=True)
+
+    def forward(self, batch: Batch, classes: torch.Tensor) -> torch.Tensor:
+        batch_size = batch.num_patches.numel()
+        length = batch.num_patches.max().item()
+        dim = batch.patches.shape[-1]
+        images = batch.patches.new_zeros(batch_size, length, dim)
+        masks = batch.patches.new_ones((batch_size, length), dtype=bool)
+
+        patches: torch.Tensor = batch.patches + self._pe(batch.patch_bboxes)
+        patches_list = patches.split(batch.num_patches.tolist())
+        for i, patches in enumerate(patches_list):
+            images[i, :batch.num_patches[i]] = patches
+            masks[i, :batch.num_patches[i]] = False
+        images_ = self._transformer(images, src_key_padding_mask=masks)
+        images_ = torch.cat([
+            images_[i, :num_patches] for i, num_patches in enumerate(batch.num_patches.tolist())
+        ])
+
+        return images_
+
+
 class Model(todd.reproduction.FrozenMixin, todd.base.Module):
 
     def _is_frozen(self, key: str) -> bool:
@@ -143,15 +182,16 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
         self,
         *args,
         clip_model: clip.model.CLIP,
-        prompt: str,
+        config: todd.base.Config,
         **kwargs
     ) -> None:
         todd.base.Module.__init__(self, *args, **kwargs)
         self._clip_text_encoder = CLIPTextEncoder(clip_model=clip_model)
         self._prompt = Prompt(
-            prompt=prompt,
+            prompt=config.prompt,
             embedding=clip_model.token_embedding.cpu(),
         )
+        self._image_refiner = IMAGE_REFINERS.build(config.image_refiner)
         self._scaler = nn.Parameter(torch.tensor(20.0), requires_grad=True)
         self._bias = nn.Parameter(torch.tensor(4.0), requires_grad=True)
 
@@ -167,19 +207,15 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
 
     def forward(
         self,
-        images: torch.Tensor,
+        batch: Batch,
         classes: Union[Classnames, torch.Tensor],
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         if isinstance(classes, Classnames):
             classes, l = self._prompt(classes)
             classes = self._clip_text_encoder.forward(classes, l)
             classes = F.normalize(classes)
+        images = self._image_refiner(batch, classes)
         return (images @ classes.T) * self._scaler - self._bias, classes
-
-    def state_dict(self, *args, terse: bool = False, **kwargs):
-        if not terse:
-            return super().state_dict(*args, **kwargs)
-        return dict(classes=self.get_classes(), scaler=self._scaler, bias=self._bias)
 
 
 class Runner:
@@ -202,7 +238,7 @@ class Runner:
         # `requires_grad_` must be called on `Model` and nowhere else
         model = Model(
             clip_model=clip_model,
-            prompt=config.prompt,
+            config=config.model,
         ).requires_grad_()
         if not debug.CPU:
             classnames = classnames.cuda()
@@ -276,7 +312,7 @@ class Runner:
             image_logits, image_labels, patch_logits, patch_labels = results_iter
             image_mAP = sklearn.metrics.average_precision_score(image_labels, image_logits)
             patch_mAP = sklearn.metrics.average_precision_score(patch_labels, patch_logits)
-            self._logger.info(f"image_mAP: {image_mAP * 100:.2f}, patch_mAP: {patch_mAP * 100:.2f}")
+            self._logger.info(f"image_mAP: {image_mAP * 100:.3f}, patch_mAP: {patch_mAP * 100:.3f}")
             return image_mAP, patch_mAP
         else:
             return -1, -1
@@ -286,7 +322,7 @@ class Runner:
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         if not debug.CPU:
             batch = Batch(*[x.cuda() for x in batch])
-        patch_logits, classes = self._model(batch.patches, classes)
+        patch_logits, classes = self._model(batch, classes)
         image_logits = torch.stack(
             list(
                 map(
@@ -308,7 +344,7 @@ class Trainer(Runner):
             None if debug.CPU else
             torch.utils.data.distributed.DistributedSampler(
                 self._train_dataset,
-                shuffle=False,
+                shuffle=not debug.CPU,
             )
         )
         self._train_dataloader = torch.utils.data.DataLoader(
@@ -327,27 +363,14 @@ class Trainer(Runner):
             classnames = classnames.cuda()
         self._train_classnames = classnames
 
-        self._criterion = AsymmetricLoss(
-            gamma_neg=4,
-            gamma_pos=0,
-            clip=0.05,
-            disable_torch_grad_focal_loss=True,
+        self._criterion = todd.losses.LOSSES.build(config.loss)
+        self._optimizer = todd.utils.OPTIMIZERS.build(
+            config.optimizer,
+            default_args=dict(model=self._model),
         )
-        self._optimizer = torch.optim.Adam(
-            params=self._model.parameters(),
-            lr=config.lr,
-            weight_decay=config.weight_decay,
-        )
-        # self._scheduler = torch.optim.lr_scheduler.OneCycleLR(
-        #     self._optimizer,
-        #     max_lr=self._config.lr,
-        #     steps_per_epoch=len(self._train_dataloader),
-        #     epochs=self._config.epoch,
-        #     pct_start=0.2,
-        # )
-        self._scheduler = torch.optim.lr_scheduler.MultiStepLR(
-            self._optimizer,
-            **config.lr_scheduler,
+        self._scheduler = todd.utils.LR_SCHEDULERS.build(
+            config.lr_scheduler,
+            default_args=dict(optimizer=self._optimizer),
         )
 
         self._start_epoch = 0
@@ -379,8 +402,8 @@ class Trainer(Runner):
             patch_record = max(patch_record, patch_mAP)
             if todd.base.get_rank() == 0:
                 self._logger.info(
-                    f"image_record: {image_record * 100:.2f}, "
-                    f"patch_record: {patch_record * 100:.2f}"
+                    f"image_record: {image_record * 100:.3f}, "
+                    f"patch_record: {patch_record * 100:.3f}"
                 )
         return image_record, patch_record
 
@@ -394,8 +417,8 @@ class Trainer(Runner):
             self._logger.info(
                 f'Epoch [{epoch}/{self._config.train.epoch}] '
                 f'Train Step [{i}/{len(self._train_dataloader)}] '
-                f'LR {self._scheduler.get_last_lr()[0]:.2e} '
-                f'Loss {loss:.1f}'
+                f'LR {self._scheduler.get_last_lr()[0]:.3e} '
+                f'Loss {loss:.3f}'
             )
             if debug.LESS_DATA and i: break
 
@@ -406,7 +429,7 @@ class Trainer(Runner):
     def train_iter(self, batch: Batch) -> float:
         if not debug.CPU:
             batch = Batch(*[x.cuda() for x in batch])
-        outputs, _ = self._model(batch.patches, self._train_classnames)
+        outputs, _ = self._model(batch, self._train_classnames)
         loss: torch.Tensor = self._criterion(outputs.sigmoid(), batch.patch_labels)
         self._model.zero_grad()
         loss.backward()
@@ -422,6 +445,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--odps', action=todd.base.DictAction)
     parser.add_argument('--override', action=todd.base.DictAction)
     parser.add_argument('--load', type=int)
+    parser.add_argument('--seed', type=int, default=3407)
     args = parser.parse_args()
     return args
 
@@ -439,6 +463,8 @@ if __name__ == '__main__':
     if not debug.CPU:
         torch.distributed.init_process_group(backend='nccl')
         torch.cuda.set_device(todd.base.get_local_rank())
+
+    todd.reproduction.init_seed(args.seed)
 
     if args.mode == 'train':
         runner = Trainer(args.name, config, args.load)

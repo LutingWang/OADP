@@ -12,7 +12,7 @@ from .debug import debug
 
 Batch = namedtuple(
     'Batch',
-    ['images', 'image_labels', 'patches', 'patch_labels', 'num_patches'],
+    ['patches', 'patch_labels', 'patch_bboxes', 'image_labels', 'num_patches'],
 )
 
 COCO_48 = (
@@ -39,6 +39,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         *args,
         patches_root: str,
         split: Optional[str] = None,
+        filter_empty: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -54,6 +55,8 @@ class CocoClassification(torchvision.datasets.CocoDetection):
                 if cat['name'] in classnames:
                     self._classnames.append(cat['name'])
                     self._cat2label[cat['id']] = len(self._cat2label)
+        if filter_empty:
+            self.ids = list(filter(self._load_target, self.ids))
 
     @property
     def classnames(self) -> Tuple[str]:
@@ -96,14 +99,18 @@ class CocoClassification(torchvision.datasets.CocoDetection):
 
         patch = self._load_patch(id_)
         patch_features = self._load_patch_features(patch)
-        image_feature = patch_features[0]
-
         patch_bboxes = self._load_patch_bboxes(patch)
+
         patch_labels = torch.zeros((len(patch_bboxes), self.num_classes), dtype=torch.bool)
         patch_id, bbox_id = torch.where(patch_bboxes.intersections(bboxes) > 0)
         patch_labels[patch_id, bbox_labels[bbox_id]] = True
 
-        return image_feature, image_labels, patch_features, patch_labels
+        image_meta = self.coco.loadImgs(id_)[0]
+        h = image_meta['height']
+        w = image_meta['width']
+        patch_bboxes_ = patch_bboxes.to_tensor() / torch.tensor([w, h, w, h])
+
+        return patch_features, patch_labels, patch_bboxes_, image_labels
 
     @staticmethod
     def collate(
@@ -111,13 +118,12 @@ class CocoClassification(torchvision.datasets.CocoDetection):
             Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
         ],
     ) -> Batch:
-        image_feature_list, image_labels_list, patch_features_list, patch_labels_list = zip(*batch)
-        image_features: torch.Tensor = torch.utils.data.dataloader.default_collate(image_feature_list)
-        image_labels: torch.Tensor = torch.utils.data.dataloader.default_collate(image_labels_list)
+        patch_features_list, patch_labels_list, patch_bboxes_list, image_labels_list = zip(*batch)
         patch_features = torch.cat(patch_features_list)
         patch_labels = torch.cat(patch_labels_list)
+        patch_bboxes = torch.cat(patch_bboxes_list)
+        image_labels: torch.Tensor = torch.utils.data.dataloader.default_collate(image_labels_list)
         num_patches: torch.Tensor = torch.utils.data.dataloader.default_collate([p.shape[0] for p in patch_features_list])
         if debug.CPU:
-            image_features = image_features.float()
             patch_features = patch_features.float()
-        return Batch(image_features, image_labels, patch_features, patch_labels, num_patches)
+        return Batch(patch_features, patch_labels, patch_bboxes, image_labels, num_patches)
