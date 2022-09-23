@@ -92,7 +92,7 @@ def main():
         targets.append(target)
         if i % cfg.log_interval == 0:
             print(f'Val Step [{i}/{len(val_loader)}]')
-            if debug.LESS_DATA and i: break
+            if debug.DRY_RUN and i: break
     if not debug.CPU:
         preds_ = torch.cat(preds)
         targets_ = torch.cat(targets)

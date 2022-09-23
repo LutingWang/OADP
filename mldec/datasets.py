@@ -60,7 +60,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
 
     @property
     def classnames(self) -> Tuple[str]:
-        return self._classnames
+        return tuple(self._classnames)
 
     @property
     def num_classes(self) -> int:

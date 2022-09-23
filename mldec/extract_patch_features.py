@@ -136,7 +136,7 @@ class Runner:
             self._run_iter(batch, patches_root)
             if i % self._config.log_interval == 0:
                 self._logger.info(f"{mode.capitalize()} [{i * dataloader.batch_size}/{len(dataset)}]")
-                if debug.LESS_DATA and i: break
+                if debug.DRY_RUN and i: break
 
     def train(self) -> None:
         self._run('train')
