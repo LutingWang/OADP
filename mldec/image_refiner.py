@@ -28,7 +28,7 @@ class Classes(todd.base.Module):
             name: i for i, name in enumerate(state_dict['classnames'])
         }
         name_inds = [name_dict[name] for name in names]
-        self.embeddings = embeddings[name_inds]
+        self.embeddings = nn.Parameter(embeddings[name_inds], requires_grad=False)
         self.scaler = state_dict['scaler'].item()
         self.bias = state_dict['bias'].item()
 
@@ -40,25 +40,26 @@ class Model(todd.base.Module):
         self._pe = nn.Linear(4, num_channels, bias=False)
         self._transformer = nn.TransformerEncoderLayer(num_channels, num_heads, batch_first=True)
 
-    def forward(self, batch: Batch, classes: Classes) -> torch.Tensor:
+    def forward(self, batch: Batch, classes: Classes) -> Tuple[torch.Tensor, torch.Tensor]:
         batch_size = batch.num_patches.numel()
         length = batch.num_patches.max().item()
         dim = batch.patches.shape[-1]
-        images = batch.patches.new_zeros(batch_size, length, dim)
+        inputs = batch.patches.new_zeros(batch_size, length, dim)
         masks = batch.patches.new_ones((batch_size, length), dtype=bool)
 
         patches: torch.Tensor = batch.patches + self._pe(batch.patch_bboxes)
         patches_list = patches.split(batch.num_patches.tolist())
         for i, patches in enumerate(patches_list):
-            images[i, :batch.num_patches[i]] = patches
+            inputs[i, :batch.num_patches[i]] = patches
             masks[i, :batch.num_patches[i]] = False
-        images_ = self._transformer(images, src_key_padding_mask=masks)
-        images_ = torch.cat([
-            images_[i, :num_patches] for i, num_patches in enumerate(batch.num_patches.tolist())
+        patches = self._transformer(inputs, src_key_padding_mask=masks)
+        images = patches[:, 0]
+        patches = torch.cat([
+            patches[i, :num_patches] for i, num_patches in enumerate(batch.num_patches.tolist())
         ])
 
         # return (images_ @ classes.embeddings.T) * classes.scaler - classes.bias
-        return images_ @ classes.embeddings.T
+        return (images @ classes.embeddings.T) * classes.scaler - classes.bias, patches
 
 
 class Runner(BaseRunner):
@@ -122,16 +123,8 @@ class Runner(BaseRunner):
     ) -> None:
         if not debug.CPU:
             batch = Batch(*[x.cuda() for x in batch])
-        patch_logits = self._model(batch, memo['classes'])
-        image_logits = torch.stack(
-            list(
-                map(
-                    lambda x: x.max(0).values,
-                    patch_logits.split(batch.num_patches.tolist()),
-                ),
-            ),
-        )
-        memo['results'].append((image_logits, batch.image_labels, patch_logits, batch.patch_labels))
+        image_logits, _ = self._model(batch, memo['classes'])
+        memo['results'].append((image_logits, batch.image_labels))
 
     def _after_run_iter(self, *args, i: int, batch, memo: Dict[str, Any], **kwargs) -> None:
         if i % self._config.log_interval == 0:
@@ -139,7 +132,7 @@ class Runner(BaseRunner):
                 f'Val Step [{i}/{len(self._dataloader)}]'
             )
 
-    def _after_run(self, *args, memo: Dict[str, Any], **kwargs) -> Tuple[float, float]:
+    def _after_run(self, *args, memo: Dict[str, Any], **kwargs) -> float:
         results: Iterator[Tuple[torch.Tensor, ...]] = zip(*memo['results'])
         if not debug.CPU:
             results = tuple(  # all_gather must exec
@@ -147,13 +140,12 @@ class Runner(BaseRunner):
             )
         if todd.base.get_rank() == 0:
             results = map(lambda result: torch.cat(result).cpu().numpy(), results)
-            image_logits, image_labels, patch_logits, patch_labels = results
+            image_logits, image_labels = results
             image_mAP = sklearn.metrics.average_precision_score(image_labels, image_logits)
-            patch_mAP = sklearn.metrics.average_precision_score(patch_labels, patch_logits)
-            self._logger.info(f"image_mAP: {image_mAP * 100:.3f}, patch_mAP: {patch_mAP * 100:.3f}")
-            return image_mAP, patch_mAP
+            self._logger.info(f"image_mAP: {image_mAP * 100:.3f}")
+            return image_mAP
         else:
-            return -1, -1
+            return -1
 
     def dump(self) -> None:
         raise NotImplementedError
@@ -204,25 +196,30 @@ class Trainer(TrainerMixin, Runner):
             classes = classes.cuda()
         self._train_classes = classes
 
-        self._criterion = todd.losses.LOSSES.build(config.loss)
+        self._criterions = todd.base.ModuleDict({
+            k: todd.losses.LOSSES.build(v) for k, v in config.losses.items()
+        })
 
     def _before_train(self, *args, **kwargs) -> Dict[str, Any]:
         memo = super()._before_train(self, *args, **kwargs)
         memo.update(
             image_record=-1,
-            patch_record=-1,
         )
         return memo
 
     def _train_iter(self, *args, epoch: int, i: int, batch, memo: Dict[str, Any], **kwargs) -> None:
         if not debug.CPU:
             batch = Batch(*[x.cuda() for x in batch])
-        outputs = self._model(batch, self._train_classes)
-        loss: torch.Tensor = self._criterion(outputs.sigmoid(), batch.patch_labels)
+        outputs, patches = self._model(batch, self._train_classes)
+        ml_loss = self._criterions['ml_loss'](outputs.sigmoid(), batch.image_labels)
+        rec_loss = self._criterions['rec_loss'](patches, batch.patches)
+        loss = ml_loss + rec_loss
         self._model.zero_grad()
         loss.backward()
         self._optimizer.step()
-        memo['loss'] = loss.item()
+        memo['losses'] = dict(ml_loss=ml_loss.item(), rec_loss=rec_loss.item())
+
+        todd.base.inc_iter()
 
     def _after_train_iter(self, *args, epoch: int, i: int, batch, memo: Dict[str, Any], **kwargs) -> None:
         if i % self._config.log_interval == 0:
@@ -230,26 +227,24 @@ class Trainer(TrainerMixin, Runner):
                 f'Epoch [{epoch}/{self._config.train.epoch}] '
                 f'Train Step [{i}/{len(self._train_dataloader)}] '
                 f'LR {self._scheduler.get_last_lr()[0]:.3e} '
-                f'Loss {memo.pop("loss"):.3f}'
+                f'Loss {memo.pop("losses")}'
             )
 
     def _after_train_epoch(self, *args, epoch: int, memo: Dict[str, Any], **kwargs) -> None:
         self._scheduler.step()
         if todd.base.get_rank() == 0:
             self.save_checkpoint(epoch)
-        image_mAP, patch_mAP = self.run()
+        image_mAP = self.run()
         memo.update(
             image_record=max(memo['image_record'], image_mAP),
-            patch_record=max(memo['patch_record'], patch_mAP),
         )
         if todd.base.get_rank() == 0:
             self._logger.info(
                 f"image_record: {memo['image_record'] * 100:.3f}, "
-                f"patch_record: {memo['patch_record'] * 100:.3f}"
             )
 
     def _after_train(self, *args, memo: Dict[str, Any], **kwargs) -> Tuple[float, float]:
-        return memo['image_record'], memo['patch_record']
+        return memo['image_record']
 
 
 def parse_args() -> argparse.Namespace:

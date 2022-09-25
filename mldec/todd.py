@@ -48,6 +48,7 @@ class BaseRunner(ABC):
 
         self._build_custom(*args, config=config, **kwargs)
 
+        todd.base.init_iter()
         self._epoch = -1
         if load is not None:
             self.load_checkpoint(load, *args, **kwargs)
@@ -107,6 +108,7 @@ class BaseRunner(ABC):
         todd.base.load_checkpoint(
             self._model, self._work_dir / f'epoch_{epoch}.pth',
         )
+        todd.base.init_iter((epoch + 1) * len(self._dataloader))
         self._epoch = epoch
 
     def _before_run(self, *args, **kwargs) -> Dict[str, Any]:
@@ -147,7 +149,7 @@ class TrainerMixin(BaseRunner):
                 *args,
                 config=todd.base.getattr_recur(
                     config,
-                    '.val.dataloader',
+                    '.train.dataloader',
                     None,
                 ),
                 **kwargs,
@@ -226,6 +228,7 @@ class TrainerMixin(BaseRunner):
             optimizer=self._optimizer,
             scheduler=self._scheduler,
         )
+        todd.base.init_iter((epoch + 1) * len(self._train_dataloader))
         self._epoch = epoch
 
     def save_checkpoint(self, epoch) -> None:
