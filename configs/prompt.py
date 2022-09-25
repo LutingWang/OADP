@@ -1,20 +1,18 @@
 data_root = 'data/coco/'
-patches_root = data_root + 'patches/'
 train = dict(
     epoch=4,
     optimizer=dict(
         type='Adam',
-        lr=5e-2,
+        lr=5e-3,
         weight_decay=1e-3,
     ),
 
     dataloader=dict(
-        batch_size=32,
-        workers=4,
+        batch_size=1,
+        workers=1,
         dataset=dict(
             root=data_root + 'train2017',
-            annFile=data_root + 'annotations/instances_train2017.json',
-            patches_root=patches_root + 'train',
+            ann_file=data_root + 'annotations/instances_train2017.json',
             split='COCO_48',
             # filter_empty=True,
         ),
@@ -31,21 +29,26 @@ train = dict(
 )
 val = dict(
     dataloader=dict(
-        batch_size=32,
-        workers=4,
+        batch_size=1,
+        workers=1,
         dataset=dict(
             root=data_root + 'val2017',
-            annFile=data_root + 'annotations/instances_val2017.json',
-            patches_root=patches_root + 'val',
+            ann_file=data_root + 'annotations/instances_val2017.json',
             split='COCO_17',
             # filter_empty=True,
         ),
     ),
 )
 
-thr = 0.75
-log_interval = 64
+log_interval = 2
 
 model = dict(
-    prompt='a photo of a',
+    text_prompt=dict(
+        prompt='a photo of a',
+    ),
+    text_encoder=dict(),
+    image_prompt=dict(
+        length=4,
+    ),
+    image_encoder=dict(),
 )

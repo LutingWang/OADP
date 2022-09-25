@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import argparse
+from collections import namedtuple
 import logging
 import pathlib
 import re
@@ -10,9 +11,11 @@ import sklearn.metrics
 import torch
 import torch.distributed
 import torch.utils.data
+import torch.utils.data.dataloader
 import torch.utils.data.distributed
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.transforms as transforms
 # import torch.nn.modules.module
 
 import clip
@@ -20,93 +23,147 @@ import clip.model
 import einops
 
 import todd
+import torchvision
 
 from . import losses
+from . import datasets
 
-from .datasets import Batch, CocoClassification
 from .debug import debug
 from .utils import all_gather, odps_init
 from .todd import BaseRunner, TrainerMixin
 
+Batch = namedtuple(
+    'Batch',
+    ['images', 'class_embeddings', 'class_lengths', 'labels'],
+)
 
-class Classnames(todd.base.Module):
+
+class CocoClassification(torchvision.datasets.CocoDetection):
+    _classnames: List[str]
+    _cat2label: Dict[int, int]
 
     def __init__(
         self,
-        *args,
-        classnames: Sequence[str],
-        embedding: nn.Embedding,
-        **kwargs,
+        root: str,
+        ann_file: str,
+        clip_model: clip.model.CLIP,
+        split: Optional[str] = None,
+        filter_empty: bool = False,
     ) -> None:
-        super().__init__(*args, **kwargs)
-        classnames = [classname.replace('_', ' ') + '.' for classname in classnames]
-        classname_tokens = clip.tokenize(classnames)
-        self._lengths = classname_tokens.argmax(dim=-1)
+        super().__init__(
+            root=root,
+            annFile=ann_file,
+            transform=transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    (0.48145466, 0.4578275, 0.40821073),
+                    (0.26862954, 0.26130258, 0.27577711),
+                ),
+            ])
+        )
+
+        if split is None:
+            self._classnames = [cat['name'] for cat in self.coco.cats.values()]
+            self._cat2label = {cat: i for i, cat in enumerate(self.coco.cats)}
+        else:
+            classnames = getattr(datasets, split)
+            self._classnames = []
+            self._cat2label = dict()
+            for cat in self.coco.cats.values():
+                if cat['name'] in classnames:
+                    self._classnames.append(cat['name'])
+                    self._cat2label[cat['id']] = len(self._cat2label)
+
+        if filter_empty:
+            self.ids = list(filter(self._load_target, self.ids))
+
+        class_tokens = clip.tokenize([
+            name.replace('_', ' ') + '.'
+            for name in self._classnames
+        ])
         with torch.no_grad():
-            classname_embeddings = embedding(classname_tokens)
-        self.register_buffer('_embeddings', classname_embeddings, persistent=False)
-
-    def __len__(self) -> int:
-        return self.embeddings.shape[0]
+            self._class_embeddings = clip_model.token_embedding(class_tokens)
+        self._class_lengths = class_tokens.argmax(dim=-1)
 
     @property
-    def embeddings(self) -> torch.Tensor:
-        return self.get_buffer('_embeddings')
+    def classnames(self) -> Tuple[str]:
+        return tuple(self._classnames)
 
-    @property
-    def lengths(self) -> torch.Tensor:
-        return self._lengths
+    def _load_target(self, *args, **kwargs) -> List[Any]:
+        target = super()._load_target(*args, **kwargs)
+        return [anno for anno in target if anno['category_id'] in self._cat2label]
+
+    def _load_labels(self, target: List[Any]) -> torch.Tensor:
+        bbox_labels = [
+            self._cat2label[anno['category_id']]
+            for anno in target
+        ]
+        labels = torch.zeros(len(self._classnames), dtype=torch.bool)
+        labels[bbox_labels] = True
+        return labels
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        image, target = super().__getitem__(index)
+        labels = self._load_labels(target)
+        return image, labels
+
+    def collate(self, batch: List[Tuple[torch.Tensor, torch.Tensor]]) -> Batch:
+        images, labels = map(
+            torch.utils.data.dataloader.default_collate,
+            zip(*batch),
+        )
+        return Batch(images, self._class_embeddings, self._class_lengths, labels)
 
 
-class Prompt(todd.base.Module):
+class TextPrompt(todd.base.Module):
 
     def __init__(
         self,
         *args,
+        clip_model: clip.model.CLIP,
         prompt: str,
-        embedding: nn.Embedding,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
         prompt_tokens = clip.tokenize([prompt])[0, 1:-1]
         with torch.no_grad():
-            prompt_embedding: torch.Tensor = embedding(prompt_tokens)
+            prompt_embedding = clip_model.token_embedding(prompt_tokens)
         self._prompt_embedding = nn.Parameter(prompt_embedding)
 
-    def __len__(self) -> int:
-        return self._prompt_embedding.shape[0]
-
-    def forward(
-        self,
-        classnames: Classnames,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        prompt_embedding = einops.repeat(
+    def forward(self, batch: Batch) -> Tuple[torch.Tensor, torch.Tensor]:
+        prompt_embeddings = einops.repeat(
             self._prompt_embedding,
             'l d -> n l d',
-            n=len(classnames),
+            n=batch.class_embeddings.shape[0],
         )
-        embeddings = torch.cat(
+        x = torch.cat(
             [
-                classnames.embeddings[:, :1],
-                prompt_embedding,
-                classnames.embeddings[:, 1:],
+                batch.class_embeddings[:, :1],
+                prompt_embeddings,
+                batch.class_embeddings[:, 1:],
             ],
             dim=1,
         )
-        lengths = classnames.lengths + len(self)
-        return embeddings, lengths
+        l = batch.class_lengths + self._prompt_embedding.shape[0]
+        return x, l
 
 
-class CLIPTextEncoder(todd.base.Module):
+class TextEncoder(todd.base.Module):
 
-    def __init__(self, *args, clip_model: clip.model.CLIP, **kwargs) -> None:
+    def __init__(
+        self,
+        *args,
+        clip_model: clip.model.CLIP,
+        **kwargs,
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._transformer = clip_model.transformer
         self._pe = clip_model.positional_embedding
         self._ln = clip_model.ln_final
         self._proj = clip_model.text_projection
 
-    def forward(self, x: torch.Tensor, l: torch.Tensor) -> torch.Tensor:
+    def forward(self, batch: Batch, prompt: TextPrompt) -> torch.Tensor:
+        x, l = prompt(batch)
         x = x + self._pe[:x.shape[1]]
         x = einops.rearrange(x, 'n l d -> l n d')
         x = self._transformer(x)
@@ -114,7 +171,68 @@ class CLIPTextEncoder(todd.base.Module):
         x = self._ln(x)
         x = x[torch.arange(x.shape[0]), l]
         x = x @ self._proj
-        return x
+        return F.normalize(x)
+
+
+class ImagePrompt(todd.base.Module):
+
+    def __init__(
+        self,
+        *args,
+        clip_model: clip.model.CLIP,
+        length: int,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        width = clip_model.visual.conv1.out_channels
+        scale = width ** -0.5
+        self._prompt = nn.Parameter(scale * torch.randn((length, width)))
+
+    def forward(self, batch: Batch) -> torch.Tensor:
+        return einops.repeat(self._prompt, 'l d -> n l d', n=batch.images.shape[0])
+
+
+class ImageEncoder(todd.base.Module):
+
+    def __init__(
+        self,
+        *args,
+        clip_model: clip.model.CLIP,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        visual = clip_model.visual
+        self._conv1 = visual.conv1
+        self._ln_pre = visual.ln_pre
+        self._transformer = visual.transformer
+        self._ln_post = visual.ln_post
+        self._proj = visual.proj
+
+        spatial_size = visual.input_resolution // visual.conv1.kernel_size[0]
+        assert visual.positional_embedding.shape[0] == spatial_size ** 2 + 1
+        self._ce = visual.class_embedding + visual.positional_embedding[0]
+        self._pe = einops.rearrange(
+            visual.positional_embedding[1:],
+            '(h w) c -> 1 c h w',
+            h=spatial_size,
+            w=spatial_size,
+        )
+
+    def forward(self, batch: Batch, prompt: ImagePrompt) -> torch.Tensor:
+        x = self._conv1(batch.images)
+        b, _, h, w = x.shape
+        ce = einops.repeat(self._ce, 'c -> b 1 c', b=b)
+        x += F.interpolate(self._pe, size=(h, w), mode='bilinear')
+        x = einops.rearrange(x, 'b c h w -> b (h w) c')
+        prompt_ = prompt(batch)
+        x = torch.cat([ce, x, prompt_], dim=1)
+        x = self._ln_pre(x)
+        x = einops.rearrange(x, 'b l c -> l b c')
+        x = self._transformer(x)
+        x = einops.rearrange(x, 'l b c -> b l c')
+        x = self._ln_post(x[:, 0, :])
+        x = x @ self._proj
+        return F.normalize(x)
 
 
 class Model(todd.reproduction.FrozenMixin, todd.base.Module):
@@ -151,15 +269,26 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
         **kwargs
     ) -> None:
         todd.base.Module.__init__(self, *args, **kwargs)
-        self._clip_text_encoder = CLIPTextEncoder(clip_model=clip_model)
-        self._prompt = Prompt(
-            prompt=config.prompt,
-            embedding=clip_model.token_embedding.cpu(),
+        self._text_prompt = TextPrompt(
+            clip_model=clip_model,
+            **config.text_prompt,
+        )
+        self._text_encoder = TextEncoder(
+            clip_model=clip_model,
+            **config.text_encoder,
+        )
+        self._image_prompt = ImagePrompt(
+            clip_model=clip_model,
+            **config.image_prompt,
+        )
+        self._image_encoder = ImageEncoder(
+            clip_model=clip_model,
+            **config.image_encoder,
         )
         self._scaler = nn.Parameter(torch.tensor(20.0), requires_grad=True)
         self._bias = nn.Parameter(torch.tensor(4.0), requires_grad=True)
 
-        self._frozen_names = ['_clip_text_encoder']
+        self._frozen_names = ['_text_encoder', '_image_encoder']
         todd.reproduction.FrozenMixin.__init__(
             self,
             no_grad_config=dict(names=self._frozen_names),
@@ -169,23 +298,20 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
         self._register_state_dict_hook(self._state_dict_hook)
         self.register_load_state_dict_post_hook(self._load_state_dict_post_hook)
 
-    def get_classes(self, classes: Classnames) -> torch.Tensor:
-        classes, l = self._prompt(classes)
-        classes = self._clip_text_encoder.forward(classes, l)
-        return F.normalize(classes)
+    def forward(self, batch: Batch) -> torch.Tensor:
+        texts = self.encode_texts(batch)
+        images = self.encode_images(batch)
+        return (images @ texts.T) * self._scaler - self._bias
 
-    def forward(
-        self,
-        batch: Batch,
-        classes: Union[Classnames, torch.Tensor],
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        if isinstance(classes, Classnames):
-            classes = self.get_classes(classes)
-        return (batch.patches @ classes.T) * self._scaler - self._bias, classes
+    def encode_images(self, batch: Batch) -> torch.Tensor:
+        return self._image_encoder(batch, self._image_prompt)
 
-    def dump(self, classes: Classnames) -> Dict[str, torch.Tensor]:
+    def encode_texts(self, batch: Batch) -> torch.Tensor:
+        return self._text_encoder(batch, self._text_prompt)
+
+    def dump_texts(self, batch: Batch) -> Dict[str, torch.Tensor]:
         return dict(
-            embeddings=self.get_classes(classes),
+            embeddings=self.encode_texts(batch),
             scaler=self._scaler,
             bias=self._bias,
         )
@@ -193,10 +319,15 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
 
 class Runner(BaseRunner):
 
+    def __init__(self, *args, **kwargs) -> None:
+        clip_model, _ = clip.load('pretrained/clip/ViT-B-32.pt', 'cpu')
+        super().__init__(*args, clip_model=clip_model, **kwargs)
+
     def _build_dataloader(
         self,
         *args,
         config: Optional[todd.base.Config],
+        clip_model: clip.model.CLIP,
         **kwargs,
     ) -> Tuple[
         CocoClassification,
@@ -204,7 +335,7 @@ class Runner(BaseRunner):
         torch.utils.data.DataLoader,
     ]:
         assert config is not None
-        dataset = CocoClassification(**config.dataset)
+        dataset = CocoClassification(clip_model=clip_model, **config.dataset)
         sampler = (
             None if debug.CPU else
             torch.utils.data.distributed.DistributedSampler(
@@ -225,33 +356,25 @@ class Runner(BaseRunner):
         self,
         *args,
         config: Optional[todd.base.Config],
+        clip_model: clip.model.CLIP,
         **kwargs,
     ) -> nn.Module:
         assert config is not None
-        clip_model, _ = clip.load('pretrained/clip/RN50.pt', 'cpu')
-        self._token_embedding = clip_model.token_embedding
-
-        classnames = Classnames(
-            classnames=self._dataset.classnames,
-            embedding=self._token_embedding,
-        )
         # `requires_grad_` must be called on `Model` and nowhere else
         model = Model(
             clip_model=clip_model,
             config=config,
         ).requires_grad_()
         if not debug.CPU:
-            classnames = classnames.cuda()
             model = torch.nn.parallel.DistributedDataParallel(
                 model.cuda(),
                 device_ids=[torch.cuda.current_device()],
             )
-        self._classnames = classnames
         return model
 
     def _before_run(self, *args, **kwargs) -> Dict[str, Any]:
         memo = super()._before_run(*args, **kwargs)
-        memo.update(classes=self._classnames, results=[])
+        memo.update(results=[])
         return memo
 
     def _run_iter(
@@ -259,17 +382,8 @@ class Runner(BaseRunner):
     ) -> None:
         if not debug.CPU:
             batch = Batch(*[x.cuda() for x in batch])
-        patch_logits, classes = self._model(batch, memo['classes'])
-        image_logits = torch.stack(
-            list(
-                map(
-                    lambda x: x.max(0).values,
-                    patch_logits.split(batch.num_patches.tolist()),
-                ),
-            ),
-        )
-        memo['classes'] = classes
-        memo['results'].append((image_logits, batch.image_labels, patch_logits, batch.patch_labels))
+        logits = self._model(batch)
+        memo['results'].append((logits, batch.labels))
 
     def _after_run_iter(self, *args, i: int, batch, memo: Dict[str, Any], **kwargs) -> None:
         if i % self._config.log_interval == 0:
@@ -277,37 +391,30 @@ class Runner(BaseRunner):
                 f'Val Step [{i}/{len(self._dataloader)}]'
             )
 
-    def _after_run(self, *args, memo: Dict[str, Any], **kwargs) -> Tuple[float, float]:
+    def _after_run(self, *args, memo: Dict[str, Any], **kwargs) -> float:
         results: Iterator[Tuple[torch.Tensor, ...]] = zip(*memo['results'])
         if not debug.CPU:
-            results = tuple(  # all_gather must exec
+            results = tuple(  # all_gather must exec for all ranks
                 map(all_gather, results),
             )
         if todd.base.get_rank() == 0:
             results = map(lambda result: torch.cat(result).cpu().numpy(), results)
-            image_logits, image_labels, patch_logits, patch_labels = results
-            image_mAP = sklearn.metrics.average_precision_score(image_labels, image_logits)
-            patch_mAP = sklearn.metrics.average_precision_score(patch_labels, patch_logits)
-            self._logger.info(f"image_mAP: {image_mAP * 100:.3f}, patch_mAP: {patch_mAP * 100:.3f}")
-            return image_mAP, patch_mAP
+            image_logits, image_labels = results
+            mAP = sklearn.metrics.average_precision_score(image_labels, image_logits)
+            self._logger.info(f"mAP: {mAP * 100:.3f}")
+            return mAP
         else:
-            return -1, -1
+            return -1
 
     def dump(self) -> None:
         model = self._model
         if isinstance(model, nn.parallel.DistributedDataParallel):
             model = model.module
-        classnames = [cat['name'] for cat in self._dataset.coco.cats.values()]
-        state_dict = model.dump(
-            Classnames(
-                classnames=classnames,
-                embedding=self._token_embedding,
-            ),
-        )
+        state_dict = model.dump_texts(self._dataset[0])
         state_dict.update(
-            classnames=classnames,
+            names=self._dataset.classnames,
         ),
-        torch.save(state_dict, self._work_dir / f'epoch_{self._epoch}_embeddings.pth')
+        torch.save(state_dict, self._work_dir / f'epoch_{self._epoch}_classes.pth')
 
 
 class Trainer(TrainerMixin, Runner):
@@ -316,6 +423,7 @@ class Trainer(TrainerMixin, Runner):
         self,
         *args,
         config: Optional[todd.base.Config],
+        clip_model: clip.model.CLIP,
         **kwargs,
     ) -> Tuple[
         CocoClassification,
@@ -323,7 +431,7 @@ class Trainer(TrainerMixin, Runner):
         torch.utils.data.DataLoader,
     ]:
         assert config is not None
-        dataset = CocoClassification(**config.dataset)
+        dataset = CocoClassification(clip_model=clip_model, **config.dataset)
         sampler = (
             None if debug.CPU else
             torch.utils.data.distributed.DistributedSampler(
@@ -347,29 +455,20 @@ class Trainer(TrainerMixin, Runner):
         **kwargs,
     ) -> None:
         assert config is not None
-        classnames = Classnames(
-            classnames=self._train_dataset.classnames,
-            embedding=self._token_embedding,
-        )
-        if not debug.CPU:
-            classnames = classnames.cuda()
-        self._train_classnames = classnames
-
         self._criterion = todd.losses.LOSSES.build(config.loss)
 
     def _before_train(self, *args, **kwargs) -> Dict[str, Any]:
         memo = super()._before_train(self, *args, **kwargs)
         memo.update(
-            image_record=-1,
-            patch_record=-1,
+            record=-1,
         )
         return memo
 
     def _train_iter(self, *args, epoch: int, i: int, batch, memo: Dict[str, Any], **kwargs) -> None:
         if not debug.CPU:
             batch = Batch(*[x.cuda() for x in batch])
-        outputs, _ = self._model(batch, self._train_classnames)
-        loss: torch.Tensor = self._criterion(outputs.sigmoid(), batch.patch_labels)
+        outputs = self._model(batch)
+        loss: torch.Tensor = self._criterion(outputs.sigmoid(), batch.labels)
         self._model.zero_grad()
         loss.backward()
         self._optimizer.step()
@@ -388,19 +487,17 @@ class Trainer(TrainerMixin, Runner):
         # self._scheduler.step()
         if todd.base.get_rank() == 0:
             self.save_checkpoint(epoch)
-        image_mAP, patch_mAP = self.run()
+        mAP = self.run()
         memo.update(
-            image_record=max(memo['image_record'], image_mAP),
-            patch_record=max(memo['patch_record'], patch_mAP),
+            record=max(memo['record'], mAP),
         )
         if todd.base.get_rank() == 0:
             self._logger.info(
-                f"image_record: {memo['image_record'] * 100:.3f}, "
-                f"patch_record: {memo['patch_record'] * 100:.3f}"
+                f"record: {memo['record'] * 100:.3f}, "
             )
 
-    def _after_train(self, *args, memo: Dict[str, Any], **kwargs) -> Tuple[float, float]:
-        return memo['image_record'], memo['patch_record']
+    def _after_train(self, *args, memo: Dict[str, Any], **kwargs) -> float:
+        return memo['record']
 
 
 def parse_args() -> argparse.Namespace:
