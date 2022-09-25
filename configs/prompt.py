@@ -3,7 +3,7 @@ train = dict(
     epoch=4,
     optimizer=dict(
         type='Adam',
-        lr=5e-3,
+        lr=5e-2,
         weight_decay=1e-3,
     ),
 
@@ -34,13 +34,13 @@ val = dict(
         dataset=dict(
             root=data_root + 'val2017',
             ann_file=data_root + 'annotations/instances_val2017.json',
-            split='COCO_17',
+            split='COCO_48',
             # filter_empty=True,
         ),
     ),
 )
 
-log_interval = 2
+log_interval = 64
 
 model = dict(
     text_prompt=dict(
@@ -48,7 +48,7 @@ model = dict(
     ),
     text_encoder=dict(),
     image_prompt=dict(
-        length=4,
+        length=8,
     ),
     image_encoder=dict(),
 )

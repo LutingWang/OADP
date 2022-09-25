@@ -210,13 +210,15 @@ class ImageEncoder(todd.base.Module):
 
         spatial_size = visual.input_resolution // visual.conv1.kernel_size[0]
         assert visual.positional_embedding.shape[0] == spatial_size ** 2 + 1
-        self._ce = visual.class_embedding + visual.positional_embedding[0]
-        self._pe = einops.rearrange(
+        ce = visual.class_embedding + visual.positional_embedding[0]
+        pe = einops.rearrange(
             visual.positional_embedding[1:],
             '(h w) c -> 1 c h w',
             h=spatial_size,
             w=spatial_size,
         )
+        self._ce = nn.Parameter(ce)
+        self._pe = nn.Parameter(pe)
 
     def forward(self, batch: Batch, prompt: ImagePrompt) -> torch.Tensor:
         x = self._conv1(batch.images)
@@ -298,8 +300,13 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
         self._register_state_dict_hook(self._state_dict_hook)
         self.register_load_state_dict_post_hook(self._load_state_dict_post_hook)
 
-    def forward(self, batch: Batch) -> torch.Tensor:
-        texts = self.encode_texts(batch)
+    def forward(self, batch: Batch, memo: Optional[Dict[str, Any]] = None) -> torch.Tensor:
+        if memo is None or 'texts' not in memo:
+            texts = self.encode_texts(batch)
+            if memo is not None:
+                memo['texts'] = texts
+        else:
+            texts = memo['texts']
         images = self.encode_images(batch)
         return (images @ texts.T) * self._scaler - self._bias
 
@@ -321,6 +328,7 @@ class Runner(BaseRunner):
 
     def __init__(self, *args, **kwargs) -> None:
         clip_model, _ = clip.load('pretrained/clip/ViT-B-32.pt', 'cpu')
+        clip_model.requires_grad_(False)
         super().__init__(*args, clip_model=clip_model, **kwargs)
 
     def _build_dataloader(
@@ -382,7 +390,7 @@ class Runner(BaseRunner):
     ) -> None:
         if not debug.CPU:
             batch = Batch(*[x.cuda() for x in batch])
-        logits = self._model(batch)
+        logits = self._model(batch, memo)
         memo['results'].append((logits, batch.labels))
 
     def _after_run_iter(self, *args, i: int, batch, memo: Dict[str, Any], **kwargs) -> None:

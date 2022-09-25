@@ -48,10 +48,11 @@ class BaseRunner(ABC):
 
         self._build_custom(*args, config=config, **kwargs)
 
-        todd.base.init_iter()
         self._epoch = -1
-        if load is not None:
-            self.load_checkpoint(load, *args, **kwargs)
+        if load is None:
+            todd.base.init_iter()
+        else:
+            self.load_checkpoint(*args, epoch=load, **kwargs)
 
     def _build_work_dir(
         self,
@@ -104,7 +105,7 @@ class BaseRunner(ABC):
     ) -> None:
         pass
 
-    def load_checkpoint(self, epoch) -> None:
+    def load_checkpoint(self, *args, epoch, **kwargs) -> None:
         todd.base.load_checkpoint(
             self._model, self._work_dir / f'epoch_{epoch}.pth',
         )
