@@ -1,4 +1,5 @@
 data_root = 'data/coco/'
+embeddings_root = data_root + 'embeddings/'
 train = dict(
     epoch=4,
     optimizer=dict(
@@ -8,11 +9,13 @@ train = dict(
     ),
 
     dataloader=dict(
-        batch_size=1,
-        workers=1,
+        batch_size=64,
+        workers=4,
         dataset=dict(
             root=data_root + 'train2017',
             ann_file=data_root + 'annotations/instances_train2017.json',
+            embeddings_root=embeddings_root + 'train',
+            patched=False,
             split='COCO_48',
             # filter_empty=True,
         ),
@@ -29,12 +32,14 @@ train = dict(
 )
 val = dict(
     dataloader=dict(
-        batch_size=1,
-        workers=1,
+        batch_size=64,
+        workers=4,
         dataset=dict(
             root=data_root + 'val2017',
             ann_file=data_root + 'annotations/instances_val2017.json',
-            split='COCO_48',
+            embeddings_root=embeddings_root + 'val',
+            patched=False,
+            split='COCO_17',
             # filter_empty=True,
         ),
     ),
@@ -44,11 +49,7 @@ log_interval = 64
 
 model = dict(
     text_prompt=dict(
-        prompt='a photo of a',
+        prompt='In the photo, there is the medium',
     ),
     text_encoder=dict(),
-    image_prompt=dict(
-        length=8,
-    ),
-    image_encoder=dict(),
 )

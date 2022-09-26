@@ -34,7 +34,7 @@ from .todd import BaseRunner, TrainerMixin
 
 Batch = namedtuple(
     'Batch',
-    ['images', 'class_embeddings', 'class_lengths', 'labels'],
+    ['images', 'labels', 'class_embeddings', 'class_lengths'],
 )
 
 
@@ -46,6 +46,8 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         self,
         root: str,
         ann_file: str,
+        embeddings_root: str,
+        patched: bool,
         clip_model: clip.model.CLIP,
         split: Optional[str] = None,
         filter_empty: bool = False,
@@ -53,14 +55,10 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         super().__init__(
             root=root,
             annFile=ann_file,
-            transform=transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    (0.48145466, 0.4578275, 0.40821073),
-                    (0.26862954, 0.26130258, 0.27577711),
-                ),
-            ])
         )
+
+        self._embeddings_root = pathlib.Path(embeddings_root)
+        self._patched = patched
 
         if split is None:
             self._classnames = [cat['name'] for cat in self.coco.cats.values()]
@@ -89,30 +87,35 @@ class CocoClassification(torchvision.datasets.CocoDetection):
     def classnames(self) -> Tuple[str]:
         return tuple(self._classnames)
 
+    @property
+    def num_classes(self) -> int:
+        return len(self._classnames)
+
     def _load_target(self, *args, **kwargs) -> List[Any]:
         target = super()._load_target(*args, **kwargs)
         return [anno for anno in target if anno['category_id'] in self._cat2label]
 
-    def _load_labels(self, target: List[Any]) -> torch.Tensor:
-        bbox_labels = [
-            self._cat2label[anno['category_id']]
-            for anno in target
-        ]
-        labels = torch.zeros(len(self._classnames), dtype=torch.bool)
-        labels[bbox_labels] = True
-        return labels
-
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        image, target = super().__getitem__(index)
-        labels = self._load_labels(target)
-        return image, labels
+        id_ = self.ids[index]
+        target = self._load_target(id_)
+
+        embedding: Dict[str, torch.Tensor] = torch.load(self._embeddings_root / f'{id_:012d}.pth', 'cpu')
+        images = embedding['patches' if self._patched else 'image']
+
+        labels = torch.zeros((images.shape[0], self.num_classes), dtype=torch.bool)
+        bbox_labels = [self._cat2label[anno['category_id']] for anno in target]
+        if self._patched:
+            patch_bboxes = todd.base.BBoxesXYWH(embedding['bboxes'])
+            bboxes = todd.base.BBoxesXYWH([anno['bbox'] for anno in target])
+            patch_ids, bbox_ids = torch.where(patch_bboxes.intersections(bboxes) > 0)
+            labels[patch_ids, torch.tensor(bbox_labels, dtype=torch.long)[bbox_ids]] = True
+        else:
+            labels[0, bbox_labels] = True
+        return images, labels
 
     def collate(self, batch: List[Tuple[torch.Tensor, torch.Tensor]]) -> Batch:
-        images, labels = map(
-            torch.utils.data.dataloader.default_collate,
-            zip(*batch),
-        )
-        return Batch(images, self._class_embeddings, self._class_lengths, labels)
+        images, labels = map(torch.cat, zip(*batch))
+        return Batch(images, labels, self._class_embeddings, self._class_lengths)
 
 
 class TextPrompt(todd.base.Module):
@@ -174,69 +177,6 @@ class TextEncoder(todd.base.Module):
         return F.normalize(x)
 
 
-class ImagePrompt(todd.base.Module):
-
-    def __init__(
-        self,
-        *args,
-        clip_model: clip.model.CLIP,
-        length: int,
-        **kwargs,
-    ) -> None:
-        super().__init__(*args, **kwargs)
-        width = clip_model.visual.conv1.out_channels
-        scale = width ** -0.5
-        self._prompt = nn.Parameter(scale * torch.randn((length, width)))
-
-    def forward(self, batch: Batch) -> torch.Tensor:
-        return einops.repeat(self._prompt, 'l d -> n l d', n=batch.images.shape[0])
-
-
-class ImageEncoder(todd.base.Module):
-
-    def __init__(
-        self,
-        *args,
-        clip_model: clip.model.CLIP,
-        **kwargs,
-    ) -> None:
-        super().__init__(*args, **kwargs)
-        visual = clip_model.visual
-        self._conv1 = visual.conv1
-        self._ln_pre = visual.ln_pre
-        self._transformer = visual.transformer
-        self._ln_post = visual.ln_post
-        self._proj = visual.proj
-
-        spatial_size = visual.input_resolution // visual.conv1.kernel_size[0]
-        assert visual.positional_embedding.shape[0] == spatial_size ** 2 + 1
-        ce = visual.class_embedding + visual.positional_embedding[0]
-        pe = einops.rearrange(
-            visual.positional_embedding[1:],
-            '(h w) c -> 1 c h w',
-            h=spatial_size,
-            w=spatial_size,
-        )
-        self._ce = nn.Parameter(ce)
-        self._pe = nn.Parameter(pe)
-
-    def forward(self, batch: Batch, prompt: ImagePrompt) -> torch.Tensor:
-        x = self._conv1(batch.images)
-        b, _, h, w = x.shape
-        ce = einops.repeat(self._ce, 'c -> b 1 c', b=b)
-        x += F.interpolate(self._pe, size=(h, w), mode='bilinear')
-        x = einops.rearrange(x, 'b c h w -> b (h w) c')
-        prompt_ = prompt(batch)
-        x = torch.cat([ce, x, prompt_], dim=1)
-        x = self._ln_pre(x)
-        x = einops.rearrange(x, 'b l c -> l b c')
-        x = self._transformer(x)
-        x = einops.rearrange(x, 'l b c -> b l c')
-        x = self._ln_post(x[:, 0, :])
-        x = x @ self._proj
-        return F.normalize(x)
-
-
 class Model(todd.reproduction.FrozenMixin, todd.base.Module):
 
     def _is_frozen(self, key: str) -> bool:
@@ -279,18 +219,10 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
             clip_model=clip_model,
             **config.text_encoder,
         )
-        self._image_prompt = ImagePrompt(
-            clip_model=clip_model,
-            **config.image_prompt,
-        )
-        self._image_encoder = ImageEncoder(
-            clip_model=clip_model,
-            **config.image_encoder,
-        )
         self._scaler = nn.Parameter(torch.tensor(20.0), requires_grad=True)
         self._bias = nn.Parameter(torch.tensor(4.0), requires_grad=True)
 
-        self._frozen_names = ['_text_encoder', '_image_encoder']
+        self._frozen_names = ['_text_encoder']
         todd.reproduction.FrozenMixin.__init__(
             self,
             no_grad_config=dict(names=self._frozen_names),
@@ -311,7 +243,7 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
         return (images @ texts.T) * self._scaler - self._bias
 
     def encode_images(self, batch: Batch) -> torch.Tensor:
-        return self._image_encoder(batch, self._image_prompt)
+        return batch.images
 
     def encode_texts(self, batch: Batch) -> torch.Tensor:
         return self._text_encoder(batch, self._text_prompt)
@@ -409,7 +341,7 @@ class Runner(BaseRunner):
             results = map(lambda result: torch.cat(result).cpu().numpy(), results)
             image_logits, image_labels = results
             mAP = sklearn.metrics.average_precision_score(image_labels, image_logits)
-            self._logger.info(f"mAP: {mAP * 100:.3f}")
+            self._logger.info(f"mAP {mAP * 100:.3f}")
             return mAP
         else:
             return -1
@@ -418,7 +350,8 @@ class Runner(BaseRunner):
         model = self._model
         if isinstance(model, nn.parallel.DistributedDataParallel):
             model = model.module
-        state_dict = model.dump_texts(self._dataset[0])
+        batch = next(iter(self._dataloader))
+        state_dict = model.dump_texts(batch)
         state_dict.update(
             names=self._dataset.classnames,
         ),
@@ -501,7 +434,7 @@ class Trainer(TrainerMixin, Runner):
         )
         if todd.base.get_rank() == 0:
             self._logger.info(
-                f"record: {memo['record'] * 100:.3f}, "
+                f"record {memo['record'] * 100:.3f}, "
             )
 
     def _after_train(self, *args, memo: Dict[str, Any], **kwargs) -> float:
