@@ -20,7 +20,7 @@ val = dict(
     )
 )
 
-log_interval = 2
+log_interval = 64
 
 model = dict(
     pretrained='pretrained/clip/ViT-B-32.pt',

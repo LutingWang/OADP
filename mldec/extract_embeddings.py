@@ -16,9 +16,11 @@ import torch.nn.functional as F
 import torch.utils.data
 import torchvision
 import torchvision.transforms as transforms
+import torch.distributed
 
 import clip
 import clip.model
+from .utils import odps_init
 
 from .debug import debug
 from .todd import BaseRunner, TrainerMixin
@@ -78,17 +80,21 @@ class CocoClassification(torchvision.datasets.coco.CocoDetection):
             for x, y in itertools.product(*map(self._cut, image.size)):
                 patch = image\
                     .crop((x, y, x + self._patch_size, y + self._patch_size))\
-                    .resize((224, 224), PIL.Image.BICUBIC)
+                    .resize((224, 224), PIL.Image.Resampling.BICUBIC)
                 bbox = (x, y, self._patch_size, scale)
                 patches.append(patch)
                 bboxes.append(bbox)
             image = image.resize((int(image.width / self._rescale), int(image.height / self._rescale)))
             scale *= self._rescale
 
-        patches_ = torch.stack(list(map(self._transform, patches)))
-        bboxes_ = torch.tensor(bboxes)
-        bboxes_[:, :-1] *= bboxes_[:, [-1]]
-        bboxes_[:, -1] = bboxes_[:, -2]
+        if len(patches) == 0:
+            patches_ = torch.empty(0, 3, 224, 224)
+            bboxes_ = torch.empty(0, 4)
+        else:
+            patches_ = torch.stack(list(map(self._transform, patches)))
+            bboxes_ = torch.tensor(bboxes)
+            bboxes_[:, :-1] *= bboxes_[:, [-1]]
+            bboxes_[:, -1] = bboxes_[:, -2]
 
         return Batch(image_, patches_, bboxes_, image_id)
 
@@ -180,7 +186,13 @@ class Runner(BaseRunner):
     ) -> nn.Module:
         clip_model, _ = clip.load(config.pretrained, 'cpu')
         clip_model.requires_grad_(False)
-        return ImageEncoder(clip_model=clip_model)
+        model = ImageEncoder(clip_model=clip_model)
+        if not debug.CPU:
+            model = torch.nn.parallel.DistributedDataParallel(
+                model.cuda(),
+                device_ids=[torch.cuda.current_device()],
+            )
+        return model
 
     def _before_run(self, *args, **kwargs) -> Dict[str, Any]:
         memo = super()._before_run(*args, **kwargs)
@@ -200,7 +212,10 @@ class Runner(BaseRunner):
             image = image.cuda()
             patches = patches.cuda()
         image_feature = self._model(image)
-        patch_features = self._model(patches)
+        patch_features = (
+            self._model(patches) if patches.numel() > 0 else
+            torch.empty(0, image_feature.shape[1])
+        )
         memo['result'] = dict(
             image=image_feature.clone(),
             patches=patch_features.clone(),
@@ -257,7 +272,11 @@ class Trainer(TrainerMixin, Runner):
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Train')
+    parser.add_argument('name', type=str)
     parser.add_argument('config', type=pathlib.Path)
+    parser.add_argument('--odps', action=todd.base.DictAction)
+    parser.add_argument('--override', action=todd.base.DictAction)
+    parser.add_argument('--seed', type=int, default=3407)
     args = parser.parse_args()
     return args
 
@@ -265,8 +284,19 @@ def parse_args() -> argparse.Namespace:
 if __name__ == '__main__':
     args = parse_args()
     config = todd.base.Config.load(args.config)
+    if args.odps is not None:
+        odps_init(args.odps)
     debug.init(config=config)
+    if args.override is not None:
+        for k, v in args.override.items():
+            todd.base.setattr_recur(config, k, v)
 
-    trainer = Trainer(name='extract_features', config=config)
+    if not debug.CPU:
+        torch.distributed.init_process_group(backend='nccl')
+        torch.cuda.set_device(todd.base.get_local_rank())
+
+    todd.reproduction.init_seed(args.seed)
+
+    trainer = Trainer(name=args.name, config=config)
     trainer.train()
     trainer.run()
