@@ -1,10 +1,9 @@
+/mmdet
+/data
+/lvis
+/pretrained
+/work_dirs
+
 __pycache__
-data
-lvis
-mmdet
-pretrained
-todd
 *.pth
 *.ckpt
-
-work_dirs
