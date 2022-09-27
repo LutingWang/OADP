@@ -47,8 +47,8 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         root: str,
         ann_file: str,
         embeddings_root: str,
-        patched: bool,
         clip_model: clip.model.CLIP,
+        mode: str = "image",
         split: Optional[str] = None,
         filter_empty: bool = False,
     ) -> None:
@@ -58,7 +58,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         )
 
         self._embeddings_root = pathlib.Path(embeddings_root)
-        self._patched = patched
+        self._mode = mode
 
         if split is None:
             self._classnames = [cat['name'] for cat in self.coco.cats.values()]
@@ -81,7 +81,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         ])
         with torch.no_grad():
             self._class_embeddings = clip_model.token_embedding(class_tokens)
-        self._class_lengths = class_tokens.argmax(dim=-1)
+            self._class_lengths = class_tokens.argmax(dim=-1)
 
     @property
     def classnames(self) -> Tuple[str]:
@@ -98,19 +98,29 @@ class CocoClassification(torchvision.datasets.CocoDetection):
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
         id_ = self.ids[index]
         target = self._load_target(id_)
+        bbox_labels = [self._cat2label[anno['category_id']] for anno in target]
 
         embedding: Dict[str, torch.Tensor] = torch.load(self._embeddings_root / f'{id_:012d}.pth', 'cpu')
-        images = embedding['patches' if self._patched else 'image']
+        embedding = {k: v.float() for k, v in embedding.items()}
 
-        labels = torch.zeros((images.shape[0], self.num_classes), dtype=torch.bool)
-        bbox_labels = [self._cat2label[anno['category_id']] for anno in target]
-        if self._patched:
+        if self._mode == "patches":
+            images = embedding['patches']
+            labels = torch.zeros((images.shape[0], self.num_classes), dtype=torch.bool)
             patch_bboxes = todd.base.BBoxesXYWH(embedding['bboxes'])
             bboxes = todd.base.BBoxesXYWH([anno['bbox'] for anno in target])
             patch_ids, bbox_ids = torch.where(patch_bboxes.intersections(bboxes) > 0)
             labels[patch_ids, torch.tensor(bbox_labels, dtype=torch.long)[bbox_ids]] = True
-        else:
+        elif self._mode == "image":
+            images = embedding['image']
+            labels = torch.zeros((1, self.num_classes), dtype=torch.bool)
             labels[0, bbox_labels] = True
+        elif self._mode == "patch":
+            images = embedding['patches'][[0]]
+            labels = torch.zeros((1, self.num_classes), dtype=torch.bool)
+            labels[0, bbox_labels] = True
+        else:
+            raise ValueError(f"Unexpected mode {self._mode}.")
+
         return images, labels
 
     def collate(self, batch: List[Tuple[torch.Tensor, torch.Tensor]]) -> Batch:
@@ -259,7 +269,7 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
 class Runner(BaseRunner):
 
     def __init__(self, *args, **kwargs) -> None:
-        clip_model, _ = clip.load('pretrained/clip/ViT-B-32.pt', 'cpu')
+        clip_model, _ = clip.load(config.pretrained, 'cpu')
         clip_model.requires_grad_(False)
         super().__init__(*args, clip_model=clip_model, **kwargs)
 
@@ -287,7 +297,7 @@ class Runner(BaseRunner):
             dataset,
             batch_size=config.batch_size,
             sampler=sampler,
-            num_workers=config.workers,
+            num_workers=config.num_workers,
             collate_fn=dataset.collate,
         )
         return dataset, sampler, dataloader
@@ -346,6 +356,7 @@ class Runner(BaseRunner):
         else:
             return -1
 
+    @torch.no_grad()
     def dump(self) -> None:
         model = self._model
         if isinstance(model, nn.parallel.DistributedDataParallel):
@@ -384,7 +395,7 @@ class Trainer(TrainerMixin, Runner):
             dataset,
             batch_size=config.batch_size,
             sampler=sampler,
-            num_workers=config.workers,
+            num_workers=config.num_workers,
             collate_fn=dataset.collate,
         )
         return dataset, sampler, dataloader

@@ -9,13 +9,13 @@ train = dict(
     ),
 
     dataloader=dict(
-        batch_size=64,
-        workers=4,
+        batch_size=16,
+        num_workers=4,
         dataset=dict(
             root=data_root + 'train2017',
             ann_file=data_root + 'annotations/instances_train2017.json',
             embeddings_root=embeddings_root + 'train',
-            patched=False,
+            mode='patch',
             split='COCO_48',
             # filter_empty=True,
         ),
@@ -33,12 +33,12 @@ train = dict(
 val = dict(
     dataloader=dict(
         batch_size=64,
-        workers=4,
+        num_workers=4,
         dataset=dict(
             root=data_root + 'val2017',
             ann_file=data_root + 'annotations/instances_val2017.json',
             embeddings_root=embeddings_root + 'val',
-            patched=False,
+            mode='patch',
             split='COCO_17',
             # filter_empty=True,
         ),
@@ -49,7 +49,8 @@ log_interval = 64
 
 model = dict(
     text_prompt=dict(
-        prompt='In the photo, there is the medium',
+        prompt='a photo of a',
     ),
     text_encoder=dict(),
 )
+pretrained = 'pretrained/clip/ViT-B-32.pt'

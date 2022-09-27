@@ -3,6 +3,7 @@ embeddings_root = data_root + 'embeddings/'
 train = dict(
     epoch=1,
     dataloader=dict(
+        batch_size=1,
         num_workers=1,
         dataset=dict(
             root=data_root + 'train2017',
@@ -12,6 +13,7 @@ train = dict(
 )
 val = dict(
     dataloader=dict(
+        batch_size=1,
         num_workers=1,
         dataset=dict(
             root=data_root + 'val2017',
@@ -20,7 +22,7 @@ val = dict(
     )
 )
 
-log_interval = 64
+log_interval = 128
 
 model = dict(
     pretrained='pretrained/clip/ViT-B-32.pt',

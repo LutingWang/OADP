@@ -14,6 +14,7 @@ import torch.cuda
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
+import torch.utils.data.distributed
 import torchvision
 import torchvision.transforms as transforms
 import torch.distributed
@@ -25,7 +26,7 @@ from .utils import odps_init
 from .debug import debug
 from .todd import BaseRunner, TrainerMixin
 
-Batch = namedtuple('Batch', ['image', 'patches', 'bboxes', 'image_id'])
+Batch = namedtuple('Batch', ['image', 'image_id', 'patches', 'bboxes'])
 
 
 class CocoClassification(torchvision.datasets.coco.CocoDetection):
@@ -46,6 +47,10 @@ class CocoClassification(torchvision.datasets.coco.CocoDetection):
         self._patch_size = patch_size
         self._max_stride = max_stride
         self._rescale = rescale
+        self._resize_crop = transforms.Compose([
+            transforms.Resize(224, interpolation=PIL.Image.Resampling.BICUBIC),
+            transforms.CenterCrop(224),
+        ])
         self._transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(
@@ -70,40 +75,41 @@ class CocoClassification(torchvision.datasets.coco.CocoDetection):
         index: int,
     ) -> Batch:
         image_id = self.ids[index]
+
         image = self._load_image(image_id)
-        image_ = self._transform(image)
+        image_ = self._transform(image).unsqueeze(0)
 
         scale = 1
-        patches = []
-        bboxes = []
+        patches = [image]
+        bboxes = [(
+            (image.width - min(image.size)) / 2,
+            (image.height - min(image.size)) / 2,
+            min(image.size),
+            scale,
+        )]
         while image.width >= self._patch_size and image.height >= self._patch_size:
             for x, y in itertools.product(*map(self._cut, image.size)):
-                patch = image\
-                    .crop((x, y, x + self._patch_size, y + self._patch_size))\
-                    .resize((224, 224), PIL.Image.Resampling.BICUBIC)
+                patch = image.crop((x, y, x + self._patch_size, y + self._patch_size))
                 bbox = (x, y, self._patch_size, scale)
                 patches.append(patch)
                 bboxes.append(bbox)
             image = image.resize((int(image.width / self._rescale), int(image.height / self._rescale)))
             scale *= self._rescale
+        patches = map(self._resize_crop, patches)
+        patches = map(self._transform, patches)
+        patches = list(patches)
+        patches_ = torch.stack(patches)
+        bboxes_ = torch.tensor(bboxes)
+        bboxes_[:, :-1] *= bboxes_[:, [-1]]
+        bboxes_[:, -1] = bboxes_[:, -2]
 
-        if len(patches) == 0:
-            patches_ = torch.empty(0, 3, 224, 224)
-            bboxes_ = torch.empty(0, 4)
-        else:
-            patches_ = torch.stack(list(map(self._transform, patches)))
-            bboxes_ = torch.tensor(bboxes)
-            bboxes_[:, :-1] *= bboxes_[:, [-1]]
-            bboxes_[:, -1] = bboxes_[:, -2]
-
-        return Batch(image_, patches_, bboxes_, image_id)
+        return Batch(image_, image_id, patches_, bboxes_)
 
     @staticmethod
     def collate(
         batch: List[Batch],
     ) -> Batch:
         assert len(batch) == 1
-        batch[0].image.unsqueeze_(0),
         return batch[0]
 
 
@@ -154,7 +160,26 @@ class ImageEncoder(todd.base.Module):
         x = einops.rearrange(x, 'l b c -> b l c')
         x = self._ln_post(x[:, 0, :])
         x = x @ self._proj
-        return F.normalize(x)
+        return x
+
+
+class Model(todd.reproduction.FrozenMixin, todd.base.Module):
+
+    def __init__(self, *args, clip_model: clip.model.CLIP, **kwargs) -> None:
+        todd.base.Module.__init__(self, *args, **kwargs)
+        self._visual = clip_model.visual
+        self._interpolated_visual = ImageEncoder(clip_model=clip_model)
+        frozen_names = ['_visual', '_interpolated_visual']
+        todd.reproduction.FrozenMixin.__init__(
+            self,
+            no_grad_config=dict(names=frozen_names),
+            eval_config=dict(names=frozen_names),
+        )
+
+    def forward(self, image: torch.Tensor, patches: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        image = self._interpolated_visual(image)
+        patches = self._visual(patches)
+        return F.normalize(image), F.normalize(patches)
 
 
 class Runner(BaseRunner):
@@ -166,17 +191,25 @@ class Runner(BaseRunner):
         **kwargs,
     ) -> Tuple[
         CocoClassification,
-        None,
+        Optional[torch.utils.data.distributed.DistributedSampler],
         torch.utils.data.DataLoader,
     ]:
         dataset = CocoClassification(**config.dataset)
+        sampler = (
+            None if debug.CPU else
+            torch.utils.data.distributed.DistributedSampler(
+                dataset,
+                shuffle=False,
+            )
+        )
         dataloader = torch.utils.data.DataLoader(
             dataset,
-            batch_size=1,
+            batch_size=config.batch_size,
+            sampler=sampler,
             num_workers=config.num_workers,
             collate_fn=dataset.collate,
         )
-        return dataset, None, dataloader,
+        return dataset, sampler, dataloader,
 
     def _build_model(
         self,
@@ -186,23 +219,16 @@ class Runner(BaseRunner):
     ) -> nn.Module:
         clip_model, _ = clip.load(config.pretrained, 'cpu')
         clip_model.requires_grad_(False)
-        model = ImageEncoder(clip_model=clip_model)
+        model = Model(clip_model=clip_model)
         if not debug.CPU:
-            model = torch.nn.parallel.DistributedDataParallel(
-                model.cuda(),
-                device_ids=[torch.cuda.current_device()],
-            )
+            model = model.cuda()
         return model
 
     def _before_run(self, *args, **kwargs) -> Dict[str, Any]:
         memo = super()._before_run(*args, **kwargs)
-        embeddings_root = pathlib.Path(self._config.embeddings_root)
-        train_root = embeddings_root / 'train'
-        val_root = embeddings_root / 'val'
-        train_root.mkdir(parents=True, exist_ok=True)
-        val_root.mkdir(parents=True, exist_ok=True)
-        memo['train_root'] = train_root
-        memo['val_root'] = val_root
+        embeddings_root = pathlib.Path(self._config.embeddings_root) / 'val'
+        embeddings_root.mkdir(parents=True, exist_ok=True)
+        memo['embeddings_root'] = embeddings_root
         return memo
 
     def _run_iter(self, *args, i: int, batch: Batch, memo: Dict[str, Any], **kwargs) -> None:
@@ -211,23 +237,19 @@ class Runner(BaseRunner):
         if not debug.CPU:
             image = image.cuda()
             patches = patches.cuda()
-        image_feature = self._model(image)
-        patch_features = (
-            self._model(patches) if patches.numel() > 0 else
-            torch.empty(0, image_feature.shape[1])
-        )
+        image, patches = self._model(image, patches)
         memo['result'] = dict(
-            image=image_feature.clone(),
-            patches=patch_features.clone(),
-            bboxes=batch.bboxes,
+            image=image.half(),
+            patches=patches.half(),
+            bboxes=batch.bboxes.half(),
         )
 
     def _after_run_iter(self, *args, i: int, batch: Batch, memo: Dict[str, Any], **kwargs) -> None:
         torch.save(
             memo.pop('result'),
-            memo['val_root'] / f'{batch.image_id:012d}.pth',
+            memo['embeddings_root'] / f'{batch.image_id:012d}.pth',
         )
-        if i % self._config.log_interval == 0:
+        if todd.base.get_rank() == 0 and i % self._config.log_interval == 0:
             self._logger.info(
                 f'Val Step [{i}/{len(self._dataloader)}]'
             )
@@ -246,8 +268,13 @@ class Trainer(TrainerMixin, Runner):
         pass
 
     def _before_train(self, *args, **kwargs) -> Dict[str, Any]:
-        return self._before_run(*args, **kwargs)
+        memo = self._before_run(*args, **kwargs)
+        embeddings_root = memo['embeddings_root'].parent / 'train'
+        embeddings_root.mkdir(parents=True, exist_ok=True)
+        memo['train_embeddings_root'] = embeddings_root
+        return memo
 
+    @torch.no_grad()
     def _train_iter(self, *args, **kwargs) -> None:
         return self._run_iter(*args, **kwargs)
 
@@ -262,11 +289,11 @@ class Trainer(TrainerMixin, Runner):
     ) -> None:
         torch.save(
             memo.pop('result'),
-            memo['train_root'] / f'{batch.image_id:012d}.pth',
+            memo['train_embeddings_root'] / f'{batch.image_id:012d}.pth',
         )
-        if i % self._config.log_interval == 0:
+        if todd.base.get_rank() == 0 and i % self._config.log_interval == 0:
             self._logger.info(
-                f'Train Step [{i}/{len(self._train_dataloader)}] '
+                f'Train Step [{i}/{len(self._train_dataloader)}]'
             )
 
 
