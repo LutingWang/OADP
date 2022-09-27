@@ -1,9 +1,8 @@
 from collections import namedtuple
 import itertools
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import argparse
-import sys
 import pathlib
 import PIL.Image
 import einops

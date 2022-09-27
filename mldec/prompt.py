@@ -1,12 +1,7 @@
-from abc import ABC, abstractmethod
 import argparse
 from collections import namedtuple
-import logging
 import pathlib
-import re
-import time
-from typing import Any, Dict, Generator, Iterator, List, Mapping, MutableMapping, Optional, Sequence, Tuple, Union
-import math
+from typing import Any, Dict, Iterator, List, MutableMapping, Optional, Tuple
 import sklearn.metrics
 import torch
 import torch.distributed
@@ -15,8 +10,6 @@ import torch.utils.data.dataloader
 import torch.utils.data.distributed
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision.transforms as transforms
-# import torch.nn.modules.module
 
 import clip
 import clip.model

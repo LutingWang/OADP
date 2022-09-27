@@ -1,10 +1,3 @@
-from collections import namedtuple
-
-Batch = namedtuple(
-    'Batch',
-    ['patches', 'patch_labels', 'patch_bboxes', 'image_labels', 'num_patches'],
-)
-
 COCO_48 = (
     'person', 'bicycle', 'car', 'motorcycle', 'truck', 'boat', 'bench', 'bird',
     'horse', 'sheep', 'zebra', 'giraffe', 'backpack', 'handbag', 'skis',
