@@ -1,3 +1,4 @@
+from typing import Optional
 import todd
 
 
@@ -11,8 +12,10 @@ class Debug(todd.base.BaseDebug):
         self.DRY_RUN = True
         self.SMALLER_BATCH_SIZE = True
 
-    def init(self, *, config: todd.base.Config, **kwargs) -> None:
+    def init(self, *, config: Optional[todd.base.Config] = None, **kwargs) -> None:
         super().init(**kwargs)
+        if config is None:
+            return
         if self.TRAIN_WITH_VAL_DATASET:
             val_dataset = {
                 k: config.val.dataloader.dataset[k]

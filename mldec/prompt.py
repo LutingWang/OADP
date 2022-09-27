@@ -211,7 +211,7 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
         *args,
         clip_model: clip.model.CLIP,
         config: todd.base.Config,
-        **kwargs
+        **kwargs,
     ) -> None:
         todd.base.Module.__init__(self, *args, **kwargs)
         self._text_prompt = TextPrompt(

@@ -8,6 +8,7 @@ import time
 import warnings
 
 import mmcv
+import todd
 import torch
 import torch.distributed as dist
 from mmcv import Config, DictAction
@@ -25,11 +26,13 @@ from mmdet.utils import (collect_env, get_device, get_root_logger,
 sys.path.insert(0, '')
 import mldec.faster_rcnn
 from mldec.debug import debug
+from mldec.utils import odps_init
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
     parser.add_argument('config', help='train config file path')
+    parser.add_argument('--odps', action=todd.base.DictAction)
     parser.add_argument('--work-dir', help='the dir to save logs and models')
     parser.add_argument(
         '--resume-from', help='the checkpoint file to resume from')
@@ -113,6 +116,9 @@ def parse_args():
 def main():
     args = parse_args()
 
+    if args.odps is not None:
+        odps_init(args.odps)
+
     cfg = Config.fromfile(args.config)
 
     # replace the ${key} with the value of cfg.key
@@ -124,9 +130,13 @@ def main():
     if args.cfg_options is not None:
         cfg.merge_from_dict(args.cfg_options)
 
+    debug.init()
     if debug.TRAIN_WITH_VAL_DATASET:
         cfg.data.train.ann_file = cfg.data.val.ann_file
         cfg.data.train.img_prefix = cfg.data.val.img_prefix
+    if debug.DRY_RUN:
+        cfg.data.workers_per_gpu = 0
+        cfg.log_config.interval = 1
 
     if args.auto_scale_lr:
         if 'auto_scale_lr' in cfg and \
@@ -189,7 +199,9 @@ def main():
     cfg.dump(osp.join(cfg.work_dir, osp.basename(args.config)))
     # init the logger before other steps
     timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-    log_file = osp.join(cfg.work_dir, f'{timestamp}.log')
+    log_file = None if args.odps else osp.join(
+        cfg.work_dir, f'{timestamp}.log'
+    )
     logger = get_root_logger(log_file=log_file, log_level=cfg.log_level)
 
     # init the meta dict to record some important information such as
