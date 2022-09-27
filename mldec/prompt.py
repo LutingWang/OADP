@@ -355,6 +355,8 @@ class Runner(BaseRunner):
         if isinstance(model, nn.parallel.DistributedDataParallel):
             model = model.module
         batch = next(iter(self._dataloader))
+        if not debug.CPU:
+            batch = Batch(*[x.cuda() for x in batch])
         state_dict = model.dump_texts(batch)
         state_dict.update(
             names=self._dataset.classnames,

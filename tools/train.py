@@ -3,6 +3,7 @@ import argparse
 import copy
 import os
 import os.path as osp
+import sys
 import time
 import warnings
 
@@ -20,6 +21,10 @@ from mmdet.models import build_detector
 from mmdet.utils import (collect_env, get_device, get_root_logger,
                          replace_cfg_vals, setup_multi_processes,
                          update_data_root)
+
+sys.path.insert(0, '')
+import mldec.faster_rcnn
+from mldec.debug import debug
 
 
 def parse_args():
@@ -118,6 +123,10 @@ def main():
 
     if args.cfg_options is not None:
         cfg.merge_from_dict(args.cfg_options)
+
+    if debug.TRAIN_WITH_VAL_DATASET:
+        cfg.data.train.ann_file = cfg.data.val.ann_file
+        cfg.data.train.img_prefix = cfg.data.val.img_prefix
 
     if args.auto_scale_lr:
         if 'auto_scale_lr' in cfg and \

@@ -5,9 +5,9 @@ _base_ = [
 model = dict(
     roi_head=dict(
         bbox_head=dict(
-            type='CustomBBoxHead',
             cls_predictor_cfg=dict(
                 type='Classifier',
+                pretrained='work_dirs/prompt/epoch_3_classes.pth',
             ),
         ),
     ),
