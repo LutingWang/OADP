@@ -22,6 +22,7 @@ model = dict(
         clip=0.05,
         disable_torch_grad_focal_loss=True,
     ),
+    topK=20,
     roi_head=dict(
         bbox_head=dict(
             cls_predictor_cfg=dict(

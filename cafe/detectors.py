@@ -3,11 +3,13 @@ __all__ = [
 ]
 
 from typing import Any, Dict, List, Optional, Tuple
+
 from mmdet.models import DETECTORS, TwoStageDetector
 from mmdet.models.utils.builder import LINEAR_LAYERS
 import todd
 import torch
 import einops
+import sklearn.metrics
 
 
 @DETECTORS.register_module()
@@ -18,6 +20,7 @@ class Cafe(TwoStageDetector):
         *args,
         multilabel_classifier: Dict[str, Any],
         multilabel_loss: Dict[str, Any],
+        topK: int,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -28,6 +31,7 @@ class Cafe(TwoStageDetector):
         self._multilabel_loss = todd.losses.LOSSES.build(
             multilabel_loss,
         )
+        self._topK = topK
 
     def extract_feat(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         feats = self.backbone(x)
@@ -50,16 +54,27 @@ class Cafe(TwoStageDetector):
     ) -> Dict[str, torch.Tensor]:
         todd.base.inc_iter()
         feats, logits = self.extract_feat(img)
-        img_labels = img.new_zeros(
+        topK_logits, topK_inds = logits.topk(self._topK)
+        topK_preds = img.new_zeros(
             img.shape[0],
             self._multilabel_classifier.num_classes,
             dtype=bool,
         )
-        for i, gt_label in enumerate(gt_labels):
+        img_labels = topK_preds.clone()
+        for i, (topK_ind, gt_label) in enumerate(zip(topK_inds, gt_labels)):
+            topK_preds[i, topK_ind] = True
             img_labels[i, gt_label] = True
 
+        topK_recall = sklearn.metrics.recall_score(
+            img_labels,
+            topK_preds,
+            labels=torch.where(img_labels.sum(0))[0],
+            average='macro',
+            zero_division=0,
+        )
         losses = dict(
             loss_multilabel=self._multilabel_loss(logits.sigmoid(), img_labels),
+            recall_multilabel=torch.tensor(topK_recall * 100),
         )
 
         # RPN forward and loss
