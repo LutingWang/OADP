@@ -18,7 +18,7 @@ COCO_17 = (
 )
 COCO_48_17 = COCO_48 + COCO_17
 
-MMDET_COCO = (
+COCO = (
     'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
     'train', 'truck', 'boat', 'traffic light', 'fire hydrant',
     'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog',

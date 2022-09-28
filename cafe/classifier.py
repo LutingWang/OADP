@@ -1,11 +1,9 @@
-from mmdet.models import Shared2FCBBoxHead
 from mmdet.models.utils.builder import LINEAR_LAYERS
+from mmdet.datasets import CocoDataset
 import todd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from .datasets import MMDET_COCO as CLASSES
 
 
 @LINEAR_LAYERS.register_module()
@@ -18,7 +16,7 @@ class Classifier(todd.base.Module):
         embedding_dim = embeddings.shape[1]
         self._linear = nn.Linear(in_features, embedding_dim)
         name2ind = {name: i for i, name in enumerate(ckpt['names'])}
-        inds = [name2ind[name] for name in CLASSES]
+        inds = [name2ind[name] for name in CocoDataset.CLASSES]
         embeddings = embeddings[inds]
         assert embeddings.shape[0] == out_features - 1
         self.register_buffer('_embeddings', embeddings)

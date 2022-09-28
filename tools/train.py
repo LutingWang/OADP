@@ -24,7 +24,7 @@ from mmdet.utils import (collect_env, get_device, get_root_logger,
                          update_data_root)
 
 sys.path.insert(0, '')
-import mldec.faster_rcnn
+import cafe.classifier
 from mldec.debug import debug
 from mldec.utils import odps_init
 
