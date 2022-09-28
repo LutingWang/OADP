@@ -24,9 +24,8 @@ from mmdet.utils import (collect_env, get_device, get_root_logger,
                          update_data_root)
 
 sys.path.insert(0, '')
-import cafe.classifier
-from mldec.debug import debug
-from mldec.utils import odps_init
+import cafe
+from mldec import debug, odps_init
 
 
 def parse_args():

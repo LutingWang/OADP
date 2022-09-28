@@ -5,7 +5,7 @@ set -x
 grep -n -r "ipdb\|breakpoint" \
     --exclude tools/odps_train.sh \
     --exclude tools/odps_test.sh \
-    mldec tools
+    cafe clip mldec tools
 if [[ $? -eq 0 ]]; then
     echo "ipdb and breakpoint are not allowed in this repo."
     exit 1
@@ -35,7 +35,7 @@ ENTRY_FILE=${ENTRY_FILE:-tools/train.py}
 WORKBENCH=${WORKBENCH:-search_algo_quality_dev}  # search_algo_quality_dev, imac_dev
 ROLEARN=${ROLEARN:-searchalgo}  # searchalgo, imac
 
-tar -zchf /tmp/${PROJECT_NAME}.tar.gz clip configs mldec tools requirements.txt
+tar -zchf /tmp/${PROJECT_NAME}.tar.gz cafe clip configs mldec tools requirements.txt
 
 cmd_oss="
 use ${WORKBENCH};

@@ -1,3 +1,7 @@
+__all__ = [
+    'debug',
+]
+
 from typing import Optional
 import todd
 

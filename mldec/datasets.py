@@ -1,3 +1,12 @@
+__all__ = [
+    'COCO_48',
+    'COCO_17',
+    'COCO_48_17',
+    'COCO',
+    'DebugMixin',
+    'CocoDataset',
+]
+
 from mmdet.datasets import DATASETS, CocoDataset as _CocoDataset, CustomDataset
 
 from .debug import debug
