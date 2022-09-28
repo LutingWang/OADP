@@ -16,5 +16,10 @@ torchrun --nproc_per_node=1 --master_port=5000 -m mldec.prompt dump prompt_patch
 
 ```shell
 python tools/train.py configs/cafe/faster_rcnn/classifier.py --cfg-options checkpoint_config.create_symlink=False evaluation.tmpdir=work_dirs/tmp123 --work-dir work_dirs/debug --odps GIT_COMMIT_ID:\'$(git rev-parse --short HEAD)\' TRAIN_WITH_VAL_DATASET:\'1\' DRY_RUN:\'1\'
+DEBUG=1 sh tools/odps_train.sh debug configs/cafe/faster_rcnn/classifier.py 1
 sh tools/odps_train.sh custom_faster configs/cafe/faster_rcnn/classifier.py 8
+```
+
+```shell
+DEBUG=1 sh tools/odps_train.sh debug configs/cafe/faster_rcnn/classifier.py 1 --load work_dirs/multilabel_faster_mlweight16/epoch_2.pth
 ```
