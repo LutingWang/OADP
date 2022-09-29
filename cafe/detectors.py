@@ -4,8 +4,9 @@ __all__ = [
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from mmdet.models import DETECTORS, TwoStageDetector
+from mmdet.models import DETECTORS, TwoStageDetector, StandardRoIHead
 from mmdet.models.utils.builder import LINEAR_LAYERS
+import numpy as np
 import todd
 import torch
 import einops
@@ -16,6 +17,7 @@ from .patches import one_hot
 
 @DETECTORS.register_module()
 class Cafe(TwoStageDetector):
+    roi_head: StandardRoIHead
 
     def __init__(
         self,
@@ -110,13 +112,15 @@ class Cafe(TwoStageDetector):
 
         logits, inds = multilabel_logits.topk(self._topK)
         preds = one_hot(inds, self._multilabel_classifier.num_classes)
-        recall = sklearn.metrics.recall_score(img_labels.cpu().numpy(), preds.cpu().numpy(), **kwargs)
+        recall = sklearn.metrics.recall_score(img_labels.cpu().numpy(), preds.cpu().numpy(), **default_args)
         return torch.tensor(recall * 100)
 
     def simple_test(self, img, img_metas, proposals=None, rescale=False):
         assert self.with_bbox
 
         feats = self.backbone(img)
+
+        multilabel_logits = self.multilabel_classify(feats)
 
         if self.with_neck:
             feats = self.neck(feats)
@@ -126,6 +130,8 @@ class Cafe(TwoStageDetector):
         else:
             proposal_list = proposals
 
-        return self.roi_head.simple_test(
-            feats, proposal_list, img_metas, rescale=rescale,
-        )
+        _, inds = multilabel_logits.topk(self._multilabel_classifier.num_classes - self._topK, largest=False)
+        with todd.base.setattr_temp(self.roi_head, 'message', (multilabel_logits, inds)):
+            return self.roi_head.simple_test(
+                feats, proposal_list, img_metas, rescale=rescale,
+            )
