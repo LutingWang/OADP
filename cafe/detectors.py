@@ -11,6 +11,8 @@ import torch
 import einops
 import sklearn.metrics
 
+from .patches import one_hot
+
 
 @DETECTORS.register_module()
 class Cafe(TwoStageDetector):
@@ -33,14 +35,6 @@ class Cafe(TwoStageDetector):
         )
         self._topK = topK
 
-    def extract_feat(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        feats = self.backbone(x)
-        feat = einops.reduce(feats[-1], 'b c h w -> b c', reduction='mean')
-        logits = self._multilabel_classifier(feat)
-        if self.with_neck:
-            feats = self.neck(feats)
-        return feats, logits
-
     def forward_train(
         self,
         img: torch.Tensor,
@@ -53,34 +47,26 @@ class Cafe(TwoStageDetector):
         **kwargs,
     ) -> Dict[str, torch.Tensor]:
         todd.base.inc_iter()
-        feats, logits = self.extract_feat(img)
-        topK_logits, topK_inds = logits.topk(self._topK)
-        topK_preds = img.new_zeros(
-            img.shape[0],
-            self._multilabel_classifier.num_classes,
-            dtype=bool,
-        )
-        img_labels = topK_preds.clone()
-        for i, (topK_ind, gt_label) in enumerate(zip(topK_inds, gt_labels)):
-            topK_preds[i, topK_ind] = True
-            img_labels[i, gt_label] = True
 
-        topK_recall = sklearn.metrics.recall_score(
-            img_labels,
-            topK_preds,
-            labels=torch.where(img_labels.sum(0))[0],
-            average='macro',
-            zero_division=0,
-        )
+        feats = self.backbone(img)
+
+        multilabel_logits = self.multilabel_classify(feats)
+
+        if self.with_neck:
+            feats = self.neck(feats)
+
+        img_labels = one_hot(gt_labels, self._multilabel_classifier.num_classes)
         losses = dict(
-            loss_multilabel=self._multilabel_loss(logits.sigmoid(), img_labels),
-            recall_multilabel=torch.tensor(topK_recall * 100),
+            loss_multilabel=self._multilabel_loss(multilabel_logits.sigmoid(), img_labels),
+            recall_multilabel=self.topK(multilabel_logits, img_labels),
         )
 
         # RPN forward and loss
         if self.with_rpn:
-            proposal_cfg = self.train_cfg.get('rpn_proposal',
-                                              self.test_cfg.rpn)
+            proposal_cfg = self.train_cfg.get(
+                'rpn_proposal',
+                self.test_cfg.rpn,
+            )
             rpn_losses, proposal_list = self.rpn_head.forward_train(
                 feats,
                 img_metas,
@@ -88,28 +74,58 @@ class Cafe(TwoStageDetector):
                 gt_labels=None,
                 gt_bboxes_ignore=gt_bboxes_ignore,
                 proposal_cfg=proposal_cfg,
-                **kwargs)
+                **kwargs,
+            )
             losses.update(rpn_losses)
         else:
             proposal_list = proposals
 
-        roi_losses = self.roi_head.forward_train(feats, img_metas, proposal_list,
-                                                 gt_bboxes, gt_labels,
-                                                 gt_bboxes_ignore, gt_masks,
-                                                 **kwargs)
+        roi_losses = self.roi_head.forward_train(
+            feats, img_metas, proposal_list,
+            gt_bboxes, gt_labels,
+            gt_bboxes_ignore, gt_masks,
+            **kwargs,
+        )
         losses.update(roi_losses)
 
         return losses
 
-    def simple_test(self, img, img_metas, proposals=None, rescale=False):
-        """Test without augmentation."""
+    def multilabel_classify(self, feats: Tuple[torch.Tensor]) -> torch.Tensor:
+        feat = einops.reduce(feats[-1], 'b c h w -> b c', reduction='mean')
+        logits = self._multilabel_classifier(feat)
+        return logits
 
-        assert self.with_bbox, 'Bbox head must be implemented.'
-        feats, logits = self.extract_feat(img)
+    def topK(
+        self,
+        multilabel_logits: torch.Tensor,
+        img_labels: torch.Tensor,
+        **kwargs,
+    ) -> torch.Tensor:
+        default_args = dict(
+            labels=torch.where(img_labels.sum(0))[0],
+            average='macro',
+            zero_division=0,
+        )
+        default_args.update(kwargs)
+
+        logits, inds = multilabel_logits.topk(self._topK)
+        preds = one_hot(inds, self._multilabel_classifier.num_classes)
+        recall = sklearn.metrics.recall_score(img_labels.cpu().numpy(), preds.cpu().numpy(), **kwargs)
+        return torch.tensor(recall * 100)
+
+    def simple_test(self, img, img_metas, proposals=None, rescale=False):
+        assert self.with_bbox
+
+        feats = self.backbone(img)
+
+        if self.with_neck:
+            feats = self.neck(feats)
+
         if proposals is None:
             proposal_list = self.rpn_head.simple_test_rpn(feats, img_metas)
         else:
             proposal_list = proposals
 
         return self.roi_head.simple_test(
-            feats, proposal_list, img_metas, rescale=rescale)
+            feats, proposal_list, img_metas, rescale=rescale,
+        )

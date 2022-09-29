@@ -7,12 +7,12 @@ import todd
 import torch
 import torch.distributed
 from mmdet.models import build_detector
-from mmdet.datasets import build_dataset
+from mmdet.datasets import CocoDataset, build_dataset
 import sklearn.metrics
 from tqdm import trange
 
 sys.path.insert(0, '')
-import cafe
+from cafe import Cafe, one_hot
 from mldec import odps_init, debug
 
 
@@ -22,12 +22,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--odps', action=todd.base.DictAction)
     parser.add_argument('--override', action=todd.base.DictAction)
     parser.add_argument('--load', required=True)
-
-    # compat `odps_train.sh`
-    parser.add_argument('--cfg-options', action=todd.base.DictAction)
-    parser.add_argument('--work-dir')
-    parser.add_argument('--launcher')
-
     args = parser.parse_args()
     return args
 
@@ -56,7 +50,7 @@ if __name__ == '__main__':
     dataset = build_dataset(dataset_config)
 
     ckpt = torch.load(args.load, 'cpu')
-    model = build_detector(
+    model: Cafe = build_detector(
         config.model,
         train_cfg=config.get('train_cfg'),
         test_cfg=config.get('test_cfg'),
@@ -70,19 +64,19 @@ if __name__ == '__main__':
     results = []
     for i in trange(len(dataset)):
         sample = dataset[i]
-        x = sample['img'].unsqueeze(0)
+        img = sample['img']
+        if not debug.CPU:
+            img = img.cuda()
+        x = img.unsqueeze(0)
         feats = model.backbone(x)
-        feat = einops.reduce(feats[-1], 'b c h w -> b c', reduction='mean')
-        logits = model._multilabel_classifier(feat).squeeze(0)
+        multilabel_logits = model.multilabel_classify(feats)
+        results.append((multilabel_logits, sample['gt_labels']))
 
-        labels = feat.new_zeros(
-            model._multilabel_classifier.num_classes,
-            dtype=bool,
-        )
-        labels[sample['gt_labels']] = True
-
-        results.append((logits, labels))
-
-    logits, labels = map(torch.stack, zip(*results))
-    mAP = sklearn.metrics.average_precision_score(labels, logits)
-    print(mAP)
+    multilabel_logits_, gt_labels = zip(*results)
+    multilabel_logits = torch.cat(multilabel_logits_)
+    img_labels = one_hot(gt_labels, model._multilabel_classifier.num_classes)
+    mAP = sklearn.metrics.average_precision_score(img_labels.cpu().numpy(), multilabel_logits.cpu().numpy(), average=None)
+    topK_recall = model.topK(multilabel_logits, img_labels, average=None)
+    for class_, mAP_, topK_recall_ in zip(CocoDataset.CLASSES, mAP, topK_recall):
+        print(f"{class_} mAP={mAP_} recall={topK_recall_}")
+    print(f"mAP {mAP.mean()}, topK_recall {topK_recall.mean()}")
