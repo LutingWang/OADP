@@ -12,6 +12,8 @@ import torch
 import einops
 import sklearn.metrics
 
+from .classifiers import Classifier
+
 from .patches import one_hot
 
 
@@ -29,13 +31,17 @@ class Cafe(TwoStageDetector):
     ) -> None:
         super().__init__(*args, **kwargs)
         todd.base.init_iter()
-        self._multilabel_classifier = LINEAR_LAYERS.build(
+        self._multilabel_classifier: Classifier = LINEAR_LAYERS.build(
             multilabel_classifier,
         )
         self._multilabel_loss = todd.losses.LOSSES.build(
             multilabel_loss,
         )
         self._topK = topK
+
+    @property
+    def num_classes(self) -> int:
+        return self._multilabel_classifier.num_classes
 
     def forward_train(
         self,
@@ -57,7 +63,7 @@ class Cafe(TwoStageDetector):
         if self.with_neck:
             feats = self.neck(feats)
 
-        img_labels = one_hot(gt_labels, self._multilabel_classifier.num_classes)
+        img_labels = one_hot(gt_labels, self.num_classes)
         losses = dict(
             loss_multilabel=self._multilabel_loss(multilabel_logits.sigmoid(), img_labels),
             recall_multilabel=self.topK(multilabel_logits, img_labels),
@@ -82,12 +88,14 @@ class Cafe(TwoStageDetector):
         else:
             proposal_list = proposals
 
-        roi_losses = self.roi_head.forward_train(
-            feats, img_metas, proposal_list,
-            gt_bboxes, gt_labels,
-            gt_bboxes_ignore, gt_masks,
-            **kwargs,
-        )
+        with todd.base.setattr_temp(self.roi_head, 'message', (multilabel_logits,)):
+            roi_losses = self.roi_head.forward_train(
+                feats, img_metas, proposal_list,
+                gt_bboxes, gt_labels,
+                gt_bboxes_ignore, gt_masks,
+                **kwargs,
+            )
+
         losses.update(roi_losses)
 
         return losses
@@ -111,7 +119,7 @@ class Cafe(TwoStageDetector):
         default_args.update(kwargs)
 
         logits, inds = multilabel_logits.topk(self._topK)
-        preds = one_hot(inds, self._multilabel_classifier.num_classes)
+        preds = one_hot(inds, self.num_classes)
         recall = sklearn.metrics.recall_score(img_labels.cpu().numpy(), preds.cpu().numpy(), **default_args)
         return torch.tensor(recall * 100)
 
@@ -130,7 +138,7 @@ class Cafe(TwoStageDetector):
         else:
             proposal_list = proposals
 
-        _, inds = multilabel_logits.topk(self._multilabel_classifier.num_classes - self._topK, largest=False)
+        _, inds = multilabel_logits.topk(self.num_classes - self._topK, largest=False)
         with todd.base.setattr_temp(self.roi_head, 'message', (multilabel_logits, inds)):
             return self.roi_head.simple_test(
                 feats, proposal_list, img_metas, rescale=rescale,
