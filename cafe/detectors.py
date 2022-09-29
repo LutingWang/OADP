@@ -112,7 +112,7 @@ class Cafe(TwoStageDetector):
         **kwargs,
     ) -> torch.Tensor:
         default_args = dict(
-            labels=torch.where(img_labels.sum(0))[0],
+            labels=torch.where(img_labels.sum(0))[0].cpu().numpy(),
             average='macro',
             zero_division=0,
         )
@@ -121,7 +121,7 @@ class Cafe(TwoStageDetector):
         logits, inds = multilabel_logits.topk(self._topK)
         preds = one_hot(inds, self.num_classes)
         recall = sklearn.metrics.recall_score(img_labels.cpu().numpy(), preds.cpu().numpy(), **default_args)
-        return torch.tensor(recall * 100)
+        return multilabel_logits.new_tensor(recall * 100)
 
     def simple_test(self, img, img_metas, proposals=None, rescale=False):
         assert self.with_bbox
