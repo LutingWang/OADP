@@ -9,6 +9,7 @@ __all__ = [
 from typing import Dict, List, Optional, Tuple
 
 import einops
+import einops.layers.torch
 import todd.reproduction
 import torch
 import torch.nn as nn
@@ -31,8 +32,8 @@ class PLV(BaseModule):
             ),
             **kwargs,
         )
-        self._v_conv = nn.Conv2d(v_dim, o_dim, 1)
-        self._l_linear = nn.Linear(l_dim, o_dim)
+        self._v_proj = nn.Conv2d(v_dim, o_dim, 1)
+        self._l_proj = nn.Linear(l_dim, o_dim)
 
     def forward(
         self,
@@ -43,16 +44,15 @@ class PLV(BaseModule):
         l_weights: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         l = einops.rearrange(l, 'b n c -> (b n) c')
-        l = self._l_linear(l)
+        l = self._l_proj(l)
         l = einops.rearrange(l, '(b n) c -> b n c', b=v.shape[0])
-
-        v = self._v_conv(v)
-        v_feats: torch.Tensor = torch.einsum('b c h w, b n c -> b n c h w', v, l)
-        v_feats = v_feats.relu()
-
         if l_weights is not None:
-            v_feats = torch.einsum('b n c h w, b n -> b n c h w', v_feats, l_weights.sigmoid())
-        v_feats = einops.reduce(v_feats, 'b n c h w -> b c h w', reduction='mean')
+            l = torch.einsum('b n c, b n -> b n c', l, l_weights.sigmoid())
+        l = einops.reduce(l, 'b n c -> b c', reduction='mean')
+
+        v = self._v_proj(v)
+        v_feats: torch.Tensor = torch.einsum('b c h w, b c -> b c h w', v, l)
+        v_feats = v_feats.relu()
         return v + v_feats
 
 
