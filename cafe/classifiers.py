@@ -36,6 +36,10 @@ class Classifier(todd.base.Module):
     def num_classes(self) -> int:
         return self._embeddings.shape[0]
 
+    @property
+    def embedding_dim(self) -> int:
+        return self._embeddings.shape[1]
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self._linear(x)
         x = F.normalize(x)

@@ -23,6 +23,13 @@ model = dict(
         disable_torch_grad_focal_loss=True,
     ),
     topK=20,
+    pre_fpn=dict(
+        in_channels=[256, 512, 1024, 2048],
+        out_channels=256,
+    ),
+    neck=dict(
+        in_channels=[256, 256, 256, 256],
+    ),
     roi_head=dict(
         bbox_head=dict(
             cls_predictor_cfg=dict(

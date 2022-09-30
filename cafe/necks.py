@@ -21,7 +21,7 @@ from .patches import DyHeadBlock
 
 class PLV(BaseModule):
     def __init__(
-        self, *args, v_dim: int, l_dim: int, hidden_dim: int, **kwargs,
+        self, *args, v_dim: int, l_dim: int, o_dim: int, **kwargs,
     ):
         super().__init__(
             *args,
@@ -31,20 +31,8 @@ class PLV(BaseModule):
             ),
             **kwargs,
         )
-        self._v_proj = nn.Sequential(
-            nn.Conv2d(v_dim, hidden_dim, 1),
-            nn.Tanh(),
-        )
-        self._l_proj = nn.Sequential(
-            nn.Linear(l_dim, hidden_dim),
-            nn.Tanh(),
-        )
-        self._out_v_proj = nn.Sequential(
-            nn.ReLU(),
-            nn.Conv2d(hidden_dim, v_dim, 1),
-            nn.BatchNorm2d(v_dim),
-            nn.ReLU()
-        )
+        self._v_conv = nn.Conv2d(v_dim, o_dim, 1)
+        self._l_linear = nn.Linear(l_dim, o_dim)
 
     def forward(
         self,
@@ -54,16 +42,17 @@ class PLV(BaseModule):
         v_weights: Optional[torch.Tensor] = None,
         l_weights: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        v_feats = self._v_proj(v)
-        if l.ndim > 2:
-            b, *_, d = l.shape
-            l = l.view(-1, d)
-        else:
-            b = 1
-        l_feats = self._l_proj(l)
-        l_feats = einops.reduce(l_feats, '(b c) d -> b d 1 1', b=b, reduction='mean')
-        v_feats = self._out_v_proj(v_feats * l_feats)
-        # v_feats = F.normalize(v + v_feats)
+        l = einops.rearrange(l, 'b n c -> (b n) c')
+        l = self._l_linear(l)
+        l = einops.rearrange(l, '(b n) c -> b n c', b=v.shape[0])
+
+        v = self._v_conv(v)
+        v_feats: torch.Tensor = torch.einsum('b c h w, b n c -> b n c h w', v, l)
+        v_feats = v_feats.relu()
+
+        if l_weights is not None:
+            v_feats = torch.einsum('b n c h w, b n -> b n c h w', v_feats, l_weights.sigmoid())
+        v_feats = einops.reduce(v_feats, 'b n c h w -> b c h w', reduction='mean')
         return v + v_feats
 
 
@@ -71,15 +60,15 @@ class PreFPN(BaseModule):
     def __init__(
         self,
         *args,
-        channels: List[int],
+        in_channels: List[int],
+        out_channels: int,
         embedding_dim: int,
-        hidden_dim: int,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self._plvs = ModuleList([
-            PLV(v_dim=channel, l_dim=embedding_dim, hidden_dim=hidden_dim)
-            for channel in channels
+            PLV(v_dim=in_channel, l_dim=embedding_dim, o_dim=out_channels)
+            for in_channel in in_channels
         ])
 
     @todd.reproduction.set_seed_temp('PLVNeck')
@@ -90,7 +79,7 @@ class PreFPN(BaseModule):
         self,
         x: Tuple[torch.Tensor],
         class_embeddings: torch.Tensor,
-        class_weights: torch.Tensor,
+        class_weights: Optional[torch.Tensor],
     ):
         x = tuple(
             plv(feat, class_embeddings, l_weights=class_weights)

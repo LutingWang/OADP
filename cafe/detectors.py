@@ -13,7 +13,7 @@ import einops
 import sklearn.metrics
 
 from .classifiers import Classifier
-
+from .necks import PreFPN
 from .patches import one_hot
 
 
@@ -27,6 +27,7 @@ class Cafe(TwoStageDetector):
         multilabel_classifier: Dict[str, Any],
         multilabel_loss: Dict[str, Any],
         topK: int,
+        pre_fpn: Dict[str, Any],
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -38,6 +39,11 @@ class Cafe(TwoStageDetector):
             multilabel_loss,
         )
         self._topK = topK
+
+        self._pre_fpn = PreFPN(
+            embedding_dim=self._multilabel_classifier.embedding_dim,
+            **pre_fpn,
+        )
 
     @property
     def num_classes(self) -> int:
@@ -59,15 +65,23 @@ class Cafe(TwoStageDetector):
         feats = self.backbone(img)
 
         multilabel_logits = self.multilabel_classify(feats)
-
-        if self.with_neck:
-            feats = self.neck(feats)
-
         img_labels = one_hot(gt_labels, self.num_classes)
+        multilabel_loss = self._multilabel_loss(multilabel_logits.sigmoid(), img_labels)
+
+        topK_logits, topK_inds = multilabel_logits.topk(self._topK)
+        multilabel_topK_recall = self.multilabel_topK_recall(topK_inds, img_labels)
+
         losses = dict(
-            loss_multilabel=self._multilabel_loss(multilabel_logits.sigmoid(), img_labels),
-            recall_multilabel=self.topK(multilabel_logits, img_labels),
+            loss_multilabel=multilabel_loss,
+            recall_multilabel=multilabel_topK_recall,
         )
+
+        assert self.with_neck
+        feats = self._pre_fpn(
+            feats, self._multilabel_classifier._embeddings[topK_inds],
+            topK_logits,
+        )
+        feats = self.neck(feats)
 
         # RPN forward and loss
         if self.with_rpn:
@@ -88,13 +102,13 @@ class Cafe(TwoStageDetector):
         else:
             proposal_list = proposals
 
-        with todd.base.setattr_temp(self.roi_head, 'message', (multilabel_logits,)):
-            roi_losses = self.roi_head.forward_train(
-                feats, img_metas, proposal_list,
-                gt_bboxes, gt_labels,
-                gt_bboxes_ignore, gt_masks,
-                **kwargs,
-            )
+        # with todd.base.setattr_temp(self.roi_head, 'message', (multilabel_logits,)):
+        roi_losses = self.roi_head.forward_train(
+            feats, img_metas, proposal_list,
+            gt_bboxes, gt_labels,
+            gt_bboxes_ignore, gt_masks,
+            **kwargs,
+        )
 
         losses.update(roi_losses)
 
@@ -105,9 +119,9 @@ class Cafe(TwoStageDetector):
         logits = self._multilabel_classifier(feat)
         return logits
 
-    def topK(
+    def multilabel_topK_recall(
         self,
-        multilabel_logits: torch.Tensor,
+        topK_inds: torch.Tensor,
         img_labels: torch.Tensor,
         **kwargs,
     ) -> torch.Tensor:
@@ -118,10 +132,9 @@ class Cafe(TwoStageDetector):
         )
         default_args.update(kwargs)
 
-        logits, inds = multilabel_logits.topk(self._topK)
-        preds = one_hot(inds, self.num_classes)
+        preds = one_hot(topK_inds, self.num_classes)
         recall = sklearn.metrics.recall_score(img_labels.cpu().numpy(), preds.cpu().numpy(), **default_args)
-        return multilabel_logits.new_tensor(recall * 100)
+        return torch.tensor(recall * 100, device=topK_inds.device)
 
     def simple_test(self, img, img_metas, proposals=None, rescale=False):
         assert self.with_bbox
@@ -130,8 +143,14 @@ class Cafe(TwoStageDetector):
 
         multilabel_logits = self.multilabel_classify(feats)
 
-        if self.with_neck:
-            feats = self.neck(feats)
+        topK_logits, topK_inds = multilabel_logits.topk(self._topK)
+
+        assert self.with_neck
+        feats = self._pre_fpn(
+            feats, self._multilabel_classifier._embeddings[topK_inds],
+            topK_logits,
+        )
+        feats = self.neck(feats)
 
         if proposals is None:
             proposal_list = self.rpn_head.simple_test_rpn(feats, img_metas)
