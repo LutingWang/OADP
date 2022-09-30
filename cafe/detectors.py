@@ -102,13 +102,13 @@ class Cafe(TwoStageDetector):
         else:
             proposal_list = proposals
 
-        # with todd.base.setattr_temp(self.roi_head, 'message', (multilabel_logits,)):
-        roi_losses = self.roi_head.forward_train(
-            feats, img_metas, proposal_list,
-            gt_bboxes, gt_labels,
-            gt_bboxes_ignore, gt_masks,
-            **kwargs,
-        )
+        with todd.base.setattr_temp(self.roi_head, 'message', (multilabel_logits,)):
+            roi_losses = self.roi_head.forward_train(
+                feats, img_metas, proposal_list,
+                gt_bboxes, gt_labels,
+                gt_bboxes_ignore, gt_masks,
+                **kwargs,
+            )
 
         losses.update(roi_losses)
 
