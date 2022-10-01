@@ -2,6 +2,7 @@ __all__ = [
     'Classifier',
 ]
 
+from typing import cast
 from mmdet.models.utils.builder import LINEAR_LAYERS
 from mmdet.datasets import CocoDataset
 import todd
@@ -16,12 +17,12 @@ class Classifier(todd.base.Module):
     def __init__(self, *args, pretrained: str, in_features: int, out_features: int, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         ckpt = torch.load(pretrained, 'cpu')
-        embeddings: torch.Tensor = ckpt['embeddings']
+        embeddings = cast(torch.Tensor, ckpt['embeddings'])
         name2ind = {name: i for i, name in enumerate(ckpt['names'])}
         inds = [name2ind[name] for name in CocoDataset.CLASSES]
         self.register_buffer('_embeddings', embeddings[inds])
-        self._scaler = ckpt['scaler'].item()
-        self._bias = ckpt['bias'].item()
+        self._scaler = cast(torch.Tensor, ckpt['scaler']).item()
+        self._bias = cast(torch.Tensor, ckpt['bias']).item()
 
         embedding_dim = embeddings.shape[1]
         self._linear = nn.Linear(in_features, embedding_dim)
@@ -33,17 +34,21 @@ class Classifier(todd.base.Module):
             assert False, (embeddings.shape[0], out_features)
 
     @property
+    def embeddings(self) -> torch.Tensor:
+        return cast(torch.Tensor, self._embeddings)
+
+    @property
     def num_classes(self) -> int:
-        return self._embeddings.shape[0]
+        return self.embeddings.shape[0]
 
     @property
     def embedding_dim(self) -> int:
-        return self._embeddings.shape[1]
+        return self.embeddings.shape[1]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self._linear(x)
         x = F.normalize(x)
-        embeddings = self._embeddings
+        embeddings = self.embeddings
         if self._bg_embedding is not None:
             embeddings = torch.cat([
                 embeddings,

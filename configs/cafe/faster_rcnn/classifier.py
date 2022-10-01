@@ -23,12 +23,20 @@ model = dict(
         disable_torch_grad_focal_loss=True,
     ),
     topK=20,
+    hidden_dims=256,
     pre_fpn=dict(
         in_channels=[256, 512, 1024, 2048],
-        out_channels=256,
     ),
     neck=dict(
         in_channels=[256, 256, 256, 256],
+    ),
+    post_fpn=dict(
+        refine_level=2,
+        num_blocks=3,
+        glip_block=dict(
+            num_heads=8,
+            head_dims=32,
+        ),
     ),
     roi_head=dict(
         bbox_head=dict(

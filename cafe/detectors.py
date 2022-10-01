@@ -4,21 +4,23 @@ __all__ = [
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from mmdet.models import DETECTORS, TwoStageDetector, StandardRoIHead
+from mmdet.models import DETECTORS, TwoStageDetector, StandardRoIHead, RPNHead
 from mmdet.models.utils.builder import LINEAR_LAYERS
 import numpy as np
 import todd
 import torch
 import einops
 import sklearn.metrics
+import torch.nn as nn
 
 from .classifiers import Classifier
-from .necks import PreFPN
+from .necks import PreFPN, PostFPN
 from .patches import one_hot
 
 
 @DETECTORS.register_module()
 class Cafe(TwoStageDetector):
+    rpn_head: RPNHead
     roi_head: StandardRoIHead
 
     def __init__(
@@ -27,7 +29,9 @@ class Cafe(TwoStageDetector):
         multilabel_classifier: Dict[str, Any],
         multilabel_loss: Dict[str, Any],
         topK: int,
+        hidden_dims: int,
         pre_fpn: Dict[str, Any],
+        post_fpn: Dict[str, Any],
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -39,15 +43,46 @@ class Cafe(TwoStageDetector):
             multilabel_loss,
         )
         self._topK = topK
+        self._hidden_dims = hidden_dims
+
+        self._ce_proj = nn.Sequential(
+            nn.Linear(self._multilabel_classifier.embedding_dim, hidden_dims),
+            nn.LayerNorm(hidden_dims),
+        )
 
         self._pre_fpn = PreFPN(
-            embedding_dim=self._multilabel_classifier.embedding_dim,
+            out_channels=hidden_dims,
             **pre_fpn,
+        )
+        self._post_fpn = PostFPN(
+            channels=hidden_dims,
+            **post_fpn,
         )
 
     @property
     def num_classes(self) -> int:
         return self._multilabel_classifier.num_classes
+
+    def extract_feat(
+        self,
+        img: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        feats = self.backbone(img)
+
+        multilabel_logits = self.multilabel_classify(feats)
+
+        topK_logits, topK_inds = multilabel_logits.topk(self._topK)
+
+        ce = self._multilabel_classifier.embeddings[topK_inds]
+        ce = self._ce_proj(ce)
+
+        feats = self._pre_fpn(feats, ce, topK_logits)
+
+        assert self.with_neck
+        feats = self.neck(feats)
+
+        feats, masks = self._post_fpn(feats, ce, topK_logits)
+        return feats, multilabel_logits, topK_inds, masks
 
     def forward_train(
         self,
@@ -62,26 +97,16 @@ class Cafe(TwoStageDetector):
     ) -> Dict[str, torch.Tensor]:
         todd.base.inc_iter()
 
-        feats = self.backbone(img)
+        feats, multilabel_logits, topK_inds, masks = self.extract_feat(img)
 
-        multilabel_logits = self.multilabel_classify(feats)
         img_labels = one_hot(gt_labels, self.num_classes)
         multilabel_loss = self._multilabel_loss(multilabel_logits.sigmoid(), img_labels)
-
-        topK_logits, topK_inds = multilabel_logits.topk(self._topK)
         multilabel_topK_recall = self.multilabel_topK_recall(topK_inds, img_labels)
 
         losses = dict(
             loss_multilabel=multilabel_loss,
             recall_multilabel=multilabel_topK_recall,
         )
-
-        assert self.with_neck
-        feats = self._pre_fpn(
-            feats, self._multilabel_classifier._embeddings[topK_inds],
-            topK_logits,
-        )
-        feats = self.neck(feats)
 
         # RPN forward and loss
         if self.with_rpn:
@@ -136,21 +161,16 @@ class Cafe(TwoStageDetector):
         recall = sklearn.metrics.recall_score(img_labels.cpu().numpy(), preds.cpu().numpy(), **default_args)
         return torch.tensor(recall * 100, device=topK_inds.device)
 
-    def simple_test(self, img, img_metas, proposals=None, rescale=False):
+    def simple_test(
+        self,
+        img: torch.Tensor,
+        img_metas: List[Dict[str, Any]],
+        proposals=None,
+        rescale: bool = False,
+    ):
         assert self.with_bbox
 
-        feats = self.backbone(img)
-
-        multilabel_logits = self.multilabel_classify(feats)
-
-        topK_logits, topK_inds = multilabel_logits.topk(self._topK)
-
-        assert self.with_neck
-        feats = self._pre_fpn(
-            feats, self._multilabel_classifier._embeddings[topK_inds],
-            topK_logits,
-        )
-        feats = self.neck(feats)
+        feats, multilabel_logits, topK_inds, masks = self.extract_feat(img)
 
         if proposals is None:
             proposal_list = self.rpn_head.simple_test_rpn(feats, img_metas)
