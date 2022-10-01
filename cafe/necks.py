@@ -162,10 +162,10 @@ class GLIPBlock(BaseModule):
             reduction='mean',
         )
 
-        weights = weights.softmax(dim=-1)
         if l_weights is not None:
-            weights = torch.einsum('b h v l, b l -> b h v l', weights, l_weights)
-            weights = weights / weights.sum(dim=-1, keepdim=True)
+            l_weights = einops.rearrange(l_weights, 'b l -> b 1 1 l')
+            weights = weights + l_weights
+        weights = weights.softmax(dim=-1)
         weights = self._dropout(weights)
         outputs = torch.einsum('b h v l, b h l d -> b h v d', weights, values)
         outputs = self._o_proj(outputs)
