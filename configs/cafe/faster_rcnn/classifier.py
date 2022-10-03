@@ -35,7 +35,14 @@ model = dict(
         num_blocks=3,
         glip_block=dict(
             num_heads=8,
-            head_dims=16,
+            head_dims=32,
+        ),
+    ),
+    attn_weights_loss=dict(
+        type='BCEWithLogitsLoss',
+        weight=dict(
+            type='WarmupScheduler',
+            iter_=1000,
         ),
     ),
     roi_head=dict(

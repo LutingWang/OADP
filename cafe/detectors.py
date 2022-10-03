@@ -4,6 +4,7 @@ __all__ = [
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from mmdet.core import BitmapMasks
 from mmdet.models import DETECTORS, TwoStageDetector, StandardRoIHead, RPNHead
 from mmdet.models.utils.builder import LINEAR_LAYERS
 import numpy as np
@@ -12,6 +13,7 @@ import torch
 import einops
 import sklearn.metrics
 import torch.nn as nn
+import torch.nn.functional as F
 
 from .classifiers import Classifier
 from .necks import PreFPN, PostFPN
@@ -32,6 +34,7 @@ class Cafe(TwoStageDetector):
         hidden_dims: int,
         pre_fpn: Dict[str, Any],
         post_fpn: Dict[str, Any],
+        attn_weights_loss: Dict[str, Any],
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -59,6 +62,10 @@ class Cafe(TwoStageDetector):
             **post_fpn,
         )
 
+        self._attn_weights_loss = todd.losses.LOSSES.build(
+            attn_weights_loss,
+        )
+
     @property
     def num_classes(self) -> int:
         return self._multilabel_classifier.num_classes
@@ -66,7 +73,7 @@ class Cafe(TwoStageDetector):
     def extract_feat(
         self,
         img: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]]:
         feats = self.backbone(img)
 
         multilabel_logits = self.multilabel_classify(feats)
@@ -84,21 +91,16 @@ class Cafe(TwoStageDetector):
         feats, masks = self._post_fpn(feats, ce, topK_logits)
         return feats, multilabel_logits, topK_inds, masks
 
-    def forward_train(
+    def get_losses(
         self,
         img: torch.Tensor,
-        img_metas: List[Dict[str, Any]],
-        gt_bboxes: List[torch.Tensor],
         gt_labels: List[torch.Tensor],
-        gt_bboxes_ignore: Optional[List[torch.Tensor]] = None,
-        gt_masks=None,
-        proposals=None,
-        **kwargs,
-    ) -> Dict[str, torch.Tensor]:
-        todd.base.inc_iter()
-
-        feats, multilabel_logits, topK_inds, masks = self.extract_feat(img)
-
+        multilabel_logits: torch.Tensor,
+        topK_inds: torch.Tensor,
+        masks: List[torch.Tensor],
+        *,
+        gt_masks: Optional[List[BitmapMasks]] = None,
+    ):
         img_labels = one_hot(gt_labels, self.num_classes)
         multilabel_loss = self._multilabel_loss(multilabel_logits.sigmoid(), img_labels)
         multilabel_topK_recall = self.multilabel_topK_recall(topK_inds, img_labels)
@@ -107,6 +109,51 @@ class Cafe(TwoStageDetector):
             loss_multilabel=multilabel_loss,
             recall_multilabel=multilabel_topK_recall,
         )
+
+        if gt_masks is not None:
+            gt_masks = [
+                gt_mask.resize(masks[0].shape[-2:])
+                for gt_mask in gt_masks
+            ]
+            gt_masks_ = img.new_tensor(
+                [
+                    [
+                        gt_mask.masks[gt_label.eq(i).cpu()].sum(0)
+                        for i in topK_ind
+                    ]
+                    for gt_label, gt_mask, topK_ind in zip(gt_labels, gt_masks, topK_inds)
+                ],
+                dtype=torch.bool,
+            )
+        else:
+            gt_masks_ = None
+
+        if gt_masks_ is not None:
+            losses.update(
+                loss_attn_weights=sum(
+                    self._attn_weights_loss(mask, gt_masks_.float())
+                    for mask in masks
+                ),
+            )
+
+        return losses
+
+    def forward_train(
+        self,
+        img: torch.Tensor,
+        img_metas: List[Dict[str, Any]],
+        gt_bboxes: List[torch.Tensor],
+        gt_labels: List[torch.Tensor],
+        gt_bboxes_ignore: Optional[List[torch.Tensor]] = None,
+        gt_masks: Optional[List[BitmapMasks]] = None,
+        proposals=None,
+        **kwargs,
+    ) -> Dict[str, torch.Tensor]:
+        todd.base.inc_iter()
+
+        feats, multilabel_logits, topK_inds, masks = self.extract_feat(img)
+
+        losses = self.get_losses(img, gt_labels, multilabel_logits, topK_inds, masks, gt_masks=gt_masks)
 
         # RPN forward and loss
         if self.with_rpn:
