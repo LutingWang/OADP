@@ -111,27 +111,25 @@ class Cafe(TwoStageDetector):
         )
 
         if gt_masks is not None:
-            gt_masks = [
-                gt_mask.resize(masks[0].shape[-2:])
-                for gt_mask in gt_masks
-            ]
-            gt_masks_ = img.new_tensor(
-                [
-                    [
-                        gt_mask.masks[gt_label.eq(i).cpu()].sum(0)
-                        for i in topK_ind
-                    ]
-                    for gt_label, gt_mask, topK_ind in zip(gt_labels, gt_masks, topK_inds)
-                ],
-                dtype=torch.bool,
-            )
+            gt_mask_list: List[List[np.ndarray]] = []
+            for gt_label, gt_mask, topK_ind in zip(gt_labels, gt_masks, topK_inds):
+                gt_mask_list.append([])
+                gt_mask = gt_mask.resize(masks[0].shape[-2:])
+                for i in topK_ind:
+                    matched = gt_label.eq(i).cpu().numpy()
+                    gt_mask_: np.ndarray = gt_mask.masks[matched]
+                    if gt_mask_.ndim == 3:
+                        gt_mask_ = gt_mask_.sum(0)
+                    assert gt_mask_.ndim == 2, gt_mask_.ndim
+                    gt_mask_list[-1].append(gt_mask_)
+            gt_masks_ = img.new_tensor(np.array(gt_mask_list, dtype=bool), dtype=torch.float)
         else:
             gt_masks_ = None
 
         if gt_masks_ is not None:
             losses.update(
                 loss_attn_weights=sum(
-                    self._attn_weights_loss(mask, gt_masks_.float())
+                    self._attn_weights_loss(mask, gt_masks_)
                     for mask in masks
                 ),
             )
