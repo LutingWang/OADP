@@ -1,5 +1,6 @@
 __all__ = [
     'odps_init',
+    'k8s_init',
     'all_gather',
 ]
 
@@ -23,6 +24,21 @@ def odps_init(kwargs: todd.base.Config) -> None:
         os.symlink('/data/oss_bucket_0/ckpts', 'pretrained')
     if not os.path.lexists('work_dirs'):
         os.symlink('/data/oss_bucket_0/work_dirs', 'work_dirs')
+    logger.debug(f"ODPS initialization done with {os.listdir('.')}.")
+
+
+def k8s_init(kwargs: todd.base.Config) -> None:
+    logger = todd.base.get_logger()
+    logger.debug("ODPS initializing.")
+    # kwargs.setdefault('LOCAL_RANK', '0')
+    os.environ.update(kwargs)
+    root = '/mnt/dolphinfs/ssd_pool/docker/user/hadoop-mtcv/dingzihan/openset/data'
+    if not os.path.lexists('data'):
+        os.symlink(f'{root}', 'data')
+    if not os.path.lexists('pretrained'):
+        os.symlink(f'{root}/ckpts', 'pretrained')
+    if not os.path.lexists('work_dirs'):
+        os.symlink(f'{root}/work_dirs', 'work_dirs')
     logger.debug(f"ODPS initialization done with {os.listdir('.')}.")
 
 

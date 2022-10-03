@@ -25,13 +25,14 @@ from mmdet.utils import (collect_env, get_device, get_root_logger,
 
 sys.path.insert(0, '')
 import cafe
-from mldec import debug, odps_init
+from mldec import debug, odps_init, k8s_init
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
     parser.add_argument('config', help='train config file path')
     parser.add_argument('--odps', action=todd.base.DictAction)
+    parser.add_argument('--k8s', action=todd.base.DictAction)
     parser.add_argument('--work-dir', help='the dir to save logs and models')
     parser.add_argument(
         '--resume-from', help='the checkpoint file to resume from')
@@ -117,6 +118,8 @@ def main():
 
     if args.odps is not None:
         odps_init(args.odps)
+    if args.k8s is not None:
+        k8s_init(args.k8s)
 
     cfg = Config.fromfile(args.config)
 
