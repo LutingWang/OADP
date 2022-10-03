@@ -93,13 +93,11 @@ class Cafe(TwoStageDetector):
 
     def get_losses(
         self,
-        img: torch.Tensor,
         gt_labels: List[torch.Tensor],
         multilabel_logits: torch.Tensor,
         topK_inds: torch.Tensor,
         masks: List[torch.Tensor],
-        *,
-        gt_masks: Optional[List[BitmapMasks]] = None,
+        gt_masks_tensor: Optional[torch.Tensor] = None,
     ):
         img_labels = one_hot(gt_labels, self.num_classes)
         multilabel_loss = self._multilabel_loss(multilabel_logits.sigmoid(), img_labels)
@@ -110,26 +108,33 @@ class Cafe(TwoStageDetector):
             recall_multilabel=multilabel_topK_recall,
         )
 
-        if gt_masks is not None:
-            gt_mask_list: List[List[np.ndarray]] = []
-            for gt_label, gt_mask, topK_ind in zip(gt_labels, gt_masks, topK_inds):
-                gt_mask_list.append([])
-                gt_mask = gt_mask.resize(masks[0].shape[-2:])
-                for i in topK_ind:
-                    matched = gt_label.eq(i).cpu().numpy()
-                    gt_mask_: np.ndarray = gt_mask.masks[matched]
-                    if gt_mask_.ndim == 3:
-                        gt_mask_ = gt_mask_.sum(0)
-                    assert gt_mask_.ndim == 2, gt_mask_.ndim
-                    gt_mask_list[-1].append(gt_mask_)
-            gt_masks_ = img.new_tensor(np.array(gt_mask_list, dtype=bool), dtype=torch.float)
-        else:
-            gt_masks_ = None
+        # if gt_masks_tensor is not None:
+        #     gt_mask_list: List[List[np.ndarray]] = []
+        #     for gt_label, gt_mask, topK_ind in zip(gt_labels, gt_masks, topK_inds):
+        #         gt_mask_list.append([])
+        #         gt_mask = gt_mask.resize(masks[0].shape[-2:])
+        #         for i in topK_ind:
+        #             matched = gt_label.eq(i).cpu().numpy()
+        #             gt_mask_: np.ndarray = gt_mask.masks[matched]
+        #             if gt_mask_.ndim == 3:
+        #                 gt_mask_ = gt_mask_.sum(0)
+        #             assert gt_mask_.ndim == 2, gt_mask_.ndim
+        #             gt_mask_list[-1].append(gt_mask_)
+        #     gt_masks_ = img.new_tensor(np.array(gt_mask_list, dtype=bool), dtype=torch.float)
+        # else:
+        #     gt_masks_ = None
 
-        if gt_masks_ is not None:
+        if gt_masks_tensor is not None:
+            i = einops.repeat(
+                torch.arange(topK_inds.shape[0], device=topK_inds.device),
+                'b -> b c',
+                c=topK_inds.shape[1],
+            )
+            gt_masks_tensor = gt_masks_tensor[i, topK_inds].float()
+            gt_masks_tensor = F.adaptive_max_pool2d(gt_masks_tensor, masks[0].shape[-2:])
             losses.update(
                 loss_attn_weights=sum(
-                    self._attn_weights_loss(mask, gt_masks_)
+                    self._attn_weights_loss(mask, gt_masks_tensor)
                     for mask in masks
                 ),
             )
@@ -144,6 +149,7 @@ class Cafe(TwoStageDetector):
         gt_labels: List[torch.Tensor],
         gt_bboxes_ignore: Optional[List[torch.Tensor]] = None,
         gt_masks: Optional[List[BitmapMasks]] = None,
+        gt_masks_tensor: Optional[torch.Tensor] = None,
         proposals=None,
         **kwargs,
     ) -> Dict[str, torch.Tensor]:
@@ -151,7 +157,7 @@ class Cafe(TwoStageDetector):
 
         feats, multilabel_logits, topK_inds, masks = self.extract_feat(img)
 
-        losses = self.get_losses(img, gt_labels, multilabel_logits, topK_inds, masks, gt_masks=gt_masks)
+        losses = self.get_losses(gt_labels, multilabel_logits, topK_inds, masks, gt_masks_tensor)
 
         # RPN forward and loss
         if self.with_rpn:

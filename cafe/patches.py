@@ -3,13 +3,16 @@ _base_ = [
     'DyHeadBlock',
     'DebugMixin',
     'CocoDataset',
+    'MaskToTensor',
 ]
 
-from typing import List, Sequence, TypeGuard, Union
+from typing import Any, Dict, Sequence, TypeGuard, Union
 import torch
 
+from mmcv.parallel import DataContainer as DC
+from mmdet.core import BitmapMasks
 from mmdet.models.necks.dyhead import DyHeadBlock as _DyHeadBlock
-from mmdet.datasets import DATASETS, CocoDataset as _CocoDataset, CustomDataset
+from mmdet.datasets import PIPELINES, DATASETS, CocoDataset as _CocoDataset, CustomDataset
 
 from mldec.debug import debug
 
@@ -96,3 +99,18 @@ class CocoDataset(DebugMixin, _CocoDataset):
                 for img in self.coco.dataset['images']
             }
         return data_infos
+
+
+@PIPELINES.register_module()
+class MaskToTensor:
+
+    def __init__(self, num_classes: int) -> None:
+        self._num_classes = num_classes
+
+    def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
+        gt_masks: BitmapMasks = results['gt_masks']
+        tensor = torch.zeros((self._num_classes, gt_masks.height, gt_masks.width), dtype=torch.bool)
+        for i, gt_label in enumerate(results['gt_labels']):
+            tensor[gt_label] += gt_masks.masks[i]
+        results['gt_masks_tensor'] = DC(tensor, stack=True, padding_value=0)
+        return results
