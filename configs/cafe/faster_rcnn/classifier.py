@@ -35,7 +35,7 @@ model = dict(
         num_blocks=3,
         glip_block=dict(
             num_heads=8,
-            head_dims=32,
+            head_dims=16,
         ),
     ),
     roi_head=dict(
