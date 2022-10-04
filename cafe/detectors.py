@@ -2,7 +2,8 @@ __all__ = [
     'Cafe',
 ]
 
-from typing import Any, Dict, List, Optional, Tuple
+from abc import ABCMeta
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from mmdet.core import BitmapMasks
 from mmdet.models import DETECTORS, TwoStageDetector, StandardRoIHead, RPNHead
@@ -16,12 +17,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .classifiers import Classifier
+from .distillers import MMDetDistiller
 from .necks import PreFPN, PostFPN
 from .patches import one_hot
 
 
 @DETECTORS.register_module()
-class Cafe(TwoStageDetector):
+class Cafe(
+    TwoStageDetector,
+    metaclass=todd.distillers.build_metaclass(
+        todd.distillers.SelfDistiller, ABCMeta,
+    ),
+):
     rpn_head: RPNHead
     roi_head: StandardRoIHead
 
@@ -110,22 +117,6 @@ class Cafe(TwoStageDetector):
             recall_multilabel=multilabel_topK_recall,
         )
 
-        # if gt_masks_tensor is not None:
-        #     gt_mask_list: List[List[np.ndarray]] = []
-        #     for gt_label, gt_mask, topK_ind in zip(gt_labels, gt_masks, topK_inds):
-        #         gt_mask_list.append([])
-        #         gt_mask = gt_mask.resize(masks[0].shape[-2:])
-        #         for i in topK_ind:
-        #             matched = gt_label.eq(i).cpu().numpy()
-        #             gt_mask_: np.ndarray = gt_mask.masks[matched]
-        #             if gt_mask_.ndim == 3:
-        #                 gt_mask_ = gt_mask_.sum(0)
-        #             assert gt_mask_.ndim == 2, gt_mask_.ndim
-        #             gt_mask_list[-1].append(gt_mask_)
-        #     gt_masks_ = img.new_tensor(np.array(gt_mask_list, dtype=bool), dtype=torch.float)
-        # else:
-        #     gt_masks_ = None
-
         if gt_masks_tensor is not None:
             i = einops.repeat(
                 torch.arange(topK_inds.shape[0], device=topK_inds.device),
@@ -135,7 +126,7 @@ class Cafe(TwoStageDetector):
             gt_masks_tensor = gt_masks_tensor[i, topK_inds].float()
             if self._gt_downsample == 'avg':
                 gt_masks_tensor = F.adaptive_avg_pool2d(gt_masks_tensor, masks[0].shape[-2:])
-            elif self._gt_downsample == 'max': 
+            elif self._gt_downsample == 'max':
                 gt_masks_tensor = F.adaptive_max_pool2d(gt_masks_tensor, masks[0].shape[-2:])
             elif self._gt_downsample == 'nearest':
                 gt_masks_tensor = F.interpolate(gt_masks_tensor, masks[0].shape[-2:])
@@ -156,6 +147,9 @@ class Cafe(TwoStageDetector):
         img_metas: List[Dict[str, Any]],
         gt_bboxes: List[torch.Tensor],
         gt_labels: List[torch.Tensor],
+        clip_image: torch.Tensor,
+        clip_regions: List[torch.Tensor],
+        clip_bboxes: List[torch.Tensor],
         gt_bboxes_ignore: Optional[List[torch.Tensor]] = None,
         gt_masks: Optional[List[BitmapMasks]] = None,
         gt_masks_tensor: Optional[torch.Tensor] = None,
@@ -194,8 +188,15 @@ class Cafe(TwoStageDetector):
                 gt_bboxes_ignore, gt_masks,
                 **kwargs,
             )
-
         losses.update(roi_losses)
+
+        distiller = cast(todd.distillers.DistillableProto, self).distiller
+        distiller.track_tensors()
+        distill_losses = distiller.distill(
+            dict(clip_image=clip_image),
+        )
+        distiller.reset()
+        losses.update(distill_losses)
 
         return losses
 

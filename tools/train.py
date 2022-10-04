@@ -136,6 +136,9 @@ def main():
     if debug.TRAIN_WITH_VAL_DATASET:
         cfg.data.train.ann_file = cfg.data.val.ann_file
         cfg.data.train.img_prefix = cfg.data.val.img_prefix
+        for p in cfg.data.train.pipeline:
+            if p.type == 'LoadCLIPFeatures':
+                p.task_name = 'val'
     if debug.DRY_RUN:
         cfg.data.workers_per_gpu = 0
         cfg.log_config.interval = 1
