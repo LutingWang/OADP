@@ -20,7 +20,7 @@ import torch.distributed
 
 import clip
 import clip.model
-from .utils import odps_init
+from .utils import odps_init, k8s_init
 
 from .debug import debug
 from .todd import BaseRunner, TrainerMixin
@@ -303,6 +303,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--odps', action=todd.base.DictAction)
     parser.add_argument('--override', action=todd.base.DictAction)
     parser.add_argument('--seed', type=int, default=3407)
+    parser.add_argument('--k8s', action=todd.base.DictAction)
+    parser.add_argument('--local_rank', type=int, default=0)
     args = parser.parse_args()
     return args
 
@@ -312,6 +314,8 @@ if __name__ == '__main__':
     config = todd.base.Config.load(args.config)
     if args.odps is not None:
         odps_init(args.odps)
+    if args.k8s is not None:
+        k8s_init(args.k8s)
     debug.init(config=config)
     if args.override is not None:
         for k, v in args.override.items():
