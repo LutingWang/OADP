@@ -44,6 +44,7 @@ model = dict(
             type='WarmupScheduler',
             iter_=1000,
         ),
+        gt_downsample='avg',
     ),
     roi_head=dict(
         bbox_head=dict(

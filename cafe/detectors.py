@@ -62,6 +62,8 @@ class Cafe(TwoStageDetector):
             **post_fpn,
         )
 
+        self._gt_downsample = attn_weights_loss.pop('gt_downsample')
+
         self._attn_weights_loss = todd.losses.LOSSES.build(
             attn_weights_loss,
         )
@@ -131,7 +133,14 @@ class Cafe(TwoStageDetector):
                 c=topK_inds.shape[1],
             )
             gt_masks_tensor = gt_masks_tensor[i, topK_inds].float()
-            gt_masks_tensor = F.adaptive_max_pool2d(gt_masks_tensor, masks[0].shape[-2:])
+            if self._gt_downsample == 'avg':
+                gt_masks_tensor = F.adaptive_avg_pool2d(gt_masks_tensor, masks[0].shape[-2:])
+            elif self._gt_downsample == 'max': 
+                gt_masks_tensor = F.adaptive_max_pool2d(gt_masks_tensor, masks[0].shape[-2:])
+            elif self._gt_downsample == 'nearest':
+                gt_masks_tensor = F.interpolate(gt_masks_tensor, masks[0].shape[-2:])
+            else:
+                raise ValueError(self._gt_downsample)
             losses.update(
                 loss_attn_weights=sum(
                     self._attn_weights_loss(mask, gt_masks_tensor)
