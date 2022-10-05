@@ -18,7 +18,7 @@ JOB_NAME=$1
 CONFIG=$2
 GPUS=$3
 PY_ARGS=${@:4}
-PY_ARGS="${PY_ARGS} --cfg-options checkpoint_config.create_symlink=False evaluation.tmpdir=work_dirs/tmp${RANDOM}"
+#PY_ARGS="${PY_ARGS} --cfg-options checkpoint_config.create_symlink=False evaluation.tmpdir=work_dirs/tmp${RANDOM}"
 PY_ARGS="${PY_ARGS} --work-dir work_dirs/${JOB_NAME} --launcher pytorch --k8s"
 
 python -m torch.distributed.launch --nproc_per_node=${GPUS} --master_port=${PORT:-23451} tools/train.py ${CONFIG} ${PY_ARGS}
