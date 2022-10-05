@@ -63,7 +63,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         with open(proposal_file,'rb') as f:
             self.proposals = torch.tensor(
                 pickle.load(f),
-                dtype=torch.float if debug.CPU else torch.half,
+                dtype=torch.float,
             )
 
         self._mask_size = mask_size

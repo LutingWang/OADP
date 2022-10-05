@@ -5,6 +5,10 @@ torchrun --nproc_per_node=1 --master_port=5000 -m mldec.extract_embeddings extra
 ```
 
 ```shell
+torchrun --nproc_per_node=1 --master_port=5000 -m mldec.extract_mask_embeddings extract_mask_embeddings configs/mldec/extract_mask_embeddings.py
+```
+
+```shell
 torchrun --nproc_per_node=1 --master_port=5000 -m mldec.prompt train prompt configs/mldec/prompt.py
 torchrun --nproc_per_node=1 --master_port=5000 -m mldec.prompt val prompt configs/mldec/prompt.py --load 3
 torchrun --nproc_per_node=1 --master_port=5000 -m mldec.prompt dump prompt configs/mldec/prompt_dump.py --load 3
