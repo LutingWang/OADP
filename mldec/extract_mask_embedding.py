@@ -1,9 +1,10 @@
 import argparse
 import enum
+import math
 import pathlib
 import pickle
 from collections import namedtuple
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, cast
+from typing import Any, Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple, cast
 
 import PIL.Image
 import clip
@@ -29,10 +30,13 @@ try:
 except ImportError:
     BICUBIC = PIL.Image.BICUBIC
 
-Batch = namedtuple(
-    'Batch',
-    ['image_id', 'patches', 'bboxes', 'objectness', 'masks'],
-)
+
+class Batch(NamedTuple):
+    image_id: int
+    patches: torch.Tensor
+    bboxes: torch.Tensor
+    objectness: torch.Tensor
+    masks: torch.Tensor
 
 
 class ExpandMode(enum.IntEnum):
@@ -58,7 +62,10 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         )
 
         with open(proposal_file,'rb') as f:
-            self.proposals = torch.tensor(pickle.load(f), dtype=torch.float)
+            self.proposals = torch.tensor(
+                pickle.load(f),
+                dtype=torch.half if debug.CPU else torch.float,
+            )
 
         self._mask_size = mask_size
         self._expand_mode = ExpandMode[expand_mode.upper()]
@@ -284,7 +291,10 @@ class Runner(BaseRunner):
         config = config.copy()
         pretrained = config.pop('pretrained')
         assert "ViT-B-32" in pretrained
-        clip_model, _ = clip.load(pretrained, 'cpu')
+        if debug.CPU:
+            clip_model, _ = clip.load(pretrained, 'cpu')
+        else:
+            clip_model, _ = clip.load(pretrained)
         clip_model.requires_grad_(False)
         model = Model(clip_model=clip_model, **config)
         if not debug.CPU:
@@ -303,16 +313,23 @@ class Runner(BaseRunner):
     ) -> None:
         patches = batch.patches
         masks = batch.masks
-        if debug.CPU:
+        if debug.DRY_RUN:
             patches = patches[:5]
             masks = masks[:5]
-        else:
-            patches = patches.cuda()
-            masks = masks.cuda()
-        patches = self._model(patches, masks)
+        if not debug.CPU:
+            patches = patches.half().cuda()
+            masks = masks.half().cuda()
+        patches_list = []
+        for i in range(math.ceil(patches.shape[0] / self._config.mini_batch_size)):
+            patches_list.append(
+                self._model(
+                    patches[i * self._config.mini_batch_size:(i + 1) * self._config.mini_batch_size],
+                    masks[i * self._config.mini_batch_size:(i + 1) * self._config.mini_batch_size],
+                ),
+            )
         memo['result']=dict(
             bboxes=batch.bboxes.half(),
-            patches=patches.half(),
+            patches=torch.cat(patches_list).half(),
             objectness = batch.objectness.half()
         )
 
