@@ -1,6 +1,7 @@
 import argparse
 import enum
 import math
+import os
 import pathlib
 import pickle
 from typing import Any, Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple, cast
@@ -398,7 +399,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--override', action=todd.base.DictAction)
     parser.add_argument('--seed', type=int, default=3407)
     parser.add_argument('--k8s', action=todd.base.DictAction)
-    parser.add_argument('--local_rank', type=int, default=0)
+    parser.add_argument('--local_rank', type=int)
     args = parser.parse_args()
     return args
 
@@ -417,7 +418,11 @@ if __name__ == '__main__':
 
     if not debug.CPU:
         torch.distributed.init_process_group(backend='nccl')
-        torch.cuda.set_device(todd.base.get_local_rank())
+        if args.local_rank is not None:
+            os.environ['LOCAL_RANK'] = str(args.local_rank)
+            torch.cuda.set_device(args.local_rank)
+        else:
+            torch.cuda.set_device(todd.base.get_local_rank())
 
     todd.reproduction.init_seed(args.seed)
 
