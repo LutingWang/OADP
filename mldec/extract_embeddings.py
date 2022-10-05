@@ -1,34 +1,32 @@
-from collections import namedtuple
+import argparse
 import itertools
+import pathlib
+from collections import namedtuple
 from typing import Any, Dict, List, Optional, Tuple
 
-import argparse
-import pathlib
 import PIL.Image
+import clip
+import clip.model
 import einops
-
 import todd
 import torch
 import torch.cuda
+import torch.distributed
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
 import torch.utils.data.distributed
 import torchvision
 import torchvision.transforms as transforms
-import torch.distributed
-
-import clip
-import clip.model
-from .utils import odps_init, k8s_init
 
 from .debug import debug
 from .todd import BaseRunner, TrainerMixin
+from .utils import odps_init, k8s_init
 
 Batch = namedtuple('Batch', ['image', 'image_id', 'patches', 'bboxes'])
 
 
-class CocoClassification(torchvision.datasets.coco.CocoDetection):
+class CocoClassification(torchvision.datasets.CocoDetection):
 
     def __init__(
         self,
@@ -105,9 +103,7 @@ class CocoClassification(torchvision.datasets.coco.CocoDetection):
         return Batch(image_, image_id, patches_, bboxes_)
 
     @staticmethod
-    def collate(
-        batch: List[Batch],
-    ) -> Batch:
+    def collate(batch: List[Batch]) -> Batch:
         assert len(batch) == 1
         return batch[0]
 
@@ -193,6 +189,7 @@ class Runner(BaseRunner):
         Optional[torch.utils.data.distributed.DistributedSampler],
         torch.utils.data.DataLoader,
     ]:
+        assert config is not None
         dataset = CocoClassification(**config.dataset)
         sampler = (
             None if debug.CPU else
@@ -208,14 +205,15 @@ class Runner(BaseRunner):
             num_workers=config.num_workers,
             collate_fn=dataset.collate,
         )
-        return dataset, sampler, dataloader,
+        return dataset, sampler, dataloader
 
     def _build_model(
         self,
         *args,
-        config: todd.base.Config,
+        config: Optional[todd.base.Config],
         **kwargs,
     ) -> nn.Module:
+        assert config is not None
         clip_model, _ = clip.load(config.pretrained, 'cpu')
         clip_model.requires_grad_(False)
         model = Model(clip_model=clip_model)

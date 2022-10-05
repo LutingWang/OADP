@@ -7,22 +7,32 @@ val = dict(
         dataset=dict(
             root=data_root + 'val2017',
             ann_file=data_root + 'annotations/instances_val2017.json',
-            pretrained='data/epoch_3_classes.pth',
-            split='COCO',
-            proposal = '/mnt/data2/wlt/get_proposal/mmdetection/res_new.pkl',
-            assigner=dict(
-                type='MaxIoUAssigner',
-                pos_iou_thr=0.5,
-                neg_iou_thr=0.5,
-                min_pos_iou=0.5,
-                match_low_quality=False,
-                ignore_iof_thr=-1),
+            proposal_file='work_dirs/proposal/val.pkl',
+            mask_size=7 * 2,
+            expand_mode='adaptive',
+        ),
+    ),
+)
+train = dict(
+    epoch=1,
+    dataloader=dict(
+        batch_size=1,
+        num_workers=0,
+        dataset=dict(
+            root=data_root + 'train2017',
+            ann_file=data_root + 'annotations/instances_train2017.json',
+            proposal_file='work_dirs/proposal/train.pkl',
+            mask_size=7 * 2,  # upsample=2
+            expand_mode='adaptive',
         ),
     ),
 )
 
-log_interval = 64
+
+log_interval = 1
 
 model = dict(
-    pretrained = 'ViT-B/32',
+    pretrained = 'pretrained/clip/ViT-B-32.pt',
+    patch_size=32,
+    upsample=2,  # power of 2
 )
