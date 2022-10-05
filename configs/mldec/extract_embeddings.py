@@ -22,7 +22,9 @@ val = dict(
     )
 )
 
-log_interval = 128
+logger = dict(
+    interval=128,
+)
 
 model = dict(
     pretrained='pretrained/clip/ViT-B-32.pt',

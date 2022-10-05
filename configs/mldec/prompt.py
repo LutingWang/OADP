@@ -45,8 +45,16 @@ val = dict(
     ),
 )
 
-log_interval = 64
-
+logger = dict(
+    interval=64,
+)
+checkpoint = dict(
+    load_=dict(
+        model_config=dict(
+            strict=False,
+        ),
+    ),
+)
 model = dict(
     text_prompt=dict(
         prompt='a photo of a',

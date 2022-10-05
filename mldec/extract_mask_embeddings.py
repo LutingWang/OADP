@@ -3,7 +3,6 @@ import enum
 import math
 import pathlib
 import pickle
-from collections import namedtuple
 from typing import Any, Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple, cast
 
 import PIL.Image
@@ -64,7 +63,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         with open(proposal_file,'rb') as f:
             self.proposals = torch.tensor(
                 pickle.load(f),
-                dtype=torch.half if debug.CPU else torch.float,
+                dtype=torch.float if debug.CPU else torch.half,
             )
 
         self._mask_size = mask_size
@@ -333,15 +332,17 @@ class Runner(BaseRunner):
             objectness = batch.objectness.half()
         )
 
-    def _after_run_iter(self, *args, i: int, batch: Batch, memo: Dict[str, Any], **kwargs) -> None:
+    def _after_run_iter(self, *args, i: int, batch: Batch, memo: Dict[str, Any], log: bool = False, **kwargs) -> Optional[bool]:
         torch.save(
             memo.pop('result'),
             memo['embeddings_root'] / f'{batch.image_id:012d}.pth',
         )
-        if todd.base.get_rank() == 0 and i % self._config.log_interval == 0:
+        if log and todd.base.get_rank() == 0:
             self._logger.info(
                 f'Val Step [{i}/{len(self._dataloader)}]'
             )
+        if log and debug.DRY_RUN:
+            return True
 
 
 class Trainer(TrainerMixin, Runner):
@@ -374,16 +375,19 @@ class Trainer(TrainerMixin, Runner):
         i: int,
         batch: Batch,
         memo: Dict[str, Any],
+        log: bool = False,
         **kwargs,
-    ) -> None:
+    ) -> Optional[bool]:
         torch.save(
             memo.pop('result'),
             memo['train_embeddings_root'] / f'{batch.image_id:012d}.pth',
         )
-        if todd.base.get_rank() == 0 and i % self._config.log_interval == 0:
+        if log and todd.base.get_rank() == 0:
             self._logger.info(
                 f'Train Step [{i}/{len(self._train_dataloader)}]'
             )
+        if log and debug.DRY_RUN:
+            return True
 
 
 def parse_args() -> argparse.Namespace:

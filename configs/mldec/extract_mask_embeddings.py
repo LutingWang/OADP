@@ -28,8 +28,10 @@ train = dict(
     ),
 )
 
-mini_batch_size = 1000
-log_interval = 4
+mini_batch_size = 512
+logger = dict(
+    interval=4,
+)
 
 model = dict(
     pretrained = 'pretrained/clip/ViT-B-32.pt',

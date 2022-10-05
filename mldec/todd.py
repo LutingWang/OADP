@@ -34,7 +34,11 @@ class BaseRunner(ABC):
         self._config = config
 
         self._work_dir = self._build_work_dir(*args, config=config, **kwargs)
-        self._logger = self._build_logger(*args, config=config, **kwargs)
+        self._logger = self._build_logger(
+            *args,
+            config=config.get('logger'),
+            **kwargs,
+        )
         self._dataset, self._sampler, self._dataloader = \
             self._build_dataloader(
                 *args,
@@ -47,7 +51,7 @@ class BaseRunner(ABC):
             )
         self._model = self._build_model(
             *args,
-            config=getattr(config, 'model', None),
+            config=config.get('model'),
             **kwargs,
         )
 
@@ -57,7 +61,11 @@ class BaseRunner(ABC):
         if load is None:
             todd.base.init_iter()
         else:
-            self.load_checkpoint(*args, epoch=load, **kwargs)
+            self.load_checkpoint(
+                *args,
+                epoch=load,
+                **kwargs,
+            )
 
     def _build_work_dir(
         self,
@@ -72,10 +80,11 @@ class BaseRunner(ABC):
     def _build_logger(
         self,
         *args,
-        config: todd.base.Config,
+        config: Optional[todd.base.Config],
         **kwargs,
     ) -> logging.Logger:
-        if todd.base.get_rank() == 0:
+        init_log_file = config is None or config.get('init_log_file', True)
+        if init_log_file and todd.base.get_rank() == 0:
             timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
             log_file = self._work_dir / f'{timestamp}.log'
             todd.base.init_log_file(log_file)
@@ -110,9 +119,12 @@ class BaseRunner(ABC):
     ) -> None:
         pass
 
-    def load_checkpoint(self, *args, epoch, **kwargs) -> None:
+    def load_checkpoint(self, *args, epoch, config: Optional[todd.base.Config] = None, **kwargs) -> None:
+        if config is None:
+            config = todd.base.getattr_recur(self._config, '.checkpoint.load_', dict())
         todd.base.load_checkpoint(
             self._model, self._work_dir / f'epoch_{epoch}.pth',
+            **config,
         )
         todd.base.init_iter((epoch + 1) * len(self._dataloader))
         self._epoch = epoch
@@ -128,7 +140,7 @@ class BaseRunner(ABC):
     def _run_iter(self, *args, i: int, batch, memo: Dict[str, Any], **kwargs) -> None:
         pass
 
-    def _after_run_iter(self, *args, i: int, batch, memo: Dict[str, Any], **kwargs) -> None:
+    def _after_run_iter(self, *args, i: int, batch, memo: Dict[str, Any], log: bool = False, **kwargs) -> Optional[bool]:
         pass
 
     def _after_run(self, *args, memo: Dict[str, Any], **kwargs):
@@ -140,8 +152,15 @@ class BaseRunner(ABC):
         for i, batch in enumerate(self._dataloader, 1):
             self._before_run_iter(*args, i=i, batch=batch, memo=memo, **kwargs)
             self._run_iter(*args, i=i, batch=batch, memo=memo, **kwargs)
-            self._after_run_iter(*args, i=i, batch=batch, memo=memo, **kwargs)
-            if debug.DRY_RUN and i % self._config.get('log_interval', 1) == 0:
+            end = self._after_run_iter(
+                *args,
+                i=i,
+                batch=batch,
+                memo=memo,
+                log=(i % todd.base.getattr_recur(self._config, '.logger.interval', 1) == 0),
+                **kwargs,
+            )
+            if end:
                 break
         return self._after_run(*args, memo=memo, **kwargs)
 
@@ -162,7 +181,7 @@ class TrainerMixin(BaseRunner):
             )
         self._build_train_fixtures(
             *args,
-            config=getattr(config, 'train', None),
+            config=config.get('train'),
             **kwargs,
         )
         self._optimizer = self._build_optimizer(
@@ -228,19 +247,25 @@ class TrainerMixin(BaseRunner):
             default_args=dict(optimizer=self._optimizer),
         )
 
-    def load_checkpoint(self, epoch) -> None:
+    def load_checkpoint(self, *args, epoch, config: Optional[todd.base.Config] = None, **kwargs) -> None:
+        if config is None:
+            config = todd.base.getattr_recur(self._config, '.checkpoint.load_', dict())
         todd.base.load_checkpoint(
             self._model, self._work_dir / f'epoch_{epoch}.pth',
             optimizer=self._optimizer,
             scheduler=self._scheduler,
+            **config,
         )
         todd.base.init_iter((epoch + 1) * len(self._train_dataloader))
         self._epoch = epoch
 
-    def save_checkpoint(self, epoch) -> None:
+    def save_checkpoint(self, *args, epoch, config: Optional[todd.base.Config] = None, **kwargs) -> None:
+        if config is None:
+            config = todd.base.getattr_recur(self._config, '.checkpoint.save', dict())
         todd.base.save_checkpoint(
             self._model, self._work_dir / f'epoch_{epoch}.pth',
             optimizer=self._optimizer, scheduler=self._scheduler,
+            **config,
         )
 
     def _before_train(self, *args, **kwargs) -> Dict[str, Any]:
@@ -258,10 +283,10 @@ class TrainerMixin(BaseRunner):
     def _train_iter(self, *args, epoch: int, i: int, batch, memo: Dict[str, Any], **kwargs) -> None:
         pass
 
-    def _after_train_iter(self, *args, epoch: int, i: int, batch, memo: Dict[str, Any], **kwargs) -> None:
+    def _after_train_iter(self, *args, epoch: int, i: int, batch, memo: Dict[str, Any], log: bool = False, **kwargs) -> Optional[bool]:
         pass
 
-    def _after_train_epoch(self, *args, epoch: int, memo: Dict[str, Any], **kwargs) -> None:
+    def _after_train_epoch(self, *args, epoch: int, memo: Dict[str, Any], **kwargs) -> Optional[bool]:
         pass
 
     def _after_train(self, *args, memo: Dict[str, Any], **kwargs):
@@ -276,8 +301,18 @@ class TrainerMixin(BaseRunner):
             for i, batch in enumerate(self._train_dataloader, 1):
                 self._before_train_iter(*args, epoch=epoch, i=i, batch=batch, memo=memo, **kwargs)
                 self._train_iter(*args, epoch=epoch, i=i, batch=batch, memo=memo, **kwargs)
-                self._after_train_iter(*args, epoch=epoch, i=i, batch=batch, memo=memo, **kwargs)
-                if debug.DRY_RUN and i % self._config.get('log_interval', 1) == 0:
+                end = self._after_train_iter(
+                    *args,
+                    epoch=epoch,
+                    i=i,
+                    batch=batch,
+                    memo=memo,
+                    log=(i % todd.base.getattr_recur(self._config, '.logger.interval', 1) == 0),
+                    **kwargs,
+                )
+                if end:
                     break
-            self._after_train_epoch(*args, epoch=epoch, memo=memo, **kwargs)
+            end = self._after_train_epoch(*args, epoch=epoch, memo=memo, **kwargs)
+            if end:
+                break
         return self._after_train(*args, memo=memo, **kwargs)

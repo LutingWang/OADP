@@ -182,11 +182,13 @@ class Runner(BaseRunner):
         logits = self._model(batch)
         memo['results'].append((logits, batch.bbox_labels))
 
-    def _after_run_iter(self, *args, i: int, batch, memo: Dict[str, Any], **kwargs) -> None:
-        if i % self._config.log_interval == 0:
+    def _after_run_iter(self, *args, i: int, batch, memo: Dict[str, Any], log: bool = False, **kwargs) -> Optional[bool]:
+        if log:
             self._logger.info(
                 f'Val Step [{i}/{len(self._dataloader)}]'
             )
+        if log and debug.DRY_RUN:
+            return True
 
     def _after_run(self, *args, memo: Dict[str, Any], **kwargs) -> float:
         results: Iterator[Tuple[torch.Tensor, ...]] = zip(*memo['results'])

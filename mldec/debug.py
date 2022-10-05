@@ -26,6 +26,8 @@ class Debug(todd.base.BaseDebug):
                 for k in config.train.dataloader.dataset.keys() & config.val.dataloader.dataset.keys()
             }
             config.train.dataloader.dataset.update(val_dataset)
+        if self.DRY_RUN:
+            config.logger.interval = 1
 
 
 debug = Debug()

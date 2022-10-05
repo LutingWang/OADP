@@ -195,16 +195,16 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
         for k in list(filter(self._is_frozen, destination.keys())):
             destination.pop(k)
 
-    @staticmethod
-    def _load_state_dict_post_hook(self: 'Model', keys: nn.modules.module._IncompatibleKeys) -> None:
-        missing_keys = keys.missing_keys
+    # @staticmethod
+    # def _load_state_dict_post_hook(self: 'Model', keys: nn.modules.module._IncompatibleKeys) -> None:
+    #     missing_keys = keys.missing_keys
 
-        i = 0
-        while i < len(missing_keys):
-            if self._is_frozen(missing_keys[i]):
-                missing_keys.pop(i)
-            else:
-                i += 1
+    #     i = 0
+    #     while i < len(missing_keys):
+    #         if self._is_frozen(missing_keys[i]):
+    #             missing_keys.pop(i)
+    #         else:
+    #             i += 1
 
     def __init__(
         self,
@@ -233,7 +233,7 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
         )
 
         self._register_state_dict_hook(self._state_dict_hook)
-        self.register_load_state_dict_post_hook(self._load_state_dict_post_hook)
+        # self.register_load_state_dict_post_hook(self._load_state_dict_post_hook)
 
     def forward(self, batch: Batch, memo: Optional[Dict[str, Any]] = None) -> torch.Tensor:
         if memo is None or 'texts' not in memo:
@@ -328,11 +328,13 @@ class Runner(BaseRunner):
         logits = self._model(batch, memo)
         memo['results'].append((logits, batch.labels))
 
-    def _after_run_iter(self, *args, i: int, batch, memo: Dict[str, Any], **kwargs) -> None:
-        if i % self._config.log_interval == 0:
+    def _after_run_iter(self, *args, i: int, batch, memo: Dict[str, Any], log: bool = False, **kwargs) -> Optional[bool]:
+        if log:
             self._logger.info(
                 f'Val Step [{i}/{len(self._dataloader)}]'
             )
+        if log and debug.DRY_RUN:
+            return True
 
     def _after_run(self, *args, memo: Dict[str, Any], **kwargs) -> float:
         results: Iterator[Tuple[torch.Tensor, ...]] = zip(*memo['results'])
@@ -421,14 +423,16 @@ class Trainer(TrainerMixin, Runner):
         self._optimizer.step()
         memo['loss'] = loss.item()
 
-    def _after_train_iter(self, *args, epoch: int, i: int, batch, memo: Dict[str, Any], **kwargs) -> None:
-        if i % self._config.log_interval == 0:
+    def _after_train_iter(self, *args, epoch: int, i: int, batch, memo: Dict[str, Any], log: bool = False, **kwargs) -> Optional[bool]:
+        if log:
             self._logger.info(
                 f'Epoch [{epoch}/{self._config.train.epoch}] '
                 f'Train Step [{i}/{len(self._train_dataloader)}] '
                 # f'LR {self._scheduler.get_last_lr()[0]:.3e} '
                 f'Loss {memo.pop("loss"):.3f}'
             )
+        if log and debug.DRY_RUN:
+            return True
 
     def _after_train_epoch(self, *args, epoch: int, memo: Dict[str, Any], **kwargs) -> None:
         # self._scheduler.step()
