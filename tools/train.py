@@ -121,7 +121,8 @@ def main():
     if args.k8s is not None:
         k8s_init(args.k8s)
 
-    cfg = Config.fromfile(args.config)
+    cfg = todd.base.Config.load(args.config)
+    cfg = Config(cfg, filename=args.config)
 
     # replace the ${key} with the value of cfg.key
     cfg = replace_cfg_vals(cfg)

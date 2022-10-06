@@ -71,10 +71,10 @@ class PreFPN(BaseModule):
 
     def forward(
         self,
-        feats: Tuple[torch.Tensor],
+        feats: Tuple[torch.Tensor, ...],
         class_embeddings: torch.Tensor,
         class_weights: Optional[torch.Tensor],
-    ):
+    ) -> Tuple[torch.Tensor, ...]:
         feats = tuple(
             plv(feat, class_embeddings, l_weights=class_weights)
             for plv, feat in zip(self._plvs, feats)
@@ -202,7 +202,7 @@ class PostFPN(BaseModule):
     def init_weights(self):
         return super().init_weights()
 
-    def _gather(self, feats: Tuple[torch.Tensor]) -> torch.Tensor:
+    def _gather(self, feats: Tuple[torch.Tensor, ...]) -> torch.Tensor:
         bsf = feats[self._refine_level]
         bsf = bsf.new_empty((len(feats),) + bsf.shape)
         for i in range(self._refine_level):
@@ -212,21 +212,21 @@ class PostFPN(BaseModule):
             bsf[i] = F.interpolate(feats[i], bsf.shape[-2:], mode='nearest')
         return einops.reduce(bsf, 'l b c h w -> b c h w', reduction='mean')
 
-    def _scatter(self, feats: Tuple[torch.Tensor], bsf: torch.Tensor) -> List[torch.Tensor]:
+    def _scatter(self, feats: Tuple[torch.Tensor, ...], bsf: torch.Tensor) -> Tuple[torch.Tensor, ...]:
         feats = list(feats)
         for i in range(self._refine_level):
             feats[i] = feats[i] + F.interpolate(bsf, feats[i].shape[-2:], mode='nearest')
         feats[self._refine_level] = feats[self._refine_level] + bsf
         for i in range(self._refine_level + 1, len(feats)):
             feats[i] = feats[i] + F.adaptive_max_pool2d(bsf, feats[i].shape[-2:])
-        return feats
+        return tuple(feats)
 
     def forward(
         self,
-        feats: Tuple[torch.Tensor],
+        feats: Tuple[torch.Tensor, ...],
         class_embeddings: torch.Tensor,
         class_weights: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+    ) -> Tuple[Tuple[torch.Tensor, ...], List[torch.Tensor]]:
         bsf = self._gather(feats)
 
         masks = []

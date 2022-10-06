@@ -69,7 +69,7 @@ if __name__ == '__main__':
             img = img.cuda()
         x = img.unsqueeze(0)
         feats = model.backbone(x)
-        multilabel_logits = model.multilabel_classify(feats)
+        multilabel_logits = model._multilabel_classify(feats)
         results.append((multilabel_logits, sample['gt_labels']))
 
     multilabel_logits_, gt_labels = zip(*results)
