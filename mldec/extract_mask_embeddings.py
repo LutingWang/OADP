@@ -55,6 +55,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         proposal_file: str,
         mask_size: int,
         expand_mode: str,
+        embeddings_root: str,
     ) -> None:
         super().__init__(
             root=root,
@@ -70,6 +71,9 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         self._mask_size = mask_size
         self._expand_mode = ExpandMode[expand_mode.upper()]
 
+        self._embeddings_root = pathlib.Path(embeddings_root)
+        self._embeddings_root.mkdir(parents=True, exist_ok=True)
+
         self._transform = transforms.Compose([
             transforms.Resize(224, interpolation=BICUBIC),
             transforms.CenterCrop(224),
@@ -79,6 +83,10 @@ class CocoClassification(torchvision.datasets.CocoDetection):
                 (0.26862954, 0.26130258, 0.27577711),
             ),
         ])
+
+    @property
+    def embeddings_root(self) -> pathlib.Path:
+        return self.embeddings_root
 
     def _crop(
         self,
@@ -147,8 +155,15 @@ class CocoClassification(torchvision.datasets.CocoDetection):
 
         return torch.stack(patches), torch.stack(masks)
 
-    def __getitem__(self, index: int) -> Batch:
+    def __getitem__(self, index: int) -> Optional[Batch]:
         image_id = self.ids[index]
+        embedding_file = self._embeddings_root / f'{image_id:012d}.pth'
+        if embedding_file.exists():
+            try:
+                torch.load(embedding_file)
+                return None
+            except Exception:
+                pass
         image = self._load_image(image_id)
         proposals = self.proposals[index]
         bboxes = proposals[:, :4]
@@ -158,7 +173,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         return Batch(image_id, patches, bboxes, objectness, masks)
 
     @staticmethod
-    def collate(batch: List[Batch]) -> Batch:
+    def collate(batch: List[Optional[Batch]]) -> Optional[Batch]:
         assert len(batch) == 1
         return batch[0]
 
@@ -301,16 +316,11 @@ class Runner(BaseRunner):
             model = model.cuda()
         return model
 
-    def _before_run(self, *args, **kwargs) -> Dict[str, Any]:
-        memo = super()._before_run(*args, **kwargs)
-        embeddings_root = pathlib.Path(self._config.embeddings_root) / 'val'
-        embeddings_root.mkdir(parents=True, exist_ok=True)
-        memo['embeddings_root'] = embeddings_root
-        return memo
-
     def _run_iter(
-        self, *args, i: int, batch: Batch, memo: Dict[str, Any], **kwargs,
+        self, *args, i: int, batch: Optional[Batch], memo: Dict[str, Any], **kwargs,
     ) -> None:
+        if batch is None:
+            return
         patches = batch.patches
         masks = batch.masks
         if debug.DRY_RUN:
@@ -333,11 +343,13 @@ class Runner(BaseRunner):
             objectness = batch.objectness.half()
         )
 
-    def _after_run_iter(self, *args, i: int, batch: Batch, memo: Dict[str, Any], log: bool = False, **kwargs) -> Optional[bool]:
-        torch.save(
-            memo.pop('result'),
-            memo['embeddings_root'] / f'{batch.image_id:012d}.pth',
-        )
+    def _after_run_iter(self, *args, i: int, batch: Optional[Batch], memo: Dict[str, Any], log: bool = False, **kwargs) -> Optional[bool]:
+        if batch is not None:
+            assert 'result' in memo
+            torch.save(
+                memo.pop('result'),
+                self._dataset.embeddings_root / f'{batch.image_id:012d}.pth',
+            )
         if log and todd.base.get_rank() == 0:
             self._logger.info(
                 f'Val Step [{i}/{len(self._dataloader)}]'
@@ -358,13 +370,6 @@ class Trainer(TrainerMixin, Runner):
     def _build_train_fixtures(self, *args, **kwargs) -> None:
         pass
 
-    def _before_train(self, *args, **kwargs) -> Dict[str, Any]:
-        memo = self._before_run(*args, **kwargs)
-        embeddings_root = memo['embeddings_root'].parent / 'train'
-        embeddings_root.mkdir(parents=True, exist_ok=True)
-        memo['train_embeddings_root'] = embeddings_root
-        return memo
-
     @torch.no_grad()
     def _train_iter(self, *args, **kwargs) -> None:
         return self._run_iter(*args, **kwargs)
@@ -374,15 +379,17 @@ class Trainer(TrainerMixin, Runner):
         *args,
         epoch: int,
         i: int,
-        batch: Batch,
+        batch: Optional[Batch],
         memo: Dict[str, Any],
         log: bool = False,
         **kwargs,
     ) -> Optional[bool]:
-        torch.save(
-            memo.pop('result'),
-            memo['train_embeddings_root'] / f'{batch.image_id:012d}.pth',
-        )
+        if batch is not None:
+            assert 'result' in memo
+            torch.save(
+                memo.pop('result'),
+                self._train_dataset.embeddings_root / f'{batch.image_id:012d}.pth',
+            )
         if log and todd.base.get_rank() == 0:
             self._logger.info(
                 f'Train Step [{i}/{len(self._train_dataloader)}]'
