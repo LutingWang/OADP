@@ -261,10 +261,10 @@ class Cafe(
         custom_tensors = dict()
         if 'clip_image' in distiller_spec.inputs:
             assert clip_image is not None
-            custom_tensors.update(clip_image=clip_image)
+            custom_tensors.update(clip_image=clip_image.float())
         if 'clip_patches' in distiller_spec.inputs:
             assert clip_patches is not None
-            custom_tensors.update(clip_patches=torch.cat(clip_patches))
+            custom_tensors.update(clip_patches=torch.cat(clip_patches).float())
         if 'patches' in distiller_spec.inputs:
             assert clip_bboxes is not None
             clip_rois = bbox2roi(clip_bboxes)

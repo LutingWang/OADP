@@ -86,7 +86,6 @@ class LoadCLIPFeatures:
         images: Dict[str, Any],
         regions: Dict[str, Any],
     ) -> None:
-        breakpoint()
         assert task_name in ['train', 'val']
         self._task_name = task_name
         self._images = todd.datasets.ACCESS_LAYERS.build(images, default_args=dict(task_name=task_name))

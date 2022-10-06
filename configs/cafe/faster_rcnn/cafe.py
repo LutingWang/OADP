@@ -17,21 +17,21 @@ _base_ = [
     # 'mixins/multilabel.py',
     # 'mixins/post.py',
 
-    # # multilabel_post_awloss
-    # '../_base_/datasets/coco_instance.py',
-    # 'mixins/multilabel.py',
-    # 'mixins/post.py',
-    # 'mixins/awloss.py',
+    # multilabel_post_awloss
+    '../_base_/datasets/coco_instance.py',
+    'mixins/multilabel.py',
+    'mixins/post.py',
+    'mixins/awloss.py',
 
     # # multilabel_dcp
     # '../_base_/datasets/coco_detection_clip.py',
     # 'mixins/multilabel.py',
     # 'mixins/dcp.py',
 
-    # multilabel_dci
-    '../_base_/datasets/coco_detection_clip.py',
-    'mixins/multilabel.py',
-    'mixins/dci.py',
+    # # multilabel_dci
+    # '../_base_/datasets/coco_detection_clip.py',
+    # 'mixins/multilabel.py',
+    # 'mixins/dci.py',
 
     # # multilabel_dcp_dci
     # '../_base_/datasets/coco_detection_clip.py',

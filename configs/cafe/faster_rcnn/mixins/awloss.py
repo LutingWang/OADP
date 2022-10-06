@@ -3,7 +3,8 @@ model = dict(
         type='BCEWithLogitsLoss',
         weight=dict(
             type='WarmupScheduler',
-            iter_=1000,
+            iter_=2000,
+            value=2,
         ),
         gt_downsample='avg',
     ),
