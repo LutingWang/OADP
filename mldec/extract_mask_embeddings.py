@@ -86,7 +86,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
 
     @property
     def embeddings_root(self) -> pathlib.Path:
-        return self.embeddings_root
+        return self._embeddings_root
 
     def _crop(
         self,
@@ -160,7 +160,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         embedding_file = self._embeddings_root / f'{image_id:012d}.pth'
         if embedding_file.exists():
             try:
-                torch.load(embedding_file)
+                torch.load(embedding_file, map_location='cpu')
                 return None
             except Exception:
                 pass

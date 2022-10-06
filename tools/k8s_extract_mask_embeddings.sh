@@ -21,4 +21,4 @@ echo "dist url is $dist_url"
 python -m torch.distributed.launch --nproc_per_node=8 --nnodes=2 \
 --node_rank=${node_rank} --master_addr=${master_addr} \
 --master_port=23452 \
--m mldec.extract_mask_embeddings extract_mask_embeddings configs/mldec/extract_mask_embeddings.py --k8s --override mini_batch_size:100
+-m mldec.extract_mask_embeddings extract_mask_embeddings configs/mldec/extract_mask_embeddings.py --k8s --override mini_batch_size:1000
