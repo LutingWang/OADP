@@ -177,8 +177,9 @@ class Cafe(
             multilabel_topK_recall = self._multilabel_topK_recall(topK_inds, img_labels)
             losses.update(recall_multilabel=multilabel_topK_recall)
 
-        if self._attn_weights_loss is not None and gt_masks_tensor is not None:
+        if self._attn_weights_loss is not None:
             assert topK_inds is not None
+            assert gt_masks_tensor is not None
             assert self._attn_weights_gt_downsample is not None
             assert masks is not None
             i = einops.repeat(
@@ -210,13 +211,13 @@ class Cafe(
         img_metas: List[Dict[str, Any]],
         gt_bboxes: List[torch.Tensor],
         gt_labels: List[torch.Tensor],
-        clip_image: torch.Tensor,
-        clip_patches: List[torch.Tensor],
-        clip_bboxes: List[torch.Tensor],
         gt_bboxes_ignore: Optional[List[torch.Tensor]] = None,
         gt_masks: Optional[List[BitmapMasks]] = None,
         gt_masks_tensor: Optional[torch.Tensor] = None,
         proposals=None,
+        clip_image: Optional[torch.Tensor] = None,
+        clip_patches: Optional[List[torch.Tensor]] = None,
+        clip_bboxes: Optional[List[torch.Tensor]] = None,
         **kwargs,
     ) -> Dict[str, torch.Tensor]:
         todd.base.inc_iter()
@@ -259,10 +260,13 @@ class Cafe(
 
         custom_tensors = dict()
         if 'clip_image' in distiller_spec.inputs:
+            assert clip_image is not None
             custom_tensors.update(clip_image=clip_image)
         if 'clip_patches' in distiller_spec.inputs:
+            assert clip_patches is not None
             custom_tensors.update(clip_patches=torch.cat(clip_patches))
         if 'patches' in distiller_spec.inputs:
+            assert clip_bboxes is not None
             clip_rois = bbox2roi(clip_bboxes)
             with todd.hooks.hook(
                 dict(
