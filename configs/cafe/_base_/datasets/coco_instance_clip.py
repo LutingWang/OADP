@@ -10,6 +10,7 @@ train_pipeline = [
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
     dict(
         type='LoadCLIPFeatures',
+        task_name='train',
         images=dict(
             type='PthAccessLayer',
             data_root=data_root + 'embeddings',

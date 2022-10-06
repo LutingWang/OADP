@@ -28,10 +28,10 @@ _base_ = [
     # 'mixins/multilabel.py',
     # 'mixins/dcp.py',
 
-    # # multilabel_dci
-    # '../_base_/datasets/coco_detection_clip.py',
-    # 'mixins/multilabel.py',
-    # 'mixins/dci.py',
+    # multilabel_dci
+    '../_base_/datasets/coco_detection_clip.py',
+    'mixins/multilabel.py',
+    'mixins/dci.py',
 
     # # multilabel_dcp_dci
     # '../_base_/datasets/coco_detection_clip.py',
@@ -39,14 +39,14 @@ _base_ = [
     # 'mixins/dcp.py',
     # 'mixins/dci.py',
 
-    # full
-    '../_base_/datasets/coco_instance_clip.py',
-    'mixins/multilabel.py',
-    'mixins/pre.py',
-    'mixins/post.py',
-    'mixins/awloss.py',
-    'mixins/dci.py',
-    'mixins/dcp.py',
+    # # full
+    # '../_base_/datasets/coco_instance_clip.py',
+    # 'mixins/multilabel.py',
+    # 'mixins/pre.py',
+    # 'mixins/post.py',
+    # 'mixins/awloss.py',
+    # 'mixins/dci.py',
+    # 'mixins/dcp.py',
 
 ]
 

@@ -86,6 +86,7 @@ class LoadCLIPFeatures:
         images: Dict[str, Any],
         regions: Dict[str, Any],
     ) -> None:
+        breakpoint()
         assert task_name in ['train', 'val']
         self._task_name = task_name
         self._images = todd.datasets.ACCESS_LAYERS.build(images, default_args=dict(task_name=task_name))
@@ -95,9 +96,6 @@ class LoadCLIPFeatures:
         key = f'{results["img_info"]["id"]:012d}'
         image = self._images[key]
         results['clip_image'] = image['image'].squeeze(0)
-        key = '000000000009'
-        if not debug.CPU:
-            assert False
         regions = self._regions[key]
         clip_patches = torch.cat([image['patches'], regions['patches']])
         clip_bboxes = torch.cat([image['bboxes'], regions['bboxes']])
