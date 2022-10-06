@@ -1,5 +1,5 @@
 pycocotools
-todd_ai==0.2.3a14
+todd_ai==0.2.4a0
 # http://mvap-data.oss-cn-zhangjiakou.aliyuncs.com/zhax/wangluting/wheels3/todd_ai-0.2.3a10-py3-none-any.whl
 ftfy
 mmdet==2.25.2
