@@ -7,6 +7,7 @@ model = dict(
         glip_block=dict(
             num_heads=8,
             head_dims=32,
+            with_dyhead=True,
         ),
     ),
 )

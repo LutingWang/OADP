@@ -90,6 +90,7 @@ class GLIPBlock(BaseModule):
         head_dims: int,
         channels: int,
         avg_factor: int,
+        with_dyhead: bool,
         dropout: float = 0.1,
         drop_path: float = 0.0,
         **kwargs,
@@ -135,7 +136,9 @@ class GLIPBlock(BaseModule):
         self._dropout = nn.Dropout(dropout)
         self._drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-        self._dyhead = DyHeadBlock(channels, channels)
+        self._with_dyhead = with_dyhead
+        if with_dyhead:
+            self._dyhead = DyHeadBlock(channels, channels)
 
     def forward(
         self,
@@ -174,7 +177,9 @@ class GLIPBlock(BaseModule):
         delta_v = torch.einsum('b c h w, c -> b c h w', delta_v, self._gamma)
         delta_v = self._drop_path(delta_v)
 
-        v = self._dyhead(v + delta_v)
+        v = v + delta_v
+        if self._with_dyhead:
+            v = self._dyhead(v)
         return v, masks
 
 
