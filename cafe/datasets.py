@@ -12,7 +12,7 @@ from mmdet.core import BitmapMasks
 from mmdet.datasets import PIPELINES, DATASETS, CocoDataset as _CocoDataset, CustomDataset
 from mmdet.datasets.pipelines import LoadAnnotations as _LoadAnnotations
 import torch
-import todd.datasets
+import todd
 
 from mldec.debug import debug
 
@@ -95,8 +95,14 @@ class LoadCLIPFeatures:
         key = f'{results["img_info"]["id"]:012d}'
         image = self._images[key]
         results['clip_image'] = image['image'].squeeze(0)
+        key = '000000000009'
+        if not debug.CPU:
+            assert False
         regions = self._regions[key]
-        results['clip_regions'] = DC(image['patches'])
-        results['clip_bboxes'] = image['bboxes'].float()
+        clip_patches = torch.cat([image['patches'], regions['patches']])
+        clip_bboxes = torch.cat([image['bboxes'], regions['bboxes']])
+        inds = (clip_bboxes[:, 2] > clip_bboxes[:, 0]) & (clip_bboxes[:, 3] > clip_bboxes[:, 1])
+        results['clip_patches'] = clip_patches[inds]
+        results['clip_bboxes'] = clip_bboxes[inds].float().numpy()
         results['bbox_fields'].append('clip_bboxes')
         return results

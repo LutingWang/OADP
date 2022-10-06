@@ -14,7 +14,7 @@ train_pipeline = [
         ),
         regions=dict(
             type='PthAccessLayer',
-            data_root=data_root + 'embeddings',
+            data_root=data_root + 'mask_embeddings',
         ),
     ),
     dict(type='Resize', img_scale=(1333, 800), keep_ratio=True),
@@ -23,6 +23,11 @@ train_pipeline = [
     dict(type='Pad', size_divisor=32),
     dict(type='MaskToTensor', num_classes=80),
     dict(type='DefaultFormatBundle'),
+    dict(type='ToTensor', keys=['clip_bboxes']),
+    dict(type='ToDataContainer', fields=[
+        dict(key='clip_patches'),
+        dict(key='clip_bboxes'),
+    ]),
     dict(type='Collect', keys=[
         'img',
         'gt_bboxes',
@@ -30,7 +35,7 @@ train_pipeline = [
         'gt_masks',
         'gt_masks_tensor',
         'clip_image',
-        'clip_regions',
+        'clip_patches',
         'clip_bboxes',
     ]),
 ]

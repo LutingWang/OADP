@@ -5,7 +5,7 @@ __all__ = [
 from abc import ABCMeta
 from typing import Any, Dict, List, Optional, Tuple, cast
 
-from mmdet.core import BitmapMasks
+from mmdet.core import BitmapMasks, bbox2roi
 from mmdet.models import DETECTORS, TwoStageDetector, StandardRoIHead, RPNHead
 from mmdet.models.utils.builder import LINEAR_LAYERS
 import numpy as np
@@ -17,7 +17,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .classifiers import Classifier
-from .distillers import MMDetDistiller
 from .necks import PreFPN, PostFPN
 from .patches import one_hot
 
@@ -148,7 +147,7 @@ class Cafe(
         gt_bboxes: List[torch.Tensor],
         gt_labels: List[torch.Tensor],
         clip_image: torch.Tensor,
-        clip_regions: List[torch.Tensor],
+        clip_patches: List[torch.Tensor],
         clip_bboxes: List[torch.Tensor],
         gt_bboxes_ignore: Optional[List[torch.Tensor]] = None,
         gt_masks: Optional[List[BitmapMasks]] = None,
@@ -190,10 +189,24 @@ class Cafe(
             )
         losses.update(roi_losses)
 
+        clip_rois = bbox2roi(clip_bboxes)
+        with todd.hooks.hook(
+            dict(
+                type='StandardHook',
+                path='.bbox_head.fc_cls._linear',
+            ),
+            self.roi_head,
+        ) as hook_status:
+            self.roi_head._bbox_forward(feats, clip_rois)
+
         distiller = cast(todd.distillers.DistillableProto, self).distiller
         distiller.track_tensors()
         distill_losses = distiller.distill(
-            dict(clip_image=clip_image),
+            dict(
+                clip_image=clip_image,
+                patches=hook_status.value,
+                clip_patches=torch.cat(clip_patches),
+            ),
         )
         distiller.reset()
         losses.update(distill_losses)
