@@ -6,6 +6,8 @@ grep -n -r "ipdb\|breakpoint" \
     --exclude tools/odps_train.sh \
     --exclude tools/odps_test.sh \
     --exclude tools/odps_test_multilabel.sh \
+    --exclude tools/odps_extract_mask_embeddings.sh \
+    --exclude tools/k8s_train.sh \
     cafe clip mldec tools
 if [[ $? -eq 0 ]]; then
     echo "ipdb and breakpoint are not allowed in this repo."
