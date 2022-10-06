@@ -10,6 +10,7 @@ val = dict(
             proposal_file='work_dirs/proposal/val.pkl',
             mask_size=7 * 2,
             expand_mode='adaptive',
+            embeddings_root=embeddings_root + 'val',
         ),
     ),
 )
@@ -24,6 +25,7 @@ train = dict(
             proposal_file='work_dirs/proposal/train.pkl',
             mask_size=7 * 2,  # upsample=2
             expand_mode='adaptive',
+            embeddings_root=embeddings_root + 'train',
         ),
     ),
 )

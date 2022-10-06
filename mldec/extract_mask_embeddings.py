@@ -166,6 +166,9 @@ class CocoClassification(torchvision.datasets.CocoDetection):
                 pass
         image = self._load_image(image_id)
         proposals = self.proposals[index]
+        inds = (proposals[:, 2] >= 4) & (proposals[:, 3] >= 4)
+        proposals = proposals[inds]
+
         bboxes = proposals[:, :4]
         objectness = proposals[:,-1]
         bboxes[:, 2:] += bboxes[:, :2]
@@ -427,9 +430,7 @@ if __name__ == '__main__':
         torch.distributed.init_process_group(backend='nccl')
         if args.local_rank is not None:
             os.environ['LOCAL_RANK'] = str(args.local_rank)
-            torch.cuda.set_device(args.local_rank)
-        else:
-            torch.cuda.set_device(todd.base.get_local_rank())
+        torch.cuda.set_device(todd.base.get_local_rank())
 
     todd.reproduction.init_seed(args.seed)
 

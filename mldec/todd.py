@@ -151,7 +151,17 @@ class BaseRunner(ABC):
         memo = self._before_run(*args, **kwargs)
         for i, batch in enumerate(self._dataloader, 1):
             self._before_run_iter(*args, i=i, batch=batch, memo=memo, **kwargs)
-            self._run_iter(*args, i=i, batch=batch, memo=memo, **kwargs)
+            try:
+                self._run_iter(*args, i=i, batch=batch, memo=memo, **kwargs)
+            except Exception as e:
+                self._logger.exception(
+                    f"Unable to run iter {i}\n"
+                    f"args={args}\n"
+                    f"batch={batch}\n"
+                    f"memo={memo}\n"
+                    f"kwargs={kwargs}"
+                )
+                raise
             end = self._after_run_iter(
                 *args,
                 i=i,
@@ -300,7 +310,17 @@ class TrainerMixin(BaseRunner):
             self._before_train_epoch(*args, epoch=epoch, memo=memo, **kwargs)
             for i, batch in enumerate(self._train_dataloader, 1):
                 self._before_train_iter(*args, epoch=epoch, i=i, batch=batch, memo=memo, **kwargs)
-                self._train_iter(*args, epoch=epoch, i=i, batch=batch, memo=memo, **kwargs)
+                try:
+                    self._train_iter(*args, epoch=epoch, i=i, batch=batch, memo=memo, **kwargs)
+                except Exception as e:
+                    self._logger.exception(
+                        f"Unable to train iter {i}\n"
+                        f"args={args}\n"
+                        f"batch={batch}\n"
+                        f"memo={memo}\n"
+                        f"kwargs={kwargs}\n"
+                    )
+                    raise
                 end = self._after_train_iter(
                     *args,
                     epoch=epoch,
