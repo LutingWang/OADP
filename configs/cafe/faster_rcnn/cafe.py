@@ -3,26 +3,30 @@ _base_ = [
     '../_base_/schedules/schedule_1x.py',
     '../_base_/default_runtime.py',
     'mixins/classifier.py',
-    'mixins/multilabel.py',
 
-    # # multilabel
-    # '../_base_/datasets/coco_detection.py',
+    # multilabel
+    '../_base_/datasets/coco_detection.py',
+    'mixins/multilabel.py',
 
     # # multilabel_pre
     # '../_base_/datasets/coco_detection.py',
+    # 'mixins/multilabel.py',
     # 'mixins/pre.py',
 
     # # multilabel_post
     # '../_base_/datasets/coco_detection.py',
+    # 'mixins/multilabel.py',
     # 'mixins/post.py',
 
     # # multilabel_post_awloss
     # '../_base_/datasets/coco_instance.py',
+    # 'mixins/multilabel.py',
     # 'mixins/post.py',
     # 'mixins/awloss.py',
 
     # # multilabel_dcp
     # '../_base_/datasets/coco_detection_clip.py',
+    # 'mixins/multilabel.py',
     # 'mixins/dcp.py',
 
     # multilabel_dci
@@ -36,6 +40,7 @@ _base_ = [
 
     # # full
     # '../_base_/datasets/coco_instance_clip.py',
+    # 'mixins/multilabel.py',
     # 'mixins/pre.py',
     # 'mixins/post.py',
     # 'mixins/awloss.py',

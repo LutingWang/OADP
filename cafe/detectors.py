@@ -22,6 +22,15 @@ from .necks import PreFPN, PostFPN
 from .patches import one_hot
 
 
+class nullcontext:  # compat odps
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, *excinfo):
+        pass
+
+
 @DETECTORS.register_module()
 class Cafe(
     TwoStageDetector,
@@ -272,7 +281,7 @@ class Cafe(
         if multilabel_logits is not None:
             context = todd.setattr_temp(self.roi_head, 'message', (multilabel_logits,))
         else:
-            context = contextlib.nullcontext()
+            context = nullcontext()
 
         with context:
             roi_losses = self.roi_head.forward_train(
@@ -337,7 +346,7 @@ class Cafe(
                 message = message + (topK_inds,)
             context = todd.base.setattr_temp(self.roi_head, 'message', message)
         else:
-            context = contextlib.nullcontext()
+            context = nullcontext()
 
         with context:
             return self.roi_head.simple_test(

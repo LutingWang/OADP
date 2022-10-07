@@ -4,7 +4,7 @@ _base_ = [
     '../_base_/default_runtime.py',
     'mixins/classifier_48_17.py',
 
-    '../_base_/datasets/coco_instance.py',
+    '../_base_/datasets/coco_detection.py',
     '../_base_/datasets/coco_48_17.py',
 
 ]

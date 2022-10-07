@@ -2,10 +2,9 @@ __all__ = [
     'Classifier',
 ]
 
-from typing import cast
+from typing import cast, Optional
 from mmdet.models.utils.builder import LINEAR_LAYERS
 from mmdet.datasets import CocoDataset
-from pyparsing import Optional
 import todd
 import torch
 import torch.nn as nn

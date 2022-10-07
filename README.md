@@ -29,3 +29,7 @@ python tools/test_multilabel.py configs/cafe/faster_rcnn/classifier.py --load wo
 DEBUG=1 sh tools/odps_test_multilabel.sh configs/cafe/faster_rcnn/classifier.py --load work_dirs/multilabel_faster_mlweight16/epoch_9.pth
 sh tools/odps_test_multilabel.sh configs/cafe/faster_rcnn/classifier.py --load work_dirs/multilabel_faster_mlweight16/epoch_10.pth
 ```
+
+```shell
+python tools/train.py configs/cafe/faster_rcnn/cafe_48_17.py --work-dir work_dirs/debug --seed 3407 --cfg-options data.workers_per_gpu=0 data.val.ann_file=data/coco/annotations/instances_val2017.json.COCO_48_17.48
+```
