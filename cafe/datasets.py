@@ -14,7 +14,8 @@ from mmdet.datasets.pipelines import LoadAnnotations as _LoadAnnotations
 import torch
 import todd
 
-from mldec.debug import debug
+import mldec
+from mldec import debug
 
 
 class DebugMixin(CustomDataset):
@@ -75,6 +76,11 @@ class MaskToTensor:
             tensor[gt_label] += gt_masks.masks[i]
         results['gt_masks_tensor'] = DC(tensor, stack=True, padding_value=0)
         return results
+
+
+@DATASETS.register_module()
+class CocoDataset4817(CocoDataset):
+    CLASSES = mldec.COCO_48_17
 
 
 @PIPELINES.register_module()

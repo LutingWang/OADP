@@ -143,7 +143,8 @@ def main():
     if args.out is not None and not args.out.endswith(('.pkl', '.pickle')):
         raise ValueError('The output file must be a pkl file.')
 
-    cfg = Config.fromfile(args.config)
+    cfg = todd.base.Config.load(args.config)
+    cfg = Config(cfg, filename=args.config)
 
     # replace the ${key} with the value of cfg.key
     cfg = replace_cfg_vals(cfg)
@@ -157,9 +158,6 @@ def main():
     cfg = compat_cfg(cfg)
 
     debug.init()
-    if debug.TRAIN_WITH_VAL_DATASET:
-        cfg.data.train.ann_file = cfg.data.val.ann_file
-        cfg.data.train.img_prefix = cfg.data.val.img_prefix
     if debug.DRY_RUN:
         cfg.data.workers_per_gpu = 0
         cfg.log_config.interval = 1
@@ -241,15 +239,10 @@ def main():
     fp16_cfg = cfg.get('fp16', None)
     if fp16_cfg is not None:
         wrap_fp16_model(model)
-    checkpoint = load_checkpoint(model, args.checkpoint, map_location='cpu')
+    load_checkpoint(model, args.checkpoint, map_location='cpu')
     if args.fuse_conv_bn:
         model = fuse_conv_bn(model)
-    # old versions did not save class info in checkpoints, this walkaround is
-    # for backward compatibility
-    if 'CLASSES' in checkpoint.get('meta', {}):
-        model.CLASSES = checkpoint['meta']['CLASSES']
-    else:
-        model.CLASSES = dataset.CLASSES
+    model.CLASSES = dataset.CLASSES
 
     if not distributed:
         model = build_dp(model, cfg.device, device_ids=cfg.gpu_ids)
