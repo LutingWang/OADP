@@ -24,6 +24,7 @@ class Classifier(todd.base.Module):
         in_features: int,
         out_features: int,
         split: str,
+        num_base_classes: Optional[int] = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -46,6 +47,8 @@ class Classifier(todd.base.Module):
         else:
             assert False, (embeddings.shape[0], out_features)
 
+        self._num_base_classes = num_base_classes
+
     @property
     def embeddings(self) -> torch.Tensor:
         return cast(torch.Tensor, self._embeddings)
@@ -67,4 +70,7 @@ class Classifier(todd.base.Module):
                 embeddings,
                 F.normalize(self._bg_embedding),
             ])
-        return (x @ embeddings.T) * self._scaler - self._bias
+        y = (x @ embeddings.T) * self._scaler - self._bias
+        if self._num_base_classes is not None and todd.globals_.training:
+            y[:, self._num_base_classes:self.num_classes] = float('-inf')
+        return y

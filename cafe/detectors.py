@@ -3,6 +3,7 @@ __all__ = [
 ]
 
 from abc import ABCMeta
+import contextlib
 from typing import Any, Dict, List, Optional, Tuple, cast
 
 from mmdet.core import BitmapMasks, bbox2roi
@@ -34,8 +35,8 @@ class Cafe(
     def __init__(
         self,
         *args,
-        multilabel_classifier: Dict[str, Any],
-        multilabel_loss: Dict[str, Any],
+        multilabel_classifier: Optional[Dict[str, Any]] = None,
+        multilabel_loss: Optional[Dict[str, Any]] = None,
         topK: Optional[int] = None,
         hidden_dims: Optional[int] = None,
         pre_fpn: Optional[Dict[str, Any]] = None,
@@ -45,14 +46,21 @@ class Cafe(
     ) -> None:
         super().__init__(*args, **kwargs)
 
-        todd.base.init_iter()
+        todd.init_iter()
 
-        self._multilabel_classifier: Classifier = LINEAR_LAYERS.build(
-            multilabel_classifier,
-        )
-        self._multilabel_loss = todd.losses.LOSSES.build(
-            multilabel_loss,
-        )
+        if multilabel_classifier is not None:
+            self._multilabel_classifier: Classifier = LINEAR_LAYERS.build(
+                multilabel_classifier,
+            )
+        else:
+            self._multilabel_classifier = None
+
+        if multilabel_classifier is not None:
+            self._multilabel_loss = todd.losses.LOSSES.build(
+                multilabel_loss,
+            )
+        else:
+            self._multilabel_loss = None
 
         self._topK = topK
         self._hidden_dims = hidden_dims
@@ -121,20 +129,25 @@ class Cafe(
         img: torch.Tensor,
     ) -> Tuple[
         Tuple[torch.Tensor],
-        torch.Tensor,
+        Optional[torch.Tensor],
         Optional[torch.Tensor],
         Optional[List[torch.Tensor]],
     ]:
         feats: Tuple[torch.Tensor, ...] = self.backbone(img)
 
-        multilabel_logits = self._multilabel_classify(feats)
+        if self._multilabel_classifier is not None:
+            multilabel_logits = self._multilabel_classify(feats)
+        else:
+            multilabel_logits = None
 
         if self._topK is not None:
+            assert multilabel_logits is not None
             topK_logits, topK_inds = multilabel_logits.topk(self._topK)
         else:
             topK_logits, topK_inds = None, None
 
         if self._ce_proj is not None:
+            assert multilabel_logits is not None
             assert topK_inds is not None
             ce: torch.Tensor = self._multilabel_classifier.embeddings[topK_inds]
             ce = self._ce_proj(ce)
@@ -162,46 +175,55 @@ class Cafe(
     def _get_losses(
         self,
         gt_labels: List[torch.Tensor],
-        multilabel_logits: torch.Tensor,
+        multilabel_logits: Optional[torch.Tensor],
         topK_inds: Optional[torch.Tensor],
         masks: Optional[List[torch.Tensor]],
         gt_masks_tensor: Optional[torch.Tensor],
     ) -> Dict[str, torch.Tensor]:
         losses: Dict[str, torch.Tensor] = dict()
 
+        if multilabel_logits is None:
+            return losses
+
         img_labels = one_hot(gt_labels, self.num_classes)
-        multilabel_loss: torch.Tensor = self._multilabel_loss(multilabel_logits.sigmoid(), img_labels)
+        multilabel_loss: torch.Tensor = self._multilabel_loss(
+            multilabel_logits.sigmoid(),
+            img_labels,
+        )
         losses.update(loss_multilabel=multilabel_loss)
 
-        if topK_inds is not None:
-            multilabel_topK_recall = self._multilabel_topK_recall(topK_inds, img_labels)
-            losses.update(recall_multilabel=multilabel_topK_recall)
+        if topK_inds is None:
+            return losses
 
-        if self._attn_weights_loss is not None:
-            assert topK_inds is not None
-            assert gt_masks_tensor is not None
-            assert self._attn_weights_gt_downsample is not None
-            assert masks is not None
-            i = einops.repeat(
-                torch.arange(topK_inds.shape[0], device=topK_inds.device),
-                'b -> b c',
-                c=topK_inds.shape[1],
-            )
-            gt_masks_tensor = gt_masks_tensor[i, topK_inds].float()
-            if self._attn_weights_gt_downsample == 'avg':
-                gt_masks_tensor = F.adaptive_avg_pool2d(gt_masks_tensor, masks[0].shape[-2:])
-            elif self._attn_weights_gt_downsample == 'max':
-                gt_masks_tensor = F.adaptive_max_pool2d(gt_masks_tensor, masks[0].shape[-2:])
-            elif self._attn_weights_gt_downsample == 'nearest':
-                gt_masks_tensor = F.interpolate(gt_masks_tensor, masks[0].shape[-2:])
-            else:
-                raise ValueError(self._attn_weights_gt_downsample)
-            losses.update(
-                loss_attn_weights=sum(
-                    self._attn_weights_loss(mask, gt_masks_tensor)
-                    for mask in masks
-                ),
-            )
+        multilabel_topK_recall = self._multilabel_topK_recall(topK_inds, img_labels)
+        losses.update(recall_multilabel=multilabel_topK_recall)
+
+        if self._attn_weights_loss is None:
+            return losses
+
+        assert gt_masks_tensor is not None
+        assert self._attn_weights_gt_downsample is not None
+        assert masks is not None
+        i = einops.repeat(
+            torch.arange(topK_inds.shape[0], device=topK_inds.device),
+            'b -> b c',
+            c=topK_inds.shape[1],
+        )
+        gt_masks_tensor = gt_masks_tensor[i, topK_inds].float()
+        if self._attn_weights_gt_downsample == 'avg':
+            gt_masks_tensor = F.adaptive_avg_pool2d(gt_masks_tensor, masks[0].shape[-2:])
+        elif self._attn_weights_gt_downsample == 'max':
+            gt_masks_tensor = F.adaptive_max_pool2d(gt_masks_tensor, masks[0].shape[-2:])
+        elif self._attn_weights_gt_downsample == 'nearest':
+            gt_masks_tensor = F.interpolate(gt_masks_tensor, masks[0].shape[-2:])
+        else:
+            raise ValueError(self._attn_weights_gt_downsample)
+        losses.update(
+            loss_attn_weights=sum(
+                self._attn_weights_loss(mask, gt_masks_tensor)
+                for mask in masks
+            ),
+        )
 
         return losses
 
@@ -220,7 +242,8 @@ class Cafe(
         clip_bboxes: Optional[List[torch.Tensor]] = None,
         **kwargs,
     ) -> Dict[str, torch.Tensor]:
-        todd.base.inc_iter()
+        todd.inc_iter()
+        todd.globals_.training = True
 
         feats, multilabel_logits, topK_inds, masks = self._extract_feat(img)
 
@@ -246,7 +269,12 @@ class Cafe(
             proposal_list = proposals
 
         # TODO: design a switch for this
-        with todd.base.setattr_temp(self.roi_head, 'message', (multilabel_logits,)):
+        if multilabel_logits is not None:
+            context = todd.setattr_temp(self.roi_head, 'message', (multilabel_logits,))
+        else:
+            context = contextlib.nullcontext()
+
+        with context:
             roi_losses = self.roi_head.forward_train(
                 feats, img_metas, proposal_list,
                 gt_bboxes, gt_labels,
@@ -292,6 +320,7 @@ class Cafe(
         proposals=None,
         rescale: bool = False,
     ):
+        todd.globals_.training = False
         assert self.with_bbox
 
         feats, multilabel_logits, topK_inds, masks = self._extract_feat(img)
@@ -301,11 +330,16 @@ class Cafe(
         else:
             proposal_list = proposals
 
-        message = (multilabel_logits,)
-        if self._topK is not None:
-            _, topK_inds = multilabel_logits.topk(self.num_classes - self._topK, largest=False)
-            message = message + (topK_inds,)
-        with todd.base.setattr_temp(self.roi_head, 'message', message):
+        if multilabel_logits is not None:
+            message = (multilabel_logits,)
+            if self._topK is not None:
+                _, topK_inds = multilabel_logits.topk(self.num_classes - self._topK, largest=False)
+                message = message + (topK_inds,)
+            context = todd.base.setattr_temp(self.roi_head, 'message', message)
+        else:
+            context = contextlib.nullcontext()
+
+        with context:
             return self.roi_head.simple_test(
                 feats, proposal_list, img_metas, rescale=rescale,
             )

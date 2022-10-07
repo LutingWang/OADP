@@ -10,8 +10,8 @@ import todd
 
 @todd.losses.LOSSES.register_module()
 class AsymmetricLoss(todd.losses.BaseLoss):
-    def __init__(self, gamma_neg=4, gamma_pos=1, clip=0.05, eps=1e-8, disable_torch_grad_focal_loss=True, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *args, gamma_neg=4, gamma_pos=1, clip=0.05, eps=1e-8, disable_torch_grad_focal_loss=True, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.gamma_neg = gamma_neg
         self.gamma_pos = gamma_pos
@@ -19,33 +19,32 @@ class AsymmetricLoss(todd.losses.BaseLoss):
         self.disable_torch_grad_focal_loss = disable_torch_grad_focal_loss
         self.eps = eps
 
-    def forward(self, x, y):
+    def forward(self, x: torch.Tensor, y: torch.Tensor, **kwargs) -> torch.Tensor:
         """"
-        Parameters
-        ----------
-        x: input logits
-        y: targets (multi-label binarized vector)
-        """
+        Args:
+            x: n x k, probability distribution
+            y: n x k, binary ground truth of type bool
 
-        # Calculating Probabilities
-        xs_pos = x
-        xs_neg = 1 - x
+        Returns:
+            loss: 1
+        """
+        comp_x = 1 - x
 
         # Asymmetric Clipping
         if self.clip is not None and self.clip > 0:
-            xs_neg = (xs_neg + self.clip).clamp(max=1)
+            comp_x = (comp_x + self.clip).clamp(max=1)
 
         # Basic CE calculation
-        los_pos = y * torch.log(xs_pos.clamp(min=self.eps))
-        los_neg = ~y * torch.log(xs_neg.clamp(min=self.eps))
-        loss = los_pos + los_neg
+        loss_pos = y * torch.log(x.clamp(min=self.eps))
+        loss_neg = ~y * torch.log(comp_x.clamp(min=self.eps))
+        loss = loss_pos + loss_neg
 
         # Asymmetric Focusing
         if self.gamma_neg > 0 or self.gamma_pos > 0:
             if self.disable_torch_grad_focal_loss:
                 torch.set_grad_enabled(False)
-            pt0 = xs_pos * y
-            pt1 = xs_neg * ~y  # pt = p if t > 0 else 1-p
+            pt0 = x * y
+            pt1 = comp_x * ~y  # pt = p if t > 0 else 1-p
             pt = pt0 + pt1
             one_sided_gamma = self.gamma_pos * y + self.gamma_neg * ~y
             one_sided_w = torch.pow(1 - pt, one_sided_gamma)
@@ -53,7 +52,7 @@ class AsymmetricLoss(todd.losses.BaseLoss):
                 torch.set_grad_enabled(True)
             loss *= one_sided_w
 
-        return self.reduce(-loss)
+        return self.reduce(-loss, **kwargs)
 
 
 class AsymmetricLossOptimized(nn.Module):
