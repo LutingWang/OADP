@@ -13,6 +13,7 @@ model = dict(
                 fields=['image', 'clip_image'],
                 weight=dict(
                     type='WarmupScheduler',
+                    value=2,
                     iter_=1000,
                 ),
                 reduction='sum',
