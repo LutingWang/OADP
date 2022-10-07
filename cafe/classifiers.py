@@ -5,24 +5,37 @@ __all__ = [
 from typing import cast
 from mmdet.models.utils.builder import LINEAR_LAYERS
 from mmdet.datasets import CocoDataset
+from pyparsing import Optional
 import todd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import mldec
+
 
 @LINEAR_LAYERS.register_module()
 class Classifier(todd.base.Module):
 
-    def __init__(self, *args, pretrained: str, in_features: int, out_features: int, **kwargs) -> None:
+    def __init__(
+        self,
+        *args,
+        pretrained: str,
+        in_features: int,
+        out_features: int,
+        split: str,
+        **kwargs,
+    ) -> None:
         super().__init__(*args, **kwargs)
         ckpt = torch.load(pretrained, 'cpu')
-        embeddings = cast(torch.Tensor, ckpt['embeddings'])
-        name2ind = {name: i for i, name in enumerate(ckpt['names'])}
-        inds = [name2ind[name] for name in CocoDataset.CLASSES]
-        self.register_buffer('_embeddings', embeddings[inds])
         self._scaler = cast(torch.Tensor, ckpt['scaler']).item()
         self._bias = cast(torch.Tensor, ckpt['bias']).item()
+
+        embeddings = cast(torch.Tensor, ckpt['embeddings'])
+        name2ind = {name: i for i, name in enumerate(ckpt['names'])}
+        inds = [name2ind[name] for name in getattr(mldec, split)]
+        embeddings = embeddings[inds]
+        self.register_buffer('_embeddings', embeddings, persistent=False)
 
         embedding_dim = embeddings.shape[1]
         self._linear = nn.Linear(in_features, embedding_dim)

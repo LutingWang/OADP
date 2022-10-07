@@ -1,9 +1,10 @@
 model = dict(
     multilabel_classifier=dict(
         type='Classifier',
-        pretrained='work_dirs/prompt/epoch_3_classes.pth',
+        pretrained='data/coco/prompt/prompt1.pth',
         in_features=2048,
         out_features=80,
+        split='COCO',
     ),
     multilabel_loss=dict(
         type='AsymmetricLoss',

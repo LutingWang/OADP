@@ -2,7 +2,10 @@ __all__ = [
     'COCO_48',
     'COCO_17',
     'COCO_48_17',
+    'COCO',
 ]
+
+from mmdet.datasets import CocoDataset
 
 COCO_48 = (
     'person', 'bicycle', 'car', 'motorcycle', 'train', 'truck', 'boat',
@@ -21,3 +24,5 @@ COCO_17 = (
 )
 
 COCO_48_17 = COCO_48 + COCO_17
+
+COCO = CocoDataset.CLASSES
