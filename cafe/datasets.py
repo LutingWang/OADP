@@ -99,6 +99,8 @@ class LoadCLIPFeatures:
 
     def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
         key = f'{results["img_info"]["id"]:012d}'
+        if debug.DRY_RUN:
+            key = '000000000139'
         image = self._images[key]
         results['clip_image'] = image['image'].squeeze(0)
         regions = self._regions[key]
