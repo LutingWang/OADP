@@ -44,6 +44,7 @@ class Cafe(
     def __init__(
         self,
         *args,
+        cls_predictor_cfg: Dict[str, Any],
         multilabel_classifier: Optional[Dict[str, Any]] = None,
         multilabel_loss: Optional[Dict[str, Any]] = None,
         topK: Optional[int] = None,
@@ -56,6 +57,14 @@ class Cafe(
         super().__init__(*args, **kwargs)
 
         todd.init_iter()
+
+        self.roi_head.bbox_head.fc_cls = LINEAR_LAYERS.build(
+            cls_predictor_cfg,
+            default_args=dict(
+                in_features=self.roi_head.bbox_head.fc_cls.in_features,
+                out_features=self.roi_head.bbox_head.fc_cls.out_features,
+            ),
+        )
 
         if multilabel_classifier is not None:
             self._multilabel_classifier: Classifier = LINEAR_LAYERS.build(

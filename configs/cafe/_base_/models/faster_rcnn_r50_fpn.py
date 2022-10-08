@@ -15,6 +15,7 @@ model = dict(
         type='FPN',
         in_channels=[256, 512, 1024, 2048],
         out_channels=256,
+        norm_cfg=dict(type='BN'),
         num_outs=5),
     rpn_head=dict(
         type='RPNHead',
