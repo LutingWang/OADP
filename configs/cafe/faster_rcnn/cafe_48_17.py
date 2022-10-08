@@ -1,5 +1,7 @@
 _base_ = [
     '../_base_/models/faster_rcnn_r50_fpn.py',
+    # '../_base_/models/dh_faster_rcnn_r50_fpn.py',
+
     '../_base_/schedules/schedule_1x.py',
     '../_base_/default_runtime.py',
     'mixins/classifier_48_17.py',
@@ -16,9 +18,13 @@ _base_ = [
 
 model = dict(
     type='Cafe',
+    backbone=dict(
+        frozen_stages=3,
+    ),
     distiller=dict(
         student_hooks=dict(),
         adapts=dict(),
         losses=dict(),
     ),
 )
+load_from='data/ckpts/soco_star_mask_rcnn_r50_fpn_400e.pth'
