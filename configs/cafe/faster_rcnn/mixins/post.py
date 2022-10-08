@@ -11,7 +11,11 @@ model = dict(
             #     head_dims=16,
             #     avg_factor=post_num_blocks,
             # ),
-            dyhead_block=dict(),
+            dyhead_block=dict(
+                spatial_conv=dict(),
+                # scale_attn=dict(),
+                task_attn=dict(),
+            ),
         ),
     ),
 )

@@ -16,7 +16,9 @@ import torch.nn.functional as F
 from mmcv.runner import BaseModule, ModuleList
 from timm.models.layers import DropPath
 
-from mmdet.models.necks.dyhead import DyHeadBlock as _DyHeadBlock
+from mmcv.cnn import build_activation_layer, constant_init, normal_init
+from mmdet.models.utils import DyReLU
+from mmdet.models.necks.dyhead import DyDCNv2
 
 
 class PLVBlock(BaseModule):
@@ -175,12 +177,53 @@ class GLIPBlock(BaseModule):
         return v + delta_v, masks
 
 
-class DyHeadBlock(_DyHeadBlock):
+class DyHeadBlock(BaseModule):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        *args,
+        channels: int,
+        spatial_conv: Optional[Dict[str, Any]] = None,
+        scale_attn: Optional[Dict[str, Any]] = None,
+        task_attn: Optional[Dict[str, Any]] = None,
+        zero_init_offset=True,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
-        self.spatial_conv_high = None
-        self.spatial_conv_low = None
+
+        if spatial_conv is not None:
+            # (offset_x, offset_y, mask) * kernel_size_y * kernel_size_x
+            self._offset_and_mask_dim = 3 * 3 * 3
+            self._offset_dim = 2 * 3 * 3
+            self._spatial_conv_offset = nn.Conv2d(
+                channels, self._offset_and_mask_dim, 3, padding=1,
+            )
+            self._spatial_conv = DyDCNv2(channels, channels)
+        else:
+            self._spatial_conv_offset = None
+            self._spatial_conv = None
+
+        if scale_attn is not None:
+            self._scale_attn = nn.Sequential(
+                nn.AdaptiveAvgPool2d(1),
+                nn.Conv2d(channels, 1, 1),
+                nn.ReLU(inplace=True),
+                build_activation_layer(dict(type='HSigmoid', bias=3.0, divisor=6.0)),
+            )
+        else:
+            self._scale_attn = None
+
+        if task_attn is not None:
+            self._task_attn = DyReLU(channels)
+        else:
+            self._task_attn = None
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                normal_init(m, 0, 0.01)
+
+        if zero_init_offset and self._spatial_conv_offset is not None:
+            constant_init(self._spatial_conv_offset, 0)
 
     def forward(
         self,
@@ -190,7 +233,21 @@ class DyHeadBlock(_DyHeadBlock):
         v_weights: Optional[torch.Tensor] = None,
         l_weights: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        return super().forward([v])[0] + l.mean() * 0
+
+        if self._spatial_conv is not None:
+            assert self._spatial_conv_offset is not None
+            offset_and_mask: torch.Tensor = self._spatial_conv_offset(v)
+            offset = offset_and_mask[:, :self._offset_dim, :, :]
+            mask = offset_and_mask[:, self._offset_dim:, :, :].sigmoid()
+            v = self._spatial_conv(v, offset, mask)
+
+        if self._scale_attn is not None:
+            v = v * self._scale_attn(v)
+
+        if self._task_attn is not None:
+            v = self._task_attn(v)
+
+        return v + l.mean() * 0
 
 
 class PostBlock(BaseModule):
@@ -216,7 +273,7 @@ class PostBlock(BaseModule):
 
         if dyhead_block is not None:
             self._dyhead_block = DyHeadBlock(
-                channels, channels,
+                channels=channels,
                 **dyhead_block,
             )
         else:
