@@ -7,7 +7,7 @@ model = dict(
                 fields=['patches', 'clip_patches'],
                 weight=dict(
                     type='WarmupScheduler',
-                    value=10,
+                    value=100,
                     iter_=1000,
                 ),
                 reduction='mean',

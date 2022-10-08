@@ -4,9 +4,9 @@ _base_ = [
     '../_base_/default_runtime.py',
     'mixins/classifier.py',
 
-    # multilabel
-    '../_base_/datasets/coco_detection.py',
-    'mixins/multilabel.py',
+    # # multilabel
+    # '../_base_/datasets/coco_detection.py',
+    # 'mixins/multilabel.py',
 
     # # multilabel_pre
     # '../_base_/datasets/coco_detection.py',
@@ -24,14 +24,15 @@ _base_ = [
     # 'mixins/post.py',
     # 'mixins/awloss.py',
 
-    # # multilabel_dcp
+    # multilabel_dcp
+    '../_base_/datasets/coco_detection_clip.py',
+    'mixins/multilabel.py',
+    'mixins/dcp.py',
+
+    # # multilabel_dci
     # '../_base_/datasets/coco_detection_clip.py',
     # 'mixins/multilabel.py',
-    # 'mixins/dcp.py',
-
-    # multilabel_dci
-    '../_base_/datasets/coco_detection_clip.py',
-    'mixins/dci.py',
+    # 'mixins/dci.py',
 
     # # multilabel_dcp_dci
     # '../_base_/datasets/coco_detection_clip.py',
