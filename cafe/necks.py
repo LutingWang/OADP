@@ -16,7 +16,7 @@ import torch.nn.functional as F
 from mmcv.runner import BaseModule, ModuleList
 from timm.models.layers import DropPath
 
-from .patches import DyHeadBlock
+from mmdet.models.necks.dyhead import DyHeadBlock as _DyHeadBlock
 
 
 class PLVBlock(BaseModule):
@@ -90,7 +90,6 @@ class GLIPBlock(BaseModule):
         head_dims: int,
         channels: int,
         avg_factor: int,
-        with_dyhead: bool,
         dropout: float = 0.1,
         drop_path: float = 0.0,
         **kwargs,
@@ -136,10 +135,6 @@ class GLIPBlock(BaseModule):
         self._dropout = nn.Dropout(dropout)
         self._drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-        self._with_dyhead = with_dyhead
-        if with_dyhead:
-            self._dyhead = DyHeadBlock(channels, channels)
-
     def forward(
         self,
         v: torch.Tensor,
@@ -177,30 +172,88 @@ class GLIPBlock(BaseModule):
         delta_v = torch.einsum('b c h w, c -> b c h w', delta_v, self._gamma)
         delta_v = self._drop_path(delta_v)
 
-        v = v + delta_v
-        if self._with_dyhead:
-            v = self._dyhead(v)
+        return v + delta_v, masks
+
+
+class DyHeadBlock(_DyHeadBlock):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.spatial_conv_high = None
+        self.spatial_conv_low = None
+
+    def forward(
+        self,
+        v: torch.Tensor,
+        l: torch.Tensor,
+        *,
+        v_weights: Optional[torch.Tensor] = None,
+        l_weights: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        return super().forward([v])[0] + l.mean() * 0
+
+
+class PostBlock(BaseModule):
+
+    def __init__(
+        self,
+        *args,
+        channels: int,
+        glip_block: Optional[Dict[str, Any]] = None,
+        dyhead_block: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        assert glip_block is not None or dyhead_block is not None
+
+        if glip_block is not None:
+            self._glip_block = GLIPBlock(
+                channels=channels,
+                **glip_block,
+            )
+        else:
+            self._glip_block = None
+
+        if dyhead_block is not None:
+            self._dyhead_block = DyHeadBlock(
+                channels, channels,
+                **dyhead_block,
+            )
+        else:
+            self._dyhead_block = None
+
+    def forward(
+        self,
+        v: torch.Tensor,
+        *args, **kwargs,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        if self._glip_block is not None:
+            v, masks = self._glip_block(v, *args, **kwargs)
+        else:
+            masks = None
+
+        if self._dyhead_block is not None:
+            v = self._dyhead_block(v, *args, **kwargs)
+
         return v, masks
 
 
 class PostFPN(BaseModule):
+
     def __init__(
         self,
         *args,
         refine_level: int,
-        channels: int,
         num_blocks: int,
-        glip_block: Dict[str, Any],
+        channels: int,
+        block: Dict[str, Any],
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._refine_level = refine_level
-        self._glip_blocks = ModuleList(
-            GLIPBlock(
-                channels=channels,
-                avg_factor=num_blocks,
-                **glip_block,
-            ) for l in range(num_blocks)
+        self._blocks = ModuleList(
+            PostBlock(channels=channels, **block)
+            for _ in range(num_blocks)
         )
 
     @todd.reproduction.set_seed_temp('PostFPN')
@@ -231,12 +284,12 @@ class PostFPN(BaseModule):
         feats: Tuple[torch.Tensor, ...],
         class_embeddings: torch.Tensor,
         class_weights: Optional[torch.Tensor] = None,
-    ) -> Tuple[Tuple[torch.Tensor, ...], List[torch.Tensor]]:
+    ) -> Tuple[Tuple[torch.Tensor, ...], List[Optional[torch.Tensor]]]:
         bsf = self._gather(feats)
 
         masks = []
-        for glip_block in self._glip_blocks:
-            bsf, mask = glip_block(bsf, class_embeddings, l_weights=class_weights)
+        for block in self._blocks:
+            bsf, mask = block(bsf, class_embeddings, l_weights=class_weights)
             masks.append(mask)
 
         feats = self._scatter(feats, bsf)

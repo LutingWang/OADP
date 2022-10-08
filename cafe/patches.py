@@ -6,8 +6,6 @@ _base_ = [
 from typing import Sequence, TypeGuard, Union
 import torch
 
-from mmdet.models.necks.dyhead import DyHeadBlock as _DyHeadBlock
-
 
 def _is_tensor_sequence(data) -> TypeGuard[Sequence[torch.Tensor]]:
     if not isinstance(data, Sequence):
@@ -36,13 +34,3 @@ def one_hot(labels: Union[torch.Tensor, Sequence[torch.Tensor]], num_classes: in
     for i, label in enumerate(labels):
         y[i, label] = True
     return y
-
-
-class DyHeadBlock(_DyHeadBlock):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.spatial_conv_high = None
-        self.spatial_conv_low = None
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return super().forward([x])[0]
