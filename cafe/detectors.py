@@ -314,15 +314,11 @@ class Cafe(
         if 'patches' in distiller_spec.inputs:
             assert clip_bboxes is not None
             clip_rois = bbox2roi(clip_bboxes)
-            with todd.hooks.hook(
-                dict(
-                    type='StandardHook',
-                    path='.bbox_head.fc_cls._linear',
+            custom_tensors.update(
+                patches=self.roi_head._bbox_forward_distill(
+                    feats, clip_rois,
                 ),
-                self.roi_head,
-            ) as hook_status:
-                self.roi_head._bbox_forward(feats, clip_rois)
-            custom_tensors.update(patches=hook_status.value)
+            )
 
         if len(distiller_spec.outputs) > 0:
             distill_losses = distiller.distill(custom_tensors)
