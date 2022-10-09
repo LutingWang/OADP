@@ -9,9 +9,9 @@ _base_ = [
     # # baseline
     # '../_base_/datasets/coco_detection.py',
 
-    # dcp
-    '../_base_/datasets/coco_detection_clip.py',
-    'mixins/dcp.py',
+    # # dcp
+    # '../_base_/datasets/coco_detection_clip.py',
+    # 'mixins/dcp.py',
 
     # # multilabel
     # '../_base_/datasets/coco_detection.py',
@@ -22,10 +22,10 @@ _base_ = [
     # 'mixins/multilabel.py',
     # 'mixins/pre.py',
 
-    # # multilabel_post
-    # '../_base_/datasets/coco_detection.py',
-    # 'mixins/multilabel.py',
-    # 'mixins/post.py',
+    # multilabel_post
+    '../_base_/datasets/coco_detection.py',
+    'mixins/multilabel.py',
+    'mixins/post.py',
 
     # # multilabel_post_awloss
     # '../_base_/datasets/coco_instance.py',

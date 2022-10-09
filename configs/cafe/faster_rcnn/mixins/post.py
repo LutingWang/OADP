@@ -13,7 +13,7 @@ model = dict(
             # ),
             dyhead_block=dict(
                 spatial_conv=dict(),
-                scale_attn=dict(),
+                # scale_attn=dict(),
                 # task_attn=dict(),
             ),
         ),
