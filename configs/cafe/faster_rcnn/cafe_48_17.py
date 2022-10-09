@@ -20,9 +20,12 @@ _base_ = [
 model = dict(
     type='Cafe',
     backbone=dict(
-        frozen_stages=3,
+        # frozen_stages=3,
         style='caffe',
         init_cfg=None,
+    ),
+    neck=dict(
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
     ),
     distiller=dict(
         student_hooks=dict(),
