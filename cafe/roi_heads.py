@@ -4,10 +4,13 @@ __all__ = [
     'DoubleHeadRoIHead',
 ]
 
-from typing import Dict, Sequence
+from typing import Dict, Sequence, List, cast, Any
+
 import mmdet.models
 import torch
 import todd
+
+from .classifiers import Classifier
 
 
 class MessageMixin(mmdet.models.StandardRoIHead):
@@ -76,4 +79,73 @@ class DoubleHeadRoIHead(MessageMixin, mmdet.models.DoubleHeadRoIHead):
             self,
         ) as hook_status:
             self.bbox_head.fc_cls(x_fc)
+        return hook_status.value
+
+
+@mmdet.models.HEADS.register_module()
+class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
+    bbox_head: mmdet.models.BBoxHead
+    bbox_roi_extractor: mmdet.models.BaseRoIExtractor
+
+    def __init__(
+        self,
+        *args,
+        bbox_head: Dict[str, Any],
+        image_head: Dict[str, Any],
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, bbox_head=bbox_head, **kwargs)
+        self._image_head: mmdet.models.BBoxHead = mmdet.models.HEADS.build(
+            image_head,
+            default_args=bbox_head,
+        )
+        classifier: Classifier = self.bbox_head.fc_cls
+        ensemble_mask = torch.ones(classifier.num_classes + 1) / 3
+        ensemble_mask[classifier.num_base_classes:classifier.num_classes] *= 2
+        self.register_buffer('_ensemble_mask', ensemble_mask, persistent=False)
+
+    @property
+    def ensemble_mask(self) -> torch.Tensor:
+        return self._ensemble_mask
+
+    def _bbox_forward(
+        self,
+        x: List[torch.Tensor],
+        rois: torch.Tensor,
+    ) -> Dict[str, torch.Tensor]:
+        bbox_results: Dict[str, torch.Tensor] = super()._bbox_forward(x, rois)
+        if todd.globals_.training:
+            return bbox_results
+        bbox_feats = bbox_results['bbox_feats']
+        if self.with_shared_head:
+            bbox_feats = self.shared_head(bbox_feats)
+        cls_score, _ = self._image_head(bbox_feats)
+        cls_score = cast(torch.Tensor, cls_score)
+        cls_score[:, -1] = float('-inf')
+        ensemble_score: torch.Tensor = (
+            bbox_results['cls_score'].softmax(-1) ** self.ensemble_mask
+            * cls_score.softmax(-1) ** (1 - self.ensemble_mask)
+        )
+        ensemble_score[:, -1] = 1 - ensemble_score[:, :-1].sum(-1)
+        bbox_results['cls_score'] = ensemble_score.log()
+        return bbox_results
+
+    def _bbox_forward_distill(
+        self,
+        x: Sequence[torch.Tensor],
+        rois: torch.Tensor,
+    ) -> torch.Tensor:
+        bbox_feats = self.bbox_roi_extractor(
+            x[:self.bbox_roi_extractor.num_inputs], rois,
+        )
+        if self.with_shared_head:
+            bbox_feats = self.shared_head(bbox_feats)
+        with todd.hooks.hook(
+            dict(
+                type='StandardHook',
+                path='.fc_cls._linear',
+            ),
+            self._image_head,
+        ) as hook_status:
+            self._image_head(bbox_feats)
         return hook_status.value

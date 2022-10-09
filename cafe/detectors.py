@@ -7,7 +7,7 @@ import contextlib
 from typing import Any, Dict, List, Optional, Tuple, cast
 
 from mmdet.core import BitmapMasks, bbox2roi
-from mmdet.models import DETECTORS, TwoStageDetector, StandardRoIHead, RPNHead
+from mmdet.models import DETECTORS, TwoStageDetector, StandardRoIHead, RPNHead, BBoxHead
 from mmdet.models.utils.builder import LINEAR_LAYERS
 import numpy as np
 import todd
@@ -58,13 +58,17 @@ class Cafe(
 
         todd.init_iter()
 
-        self.roi_head.bbox_head.fc_cls = LINEAR_LAYERS.build(
-            cls_predictor_cfg,
-            default_args=dict(
-                in_features=self.roi_head.bbox_head.fc_cls.in_features,
-                out_features=self.roi_head.bbox_head.fc_cls.out_features,
-            ),
-        )
+        # compat double heads
+        bbox_head: BBoxHead = self.roi_head.bbox_head
+        if not isinstance(bbox_head.fc_cls, Classifier):
+            assert isinstance(bbox_head.fc_cls, nn.Linear)
+            bbox_head.fc_cls = LINEAR_LAYERS.build(
+                cls_predictor_cfg,
+                default_args=dict(
+                    in_features=bbox_head.fc_cls.in_features,
+                    out_features=bbox_head.fc_cls.out_features,
+                ),
+            )
 
         if multilabel_classifier is not None:
             self._multilabel_classifier: Classifier = LINEAR_LAYERS.build(

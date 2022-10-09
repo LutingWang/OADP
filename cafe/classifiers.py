@@ -41,6 +41,7 @@ class Classifier(todd.base.Module):
         self._linear = nn.Linear(in_features, embedding_dim)
         if embeddings.shape[0] == out_features - 1:
             self._bg_embedding = nn.Parameter(torch.randn(1, embedding_dim))
+            nn.init.xavier_uniform_(self._bg_embedding)
         elif embeddings.shape[0] == out_features:
             self._bg_embedding = None
         else:
@@ -55,6 +56,10 @@ class Classifier(todd.base.Module):
     @property
     def num_classes(self) -> int:
         return self.embeddings.shape[0]
+
+    @property
+    def num_base_classes(self) -> int:
+        return self._num_base_classes
 
     @property
     def embedding_dim(self) -> int:
