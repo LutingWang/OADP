@@ -195,10 +195,11 @@ class DyHeadBlock(BaseModule):
             # (offset_x, offset_y, mask) * kernel_size_y * kernel_size_x
             self._offset_and_mask_dim = 3 * 3 * 3
             self._offset_dim = 2 * 3 * 3
-            self._spatial_conv_offset = nn.Conv2d(
-                channels, self._offset_and_mask_dim, 3, padding=1,
+            self._num_heads = spatial_conv['num_heads']
+            self._spatial_conv_offset = nn.Linear(
+                channels, self._offset_and_mask_dim,
             )
-            self._spatial_conv = DyDCNv2(channels, channels)
+            self._spatial_conv = DyDCNv2(channels // self._num_heads, channels // self._num_heads)
         else:
             self._spatial_conv_offset = None
             self._spatial_conv = None
@@ -236,10 +237,23 @@ class DyHeadBlock(BaseModule):
 
         if self._spatial_conv is not None:
             assert self._spatial_conv_offset is not None
-            offset_and_mask: torch.Tensor = self._spatial_conv_offset(v)
+            b, _, h, w = v.shape
+            v_offset_and_mask = einops.rearrange(v, 'b c h w -> (b h w) c')
+            v_offset_and_mask = self._spatial_conv_offset(v_offset_and_mask)
+            v_offset_and_mask = einops.rearrange(v_offset_and_mask, '(b h w) c -> b 1 c h w', b=b, h=h, w=w)
+            b, n, _ = l.shape
+            l_offset_and_mask = einops.rearrange(l, 'b n c -> (b n) c')
+            l_offset_and_mask = self._spatial_conv_offset(l_offset_and_mask)
+            l_offset_and_mask = einops.rearrange(l_offset_and_mask, '(b n) c -> b n c 1 1', b=b, n=n)
+            offset_and_mask = v_offset_and_mask + l_offset_and_mask
+            offset_and_mask = einops.rearrange(offset_and_mask, 'b n c h w -> (b n) c h w')
             offset = offset_and_mask[:, :self._offset_dim, :, :]
             mask = offset_and_mask[:, self._offset_dim:, :, :].sigmoid()
+            v = einops.rearrange(v, 'b (nh hd) h w -> (b nh) hd h w', nh=n)
             v = self._spatial_conv(v, offset, mask)
+            v = einops.rearrange(v, '(b nh) hd h w -> b (nh hd) h w', nh=n)
+        else:
+            v = v + l.mean() * 0
 
         if self._scale_attn is not None:
             v = v * self._scale_attn(v)
@@ -247,7 +261,7 @@ class DyHeadBlock(BaseModule):
         if self._task_attn is not None:
             v = self._task_attn(v)
 
-        return v + l.mean() * 0
+        return v
 
 
 class PostBlock(BaseModule):
@@ -302,16 +316,19 @@ class PostFPN(BaseModule):
         *args,
         refine_level: int,
         num_blocks: int,
-        channels: int,
+        in_channels: int,
+        hidden_channels: int,
         block: Dict[str, Any],
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
         self._refine_level = refine_level
+        self._conv1 = nn.Conv2d(in_channels, hidden_channels, 1)
         self._blocks = ModuleList(
-            PostBlock(channels=channels, **block)
+            PostBlock(channels=hidden_channels, **block)
             for _ in range(num_blocks)
         )
+        self._conv2 = nn.Conv2d(hidden_channels, in_channels, 1)
 
     @todd.reproduction.set_seed_temp('PostFPN')
     def init_weights(self):
@@ -343,11 +360,13 @@ class PostFPN(BaseModule):
         class_weights: Optional[torch.Tensor] = None,
     ) -> Tuple[Tuple[torch.Tensor, ...], List[Optional[torch.Tensor]]]:
         bsf = self._gather(feats)
+        bsf = self._conv1(bsf)
 
         masks = []
         for block in self._blocks:
             bsf, mask = block(bsf, class_embeddings, l_weights=class_weights)
             masks.append(mask)
 
+        bsf = self._conv2(bsf)
         feats = self._scatter(feats, bsf)
         return feats, masks

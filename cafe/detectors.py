@@ -48,7 +48,6 @@ class Cafe(
         multilabel_classifier: Optional[Dict[str, Any]] = None,
         multilabel_loss: Optional[Dict[str, Any]] = None,
         topK: Optional[int] = None,
-        hidden_dims: Optional[int] = None,
         pre_fpn: Optional[Dict[str, Any]] = None,
         post_fpn: Optional[Dict[str, Any]] = None,
         attn_weights_loss: Optional[Dict[str, Any]] = None,
@@ -85,27 +84,17 @@ class Cafe(
             self._multilabel_loss = None
 
         self._topK = topK
-        self._hidden_dims = hidden_dims
 
-        if hidden_dims is not None:
-            self._ce_proj = nn.Sequential(
-                nn.Linear(self._multilabel_classifier.embedding_dim, hidden_dims),
-                nn.LayerNorm(hidden_dims),
-            )
-        else:
-            self._ce_proj = None
-
-        if hidden_dims is not None and pre_fpn is not None:
+        if pre_fpn is not None:
             self._pre_fpn = PreFPN(
-                out_channels=hidden_dims,
                 **pre_fpn,
             )
         else:
             self._pre_fpn = None
 
-        if hidden_dims is not None and post_fpn is not None:
+        if post_fpn is not None:
             self._post_fpn = PostFPN(
-                channels=hidden_dims,
+                hidden_channels=self._multilabel_classifier.embedding_dim,
                 **post_fpn,
             )
         else:
@@ -165,16 +154,9 @@ class Cafe(
         if self._topK is not None:
             assert multilabel_logits is not None
             topK_logits, topK_inds = multilabel_logits.topk(self._topK)
+            ce: torch.Tensor = self._multilabel_classifier.embeddings[topK_inds]
         else:
             topK_logits, topK_inds = None, None
-
-        if self._ce_proj is not None:
-            assert multilabel_logits is not None
-            assert topK_inds is not None
-            ce: torch.Tensor = self._multilabel_classifier.embeddings[topK_inds]
-            ce = self._ce_proj(ce)
-        else:
-            ce = None
 
         if self._pre_fpn is not None:
             assert topK_logits is not None
