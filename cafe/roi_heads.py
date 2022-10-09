@@ -84,7 +84,6 @@ class DoubleHeadRoIHead(MessageMixin, mmdet.models.DoubleHeadRoIHead):
 
 @mmdet.models.HEADS.register_module()
 class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
-    bbox_head: mmdet.models.BBoxHead
     bbox_roi_extractor: mmdet.models.BaseRoIExtractor
 
     def __init__(
@@ -99,7 +98,8 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
             image_head,
             default_args=bbox_head,
         )
-        classifier: Classifier = self.bbox_head.fc_cls
+        classifier: Classifier = self._image_head.fc_cls
+        classifier._bg_embedding.requires_grad_(False)
         ensemble_mask = torch.ones(classifier.num_classes + 1) / 3
         ensemble_mask[classifier.num_base_classes:classifier.num_classes] *= 2
         self.register_buffer('_ensemble_mask', ensemble_mask, persistent=False)
