@@ -176,8 +176,10 @@ class LoadCLIPFeatures:
         image = self._images[key]
         results['clip_image'] = image['image'].squeeze(0)
         regions = self._regions[key]
-        clip_patches = torch.cat([image['patches'], regions['patches']])
-        clip_bboxes = torch.cat([image['bboxes'], regions['bboxes']])
+        # clip_patches = torch.cat([image['patches'], regions['patches']])
+        # clip_bboxes = torch.cat([image['bboxes'], regions['bboxes']])
+        clip_patches = regions['patches']
+        clip_bboxes = regions['bboxes']
         inds = (clip_bboxes[:, 2] > clip_bboxes[:, 0] + 4) & (clip_bboxes[:, 3] > clip_bboxes[:, 1] + 4)  # TODO: update with todd
         results['clip_patches'] = clip_patches[inds]
         results['clip_bboxes'] = clip_bboxes[inds].float().numpy()

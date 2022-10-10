@@ -17,7 +17,7 @@ import sklearn.metrics
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .classifiers import Classifier
+from .classifiers import Classifier, ViLDClassifier
 from .necks import PreFPN, PostFPN
 from .patches import one_hot
 
@@ -59,7 +59,7 @@ class Cafe(
 
         # compat double heads
         bbox_head: BBoxHead = self.roi_head.bbox_head
-        if not isinstance(bbox_head.fc_cls, Classifier):
+        if not isinstance(bbox_head.fc_cls, (Classifier, ViLDClassifier)):
             assert isinstance(bbox_head.fc_cls, nn.Linear)
             bbox_head.fc_cls = LINEAR_LAYERS.build(
                 cls_predictor_cfg,

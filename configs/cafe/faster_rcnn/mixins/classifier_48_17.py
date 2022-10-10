@@ -4,6 +4,8 @@ _base_ = [
 
 model = dict(
     cls_predictor_cfg=dict(
+        type='ViLDClassifier',
+        pretrained='data/coco/prompt/vild_coco.pth',
         split='COCO_48_17',
         num_base_classes=48,
     ),
@@ -12,6 +14,8 @@ model = dict(
             num_classes=65,
             reg_class_agnostic=True,
             cls_predictor_cfg=dict(
+                type='ViLDClassifier',
+                pretrained='data/coco/prompt/vild_coco.pth',
                 split='COCO_48_17',
                 num_base_classes=48,
             ),

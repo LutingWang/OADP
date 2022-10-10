@@ -30,7 +30,7 @@ if [[ -z "${DEBUG}" ]]; then
         exit 1
     fi
 else
-    PY_ARGS="${PY_ARGS} TRAIN_WITH_VAL_DATASET:\\\'1\\\' DRY_RUN:\\\'1\\\'"
+    PY_ARGS="${PY_ARGS} TRAIN_WITH_VAL_DATASET:\\\'\\\' DRY_RUN:\\\'\\\'"
 fi
 
 PROJECT_NAME=${PROJECT_NAME:-mldec}

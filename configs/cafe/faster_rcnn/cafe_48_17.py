@@ -11,8 +11,8 @@ _base_ = [
     # '../_base_/datasets/coco_48_17.py',
 
     # dcp
-    '../_base_/datasets/coco_detection_clip.py',
-    '../_base_/datasets/coco_48_17.py',
+    '../_base_/datasets/coco_detection_clip_48_17.py',
+    # '../_base_/datasets/coco_48_17.py',
     'mixins/dcp.py',
 
 ]
@@ -26,6 +26,11 @@ model = dict(
     ),
     neck=dict(
         norm_cfg=dict(type='SyncBN', requires_grad=True),
+    ),
+    roi_head=dict(
+        bbox_head=dict(
+            norm_cfg=dict(type='SyncBN', requires_grad=True),
+        ),
     ),
     distiller=dict(
         student_hooks=dict(),
