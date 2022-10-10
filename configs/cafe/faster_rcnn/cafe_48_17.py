@@ -25,11 +25,11 @@ model = dict(
         init_cfg=None,
     ),
     neck=dict(
-        # norm_cfg=dict(type='SyncBN', requires_grad=True),
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
     ),
     roi_head=dict(
         bbox_head=dict(
-            # norm_cfg=dict(type='SyncBN', requires_grad=True),
+            norm_cfg=dict(type='SyncBN', requires_grad=True),
         ),
     ),
     distiller=dict(
