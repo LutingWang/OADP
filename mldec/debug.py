@@ -3,6 +3,8 @@ __all__ = [
 ]
 
 from typing import Optional
+import torch.nn as nn
+import mmcv.cnn
 import todd
 
 
@@ -15,6 +17,7 @@ class Debug(todd.base.BaseDebug):
         self.TRAIN_WITH_VAL_DATASET = True
         self.DRY_RUN = True
         self.SMALLER_BATCH_SIZE = True
+        mmcv.cnn.NORM_LAYERS.register_module(name='SyncBN', force=True, module=nn.BatchNorm2d)
 
     def init(self, *, config: Optional[todd.base.Config] = None, **kwargs) -> None:
         super().init(**kwargs)
