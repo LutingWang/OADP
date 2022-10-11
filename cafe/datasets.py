@@ -98,7 +98,7 @@ class CocoDataset4817(CocoDataset):
                 'mAP', 'mAP_50', 'mAP_75', 'mAP_s', 'mAP_m', 'mAP_l',
             ])
         }
-        eval_results['bbox_mAP_copypaste'] = ' '.join(str(ap) for ap in eval_results.values())
+        eval_results['bbox_mAP_copypaste'] = ' '.join(f'{ap:.4f}' for ap in eval_results.values())
         if split_name is not None:
             print_log(f'Evaluate split *{split_name}*', logger=logger)
             eval_results = {f'{split_name}_{k}': v for k, v in eval_results.items()}

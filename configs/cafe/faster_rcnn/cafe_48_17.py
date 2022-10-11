@@ -11,7 +11,7 @@ _base_ = [
     # '../_base_/datasets/coco_48_17.py',
 
     # dcp
-    '../_base_/datasets/coco_detection_clip_48_17.py',
+    '../_base_/datasets/coco_detection_clip.py',
     # '../_base_/datasets/coco_48_17.py',
     'mixins/dcp.py',
 
@@ -20,16 +20,15 @@ _base_ = [
 model = dict(
     type='Cafe',
     backbone=dict(
-        # frozen_stages=3,
         style='caffe',
         init_cfg=None,
     ),
     neck=dict(
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        # norm_cfg=dict(type='SyncBN', requires_grad=True),
     ),
     roi_head=dict(
         bbox_head=dict(
-            norm_cfg=dict(type='SyncBN', requires_grad=True),
+            # norm_cfg=dict(type='SyncBN', requires_grad=True),
         ),
     ),
     distiller=dict(
@@ -39,7 +38,7 @@ model = dict(
     ),
     test_cfg=dict(
         rcnn=dict(
-            score_thr=0.0001,
+            score_thr=0.0,
             max_per_img=300,
         ),
     ),

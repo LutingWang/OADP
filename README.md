@@ -33,3 +33,8 @@ sh tools/odps_test_multilabel.sh configs/cafe/faster_rcnn/classifier.py --load w
 ```shell
 python tools/train.py configs/cafe/faster_rcnn/cafe_48_17.py --work-dir work_dirs/debug --seed 3407 --cfg-options data.workers_per_gpu=0 data.val.ann_file=data/coco/annotations/instances_val2017.json.COCO_48_17.48
 ```
+
+```shell
+# vild
+sh tools/odps_train.sh test_vild_nosync_ms configs/cafe/faster_rcnn/cafe_48_17.py 8
+```

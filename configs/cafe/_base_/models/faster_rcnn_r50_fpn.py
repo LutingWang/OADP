@@ -15,7 +15,7 @@ model = dict(
         type='FPN',
         in_channels=[256, 512, 1024, 2048],
         out_channels=256,
-        norm_cfg=dict(type='BN'),
+        norm_cfg=dict(type='BN', requires_grad=True),
         num_outs=5),
     rpn_head=dict(
         type='RPNHead',
@@ -51,6 +51,7 @@ model = dict(
                 target_means=[0., 0., 0., 0.],
                 target_stds=[0.1, 0.1, 0.2, 0.2]),
             reg_class_agnostic=False,
+            norm_cfg=dict(type='BN', requires_grad=True),
             loss_cls=dict(
                 type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
             loss_bbox=dict(type='L1Loss', loss_weight=1.0))),

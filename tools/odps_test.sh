@@ -29,12 +29,7 @@ ENTRY_FILE=${ENTRY_FILE:-tools/test.py}
 WORKBENCH=${WORKBENCH:-search_algo_quality_dev}  # search_algo_quality_dev, imac_dev
 ROLEARN=${ROLEARN:-searchalgo}  # searchalgo, imac
 
-tar -zchf /tmp/${PROJECT_NAME}.tar.gz \
-    --exclude .git \
-    --exclude data \
-    --exclude pretrained \
-    --exclude work_dirs \
-    .
+tar -zchf /tmp/${PROJECT_NAME}.tar.gz cafe clip configs mldec tools requirements.txt
 
 cmd_oss="
 use ${WORKBENCH};
