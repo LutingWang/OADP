@@ -12,7 +12,7 @@ _base_ = [
 
     # dcp
     '../_base_/datasets/coco_detection_clip.py',
-    # '../_base_/datasets/coco_48_17.py',
+    '../_base_/datasets/coco_48_17.py',
     'mixins/dcp.py',
 
 ]
