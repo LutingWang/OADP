@@ -1,11 +1,8 @@
 import argparse
-from ast import Num
-import enum
-import math
 import os
 import pathlib
 import pickle
-from typing import Any, Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple, cast
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import PIL.Image
 import clip
@@ -46,13 +43,15 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         root: str,
         ann_file: str,
         proposal_file: str,
+        proposal_sorted: bool,
         embeddings_root: str,
     ) -> None:
         super().__init__(
             root=root,
             annFile=ann_file,
         )
-        # self.ids = list(self.coco.imgs.keys())
+        if not proposal_sorted:
+            self.ids = list(self.coco.imgs.keys())
 
         with open(proposal_file, 'rb') as f:
             self.proposals = torch.tensor(
