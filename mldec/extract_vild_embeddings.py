@@ -33,6 +33,7 @@ class Batch(NamedTuple):
     image_ids: List[int]
     patches: torch.Tensor
     bboxes: torch.Tensor
+    objectness: torch.Tensor
     num_patches: List[int]
 
 
@@ -54,10 +55,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
             self.ids = list(self.coco.imgs.keys())
 
         with open(proposal_file, 'rb') as f:
-            self.proposals = torch.tensor(
-                pickle.load(f),
-                dtype=torch.float,
-            )
+            self.proposals = pickle.load(f)
 
         self._embeddings_root = pathlib.Path(embeddings_root)
         self._embeddings_root.mkdir(parents=True, exist_ok=True)
@@ -93,7 +91,9 @@ class CocoClassification(torchvision.datasets.CocoDetection):
                 pass
         image = self._load_image(image_id)
         proposals = todd.BBoxesXYXY(self.proposals[index][:, :4])
-        proposals = proposals[proposals.indices(min_wh=(32, 32))]
+        indices = proposals.indices(min_area=16*16)
+        proposals = proposals[indices]
+        objectness = torch.tensor(self.proposals[index][indices, -1])
         patches = torch.stack([
             self._crop(image, proposals),
             self._crop(image, proposals.expand(1.5, image_wh=image.size)),
@@ -101,17 +101,18 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         return (
             image_id,
             patches,
-            proposals.to_tensor()
+            proposals.to_tensor(),
+            objectness,
         )
 
     @staticmethod
-    def collate(batch: List[Optional[Tuple[int, torch.Tensor, torch.Tensor]]]) -> Optional[Batch]:
+    def collate(batch: List[Optional[Tuple[int, torch.Tensor, torch.Tensor, torch.Tensor]]]) -> Optional[Batch]:
         batch: List[Tuple[int, torch.Tensor, torch.Tensor]] = [b for b in batch if b is not None]
         if len(batch) == 0:
             return None
-        image_id_list, patches_list, bboxes_list = zip(*batch)
+        image_id_list, patches_list, bboxes_list, objectness_list = zip(*batch)
         num_patches = list(map(len, bboxes_list))
-        return Batch(image_id_list, torch.cat(patches_list, 1), torch.cat(bboxes_list), num_patches)
+        return Batch(image_id_list, torch.cat(patches_list, 1), torch.cat(bboxes_list), torch.cat(objectness_list), num_patches)
 
 
 class Model(todd.reproduction.FrozenMixin, todd.base.Module):
@@ -199,6 +200,7 @@ class Runner(BaseRunner):
                 batch.image_ids[:2],
                 patches,
                 batch.bboxes[:5],
+                batch.objectness[:5],
                 [2, 3],
             )
         if not debug.CPU:
@@ -209,9 +211,10 @@ class Runner(BaseRunner):
         patches = einops.reduce(patches, '(n b) c -> b c', n=n, reduction='mean')
         patches_list = patches.half().split(batch.num_patches)
         bboxes_list = batch.bboxes.half().split(batch.num_patches)
+        objectness_list = batch.objectness.half().split(batch.num_patches)
         memo['results'] = [
-            dict(bboxes=bboxes, patches=patches)
-            for bboxes, patches in zip(bboxes_list, patches_list)
+            dict(bboxes=bboxes, patches=patches, objectness=objectness)
+            for bboxes, patches, objectness in zip(bboxes_list, patches_list, objectness_list)
         ]
 
     def _after_run_iter(self, *args, i: int, batch: Optional[Batch], memo: Dict[str, Any], log: bool = False, **kwargs) -> Optional[bool]:
