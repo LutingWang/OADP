@@ -1,6 +1,7 @@
 _base_ = [
     'DebugMixin',
     'CocoDataset',
+    'CocoDataset4817',
     'MaskToTensor',
     'LoadCLIPFeatures',
 ]
