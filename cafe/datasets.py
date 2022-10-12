@@ -166,6 +166,7 @@ class LoadCLIPFeatures:
     ) -> None:
         assert task_name in ['train', 'val']
         self._task_name = task_name
+        self._load_image_patches = images.pop('with_patches')
         self._images = todd.datasets.ACCESS_LAYERS.build(images, default_args=dict(task_name=task_name))
         self._regions = todd.datasets.ACCESS_LAYERS.build(regions, default_args=dict(task_name=task_name))
 
@@ -176,10 +177,12 @@ class LoadCLIPFeatures:
         image = self._images[key]
         results['clip_image'] = image['image'].squeeze(0)
         regions = self._regions[key]
-        # clip_patches = torch.cat([image['patches'], regions['patches']])
-        # clip_bboxes = torch.cat([image['bboxes'], regions['bboxes']])
-        clip_patches = regions['patches']
-        clip_bboxes = regions['bboxes']
+        if self._load_image_patches:
+            clip_patches = torch.cat([image['patches'], regions['patches']])
+            clip_bboxes = torch.cat([image['bboxes'], regions['bboxes']])
+        else:
+            clip_patches = regions['patches']
+            clip_bboxes = regions['bboxes']
         inds = (clip_bboxes[:, 2] > clip_bboxes[:, 0] + 4) & (clip_bboxes[:, 3] > clip_bboxes[:, 1] + 4)  # TODO: update with todd
         results['clip_patches'] = clip_patches[inds]
         results['clip_bboxes'] = clip_bboxes[inds].float().numpy()

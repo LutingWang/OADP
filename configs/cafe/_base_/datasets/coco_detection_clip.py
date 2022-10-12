@@ -14,6 +14,7 @@ train_pipeline = [
         images=dict(
             type='PthAccessLayer',
             data_root=data_root + 'embeddings',
+            load_patches=False,
         ),
         regions=dict(
             type='PthAccessLayer',
