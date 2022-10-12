@@ -90,15 +90,10 @@ class CocoClassification(torchvision.datasets.CocoDetection):
             except Exception:
                 pass
         image = self._load_image(image_id)
-<<<<<<< HEAD
         proposals = todd.BBoxesXYXY(self.proposals[index][:, :4])
         indices = proposals.indices(min_area=16*16)
         proposals = proposals[indices]
         objectness = torch.tensor(self.proposals[index][indices, -1])
-=======
-        proposals = todd.BBoxesXYXY(todd.BBoxesXYWH(self.proposals[index][:, :4]))
-        proposals = proposals[proposals.indices(min_area=32 * 32)]
->>>>>>> a2b6cf6 (feat: k8s extract vild embedding)
         patches = torch.stack([
             self._crop(image, proposals),
             self._crop(image, proposals.expand(1.5, image_wh=image.size)),
