@@ -46,4 +46,5 @@ python tools/filter_annotations.py
 
 ```shell
 python tools/train.py configs/cafe/rpn/rpn_r50_fpn_1x_coco.py --work-dir work_dirs/debug --seed 3407
+sh tools/k8s_train.sh rpn configs/cafe/rpn/rpn_r50_fpn_1x_coco.py 1 --seed 3407
 ```

@@ -10,7 +10,7 @@ import mldec
 logger = todd.base.get_logger()
 
 
-def filter_(data_file: str, num_base_classes: int) -> None:
+def filter_(data_file: str) -> None:
     logger.info(f'Loading {data_file}')
     with open(data_file) as f:
         data = json.load(f)
@@ -19,7 +19,6 @@ def filter_(data_file: str, num_base_classes: int) -> None:
     image_ids = {
         annotation['image_id']
         for annotation in data['annotations']
-        if annotation['category_id'] >= num_base_classes
     }
     data['annotations'] = [
         annotation
@@ -39,7 +38,7 @@ def filter_(data_file: str, num_base_classes: int) -> None:
 
 
 def main() -> None:
-    filter_('data/coco/annotations/instances_val2017.json.COCO_48_17', 48)
+    filter_('data/coco/annotations/instances_val2017.json.COCO_48_17')
 
 
 if __name__ == '__main__':
