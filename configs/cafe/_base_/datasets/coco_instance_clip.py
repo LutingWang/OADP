@@ -24,7 +24,6 @@ train_pipeline = [
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='Pad', size_divisor=32),
-    dict(type='MaskToTensor', num_classes=80),
     dict(type='DefaultFormatBundle'),
     dict(type='ToTensor', keys=['clip_bboxes']),
     dict(type='ToDataContainer', fields=[
@@ -36,7 +35,6 @@ train_pipeline = [
         'gt_bboxes',
         'gt_labels',
         'gt_masks',
-        'gt_masks_tensor',
         'clip_image',
         'clip_patches',
         'clip_bboxes',

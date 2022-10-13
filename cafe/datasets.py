@@ -2,7 +2,6 @@ _base_ = [
     'DebugMixin',
     'CocoDataset',
     'CocoDataset4817',
-    'MaskToTensor',
     'LoadCLIPFeatures',
 ]
 
@@ -68,21 +67,6 @@ class CocoDataset(DebugMixin, _CocoDataset):
                 for img in self.coco.dataset['images']
             }
         return data_infos
-
-
-@PIPELINES.register_module()
-class MaskToTensor:
-
-    def __init__(self, num_classes: int) -> None:
-        self._num_classes = num_classes
-
-    def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
-        gt_masks: BitmapMasks = results['gt_masks']
-        tensor = torch.zeros((self._num_classes, gt_masks.height, gt_masks.width), dtype=torch.bool)
-        for i, gt_label in enumerate(results['gt_labels']):
-            tensor[gt_label] += gt_masks.masks[i]
-        results['gt_masks_tensor'] = DC(tensor, stack=True, padding_value=0)
-        return results
 
 
 @DATASETS.register_module()

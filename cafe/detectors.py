@@ -3,7 +3,6 @@ __all__ = [
 ]
 
 from abc import ABCMeta
-import contextlib
 from typing import Any, Dict, List, Optional, Tuple, cast
 
 from mmdet.core import BitmapMasks, bbox2roi
@@ -13,12 +12,9 @@ import numpy as np
 import todd
 import torch
 import einops
-import sklearn.metrics
-import torch.nn as nn
-import torch.nn.functional as F
 
 from .classifiers import Classifier, ViLDClassifier
-from .necks import PreFPN, PostFPN
+from .necks import PostFPN
 from .patches import one_hot
 
 
@@ -44,30 +40,14 @@ class Cafe(
     def __init__(
         self,
         *args,
-        cls_predictor_cfg: Dict[str, Any],
         multilabel_classifier: Optional[Dict[str, Any]] = None,
         multilabel_loss: Optional[Dict[str, Any]] = None,
-        topK: Optional[int] = None,
-        pre_fpn: Optional[Dict[str, Any]] = None,
         post_fpn: Optional[Dict[str, Any]] = None,
-        attn_weights_loss: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
 
         todd.init_iter()
-
-        # compat double heads
-        bbox_head: BBoxHead = self.roi_head.bbox_head
-        if not isinstance(bbox_head.fc_cls, (Classifier, ViLDClassifier)):
-            assert isinstance(bbox_head.fc_cls, nn.Linear)
-            bbox_head.fc_cls = LINEAR_LAYERS.build(
-                cls_predictor_cfg,
-                default_args=dict(
-                    in_features=bbox_head.fc_cls.in_features,
-                    out_features=bbox_head.fc_cls.out_features,
-                ),
-            )
 
         if multilabel_classifier is not None:
             self._multilabel_classifier: Classifier = LINEAR_LAYERS.build(
@@ -83,31 +63,12 @@ class Cafe(
         else:
             self._multilabel_loss = None
 
-        self._topK = topK
-
-        if pre_fpn is not None:
-            self._pre_fpn = PreFPN(
-                **pre_fpn,
-            )
-        else:
-            self._pre_fpn = None
-
         if post_fpn is not None:
             self._post_fpn = PostFPN(
-                hidden_channels=self._multilabel_classifier.embedding_dim,
                 **post_fpn,
             )
         else:
             self._post_fpn = None
-
-        if attn_weights_loss is not None:
-            self._attn_weights_gt_downsample: str = attn_weights_loss.pop('gt_downsample')
-            self._attn_weights_loss = todd.losses.LOSSES.build(
-                attn_weights_loss,
-            )
-        else:
-            self._attn_weights_gt_downsample = None
-            self._attn_weights_loss = None
 
     @property
     def num_classes(self) -> int:
@@ -118,31 +79,12 @@ class Cafe(
         logits: torch.Tensor = self._multilabel_classifier(feat)
         return logits
 
-    def _multilabel_topK_recall(
-        self,
-        topK_inds: torch.Tensor,
-        img_labels: torch.Tensor,
-        **kwargs,
-    ) -> torch.Tensor:
-        default_args = dict(
-            labels=torch.where(img_labels.sum(0))[0].cpu().numpy(),
-            average='macro',
-            zero_division=0,
-        )
-        default_args.update(kwargs)
-
-        preds = one_hot(topK_inds, self.num_classes)
-        recall = sklearn.metrics.recall_score(img_labels.cpu().numpy(), preds.cpu().numpy(), **default_args)
-        return torch.tensor(recall * 100, device=topK_inds.device)
-
     def _extract_feat(
         self,
         img: torch.Tensor,
     ) -> Tuple[
         Tuple[torch.Tensor],
         Optional[torch.Tensor],
-        Optional[torch.Tensor],
-        Optional[List[torch.Tensor]],
     ]:
         feats: Tuple[torch.Tensor, ...] = self.backbone(img)
 
@@ -151,38 +93,18 @@ class Cafe(
         else:
             multilabel_logits = None
 
-        if self._topK is not None:
-            assert multilabel_logits is not None
-            topK_logits, topK_inds = multilabel_logits.topk(self._topK)
-            ce: torch.Tensor = self._multilabel_classifier.embeddings[topK_inds]
-        else:
-            topK_logits, topK_inds = None, None
-
-        if self._pre_fpn is not None:
-            assert topK_logits is not None
-            assert ce is not None
-            feats = self._pre_fpn(feats, ce, topK_logits)
-
         assert self.with_neck
         feats = self.neck(feats)
 
         if self._post_fpn is not None:
-            assert topK_logits is not None
-            assert ce is not None
-            feats, masks = self._post_fpn(feats, ce, topK_logits)
-            masks = cast(List[torch.Tensor], masks)
-        else:
-            masks = None
+            feats = self._post_fpn(feats)
 
-        return feats, multilabel_logits, topK_inds, masks
+        return feats, multilabel_logits
 
     def _get_losses(
         self,
         gt_labels: List[torch.Tensor],
         multilabel_logits: Optional[torch.Tensor],
-        topK_inds: Optional[torch.Tensor],
-        masks: Optional[List[torch.Tensor]],
-        gt_masks_tensor: Optional[torch.Tensor],
     ) -> Dict[str, torch.Tensor]:
         losses: Dict[str, torch.Tensor] = dict()
 
@@ -196,39 +118,6 @@ class Cafe(
         )
         losses.update(loss_multilabel=multilabel_loss)
 
-        if topK_inds is None:
-            return losses
-
-        multilabel_topK_recall = self._multilabel_topK_recall(topK_inds, img_labels)
-        losses.update(recall_multilabel=multilabel_topK_recall)
-
-        if self._attn_weights_loss is None:
-            return losses
-
-        assert gt_masks_tensor is not None
-        assert self._attn_weights_gt_downsample is not None
-        assert masks is not None
-        i = einops.repeat(
-            torch.arange(topK_inds.shape[0], device=topK_inds.device),
-            'b -> b c',
-            c=topK_inds.shape[1],
-        )
-        gt_masks_tensor = gt_masks_tensor[i, topK_inds].float()
-        if self._attn_weights_gt_downsample == 'avg':
-            gt_masks_tensor = F.adaptive_avg_pool2d(gt_masks_tensor, masks[0].shape[-2:])
-        elif self._attn_weights_gt_downsample == 'max':
-            gt_masks_tensor = F.adaptive_max_pool2d(gt_masks_tensor, masks[0].shape[-2:])
-        elif self._attn_weights_gt_downsample == 'nearest':
-            gt_masks_tensor = F.interpolate(gt_masks_tensor, masks[0].shape[-2:])
-        else:
-            raise ValueError(self._attn_weights_gt_downsample)
-        losses.update(
-            loss_attn_weights=sum(
-                self._attn_weights_loss(mask, gt_masks_tensor)
-                for mask in masks
-            ),
-        )
-
         return losses
 
     def forward_train(
@@ -239,7 +128,6 @@ class Cafe(
         gt_labels: List[torch.Tensor],
         gt_bboxes_ignore: Optional[List[torch.Tensor]] = None,
         gt_masks: Optional[List[BitmapMasks]] = None,
-        gt_masks_tensor: Optional[torch.Tensor] = None,
         proposals=None,
         clip_image: Optional[torch.Tensor] = None,
         clip_patches: Optional[List[torch.Tensor]] = None,
@@ -249,9 +137,9 @@ class Cafe(
         todd.inc_iter()
         todd.globals_.training = True
 
-        feats, multilabel_logits, topK_inds, masks = self._extract_feat(img)
+        feats, multilabel_logits = self._extract_feat(img)
 
-        losses = self._get_losses(gt_labels, multilabel_logits, topK_inds, masks, gt_masks_tensor)
+        losses = self._get_losses(gt_labels, multilabel_logits)
 
         # RPN forward and loss
         if self.with_rpn:
@@ -323,7 +211,7 @@ class Cafe(
         todd.globals_.training = False
         assert self.with_bbox
 
-        feats, multilabel_logits, topK_inds, masks = self._extract_feat(img)
+        feats, multilabel_logits = self._extract_feat(img)
 
         if proposals is None:
             proposal_list = self.rpn_head.simple_test_rpn(feats, img_metas)
@@ -331,11 +219,7 @@ class Cafe(
             proposal_list = proposals
 
         if multilabel_logits is not None:
-            message = (multilabel_logits,)
-            if self._topK is not None:
-                _, topK_inds = multilabel_logits.topk(self.num_classes - self._topK, largest=False)
-                message = message + (topK_inds,)
-            context = todd.base.setattr_temp(self.roi_head, 'message', message)
+            context = todd.base.setattr_temp(self.roi_head, 'message', (multilabel_logits,))
         else:
             context = nullcontext()
 

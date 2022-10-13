@@ -1,6 +1,5 @@
 _base_ = [
     'one_hot',
-    'DyHeadBlock',
 ]
 
 from typing import Sequence, TypeGuard, Union
