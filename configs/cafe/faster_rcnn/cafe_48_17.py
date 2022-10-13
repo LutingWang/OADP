@@ -44,5 +44,5 @@ model = dict(
         ),
     ),
 )
-load_from='data/ckpts/soco_star_mask_rcnn_r50_fpn_400e.pth'
+load_from = 'data/ckpts/soco_star_mask_rcnn_r50_fpn_400e.pth'
 optimizer = dict(weight_decay=1e-4)

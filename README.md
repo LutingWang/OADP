@@ -38,3 +38,12 @@ python tools/train.py configs/cafe/faster_rcnn/cafe_48_17.py --work-dir work_dir
 # vild
 sh tools/odps_train.sh test_vild_nosync_ms configs/cafe/faster_rcnn/cafe_48_17.py 8
 ```
+
+```shell
+python tools/build_annotations.py
+python tools/filter_annotations.py
+```
+
+```shell
+python tools/train.py configs/cafe/rpn/rpn_r50_fpn_1x_coco.py --work-dir work_dirs/debug --seed 3407
+```

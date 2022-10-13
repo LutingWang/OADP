@@ -117,6 +117,15 @@ class CocoDataset4817(CocoDataset):
         max_dets: Optional[Tuple[int]] = (100, 300, 1000),
         gpu_collect=False,
     ) -> dict:
+        if metric == 'proposal_fast':
+            return super().evaluate(
+                results,
+                metric,
+                logger,
+                jsonfile_prefix,
+                False,
+                iou_thrs=iou_thrs,
+            )
         predictions = self._det2json(results)
 
         cocoGt = self.coco
