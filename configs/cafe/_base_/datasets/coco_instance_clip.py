@@ -14,10 +14,11 @@ train_pipeline = [
         images=dict(
             type='PthAccessLayer',
             data_root=data_root + 'embeddings',
+            with_patches=False,
         ),
         regions=dict(
             type='PthAccessLayer',
-            data_root=data_root + 'mask_embeddings',
+            data_root=data_root + 'vild_embeddings',
         ),
     ),
     dict(type='Resize', img_scale=(1333, 800), keep_ratio=True),
