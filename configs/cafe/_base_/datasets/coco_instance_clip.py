@@ -18,10 +18,15 @@ train_pipeline = [
         ),
         regions=dict(
             type='PthAccessLayer',
-            data_root=data_root + 'vild_embeddings',
+            data_root=data_root + 'proposal_embeddings8',
         ),
     ),
-    dict(type='Resize', img_scale=(1333, 800), keep_ratio=True),
+    dict(
+        type='Resize',
+        img_scale=[(1330, 640), (1333, 800)],
+        multiscale_mode='range',
+        keep_ratio=True,
+    ),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='Pad', size_divisor=32),

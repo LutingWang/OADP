@@ -108,6 +108,10 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
     def ensemble_mask(self) -> torch.Tensor:
         return self._ensemble_mask
 
+    @property
+    def with_mask(self) -> bool:
+        return todd.globals_.training and super().with_mask
+
     def _bbox_forward(
         self,
         x: List[torch.Tensor],

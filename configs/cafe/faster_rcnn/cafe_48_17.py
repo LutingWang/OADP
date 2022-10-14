@@ -12,6 +12,7 @@ _base_ = [
 
     '../_base_/datasets/coco_instance_clip.py',
     '../_base_/datasets/coco_48_17.py',
+    'mixins/mask.py',
     # 'mixins/post.py',
     'mixins/dcp.py',
 
@@ -24,11 +25,11 @@ model = dict(
         init_cfg=None,
     ),
     neck=dict(
-        # norm_cfg=dict(type='SyncBN', requires_grad=True),
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
     ),
     roi_head=dict(
         bbox_head=dict(
-            # norm_cfg=dict(type='SyncBN', requires_grad=True),
+            norm_cfg=dict(type='SyncBN', requires_grad=True),
             # norm_cfg=None,
         ),
     ),
