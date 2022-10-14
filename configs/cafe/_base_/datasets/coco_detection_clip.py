@@ -18,7 +18,7 @@ train_pipeline = [
         ),
         regions=dict(
             type='PthAccessLayer',
-            data_root=data_root + 'proposal_embeddings8',
+            data_root=data_root + 'vild_embeddings',
         ),
     ),
     dict(type='Resize', img_scale=(1333, 800), keep_ratio=True),
