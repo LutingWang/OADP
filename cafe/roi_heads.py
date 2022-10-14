@@ -101,7 +101,7 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
         classifier: Classifier = self._image_head.fc_cls
         classifier._bg_embedding.requires_grad_(False)
         ensemble_mask = torch.ones(classifier.num_classes + 1) / 3
-        ensemble_mask[classifier.num_base_classes:classifier.num_classes] *= 2
+        ensemble_mask[:classifier.num_base_classes] *= 2
         self.register_buffer('_ensemble_mask', ensemble_mask, persistent=False)
 
     @property
