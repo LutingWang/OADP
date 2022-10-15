@@ -24,7 +24,7 @@ from mmdet.utils import (build_ddp, build_dp, compat_cfg, get_device,
 
 sys.path.insert(0, '')
 import cafe
-from mldec import debug, odps_init
+from mldec import debug, odps_init, k8s_init
 
 
 def parse_args():
@@ -33,6 +33,7 @@ def parse_args():
     parser.add_argument('config', help='test config file path')
     parser.add_argument('checkpoint', help='checkpoint file')
     parser.add_argument('--odps', action=todd.base.DictAction)
+    parser.add_argument('--k8s', action=todd.base.DictAction)
     parser.add_argument(
         '--work-dir',
         help='the directory to save the file containing evaluation metrics')
@@ -130,6 +131,8 @@ def main():
 
     if args.odps is not None:
         odps_init(args.odps)
+    if args.k8s is not None:
+        k8s_init(args.k8s)
 
     assert args.out or args.eval or args.format_only or args.show \
         or args.show_dir, \
