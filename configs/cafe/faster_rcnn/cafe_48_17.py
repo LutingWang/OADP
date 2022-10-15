@@ -14,7 +14,9 @@ _base_ = [
     '../_base_/datasets/coco_48_17.py',
     # 'mixins/mask.py',
     # 'mixins/post.py',
+    'mixins/multilabel_48_17.py',
     'mixins/dcp.py',
+    'mixins/dci.py',
 
 ]
 
@@ -47,7 +49,15 @@ model = dict(
     ),
 )
 load_from = 'data/ckpts/soco_star_mask_rcnn_r50_fpn_400e.pth'
-optimizer = dict(weight_decay=2.5e-5)
+optimizer = dict(
+    weight_decay=2.5e-5,
+    paramwise_cfg=dict(
+        custom_keys={
+            'neck': dict(lr_mult=0.1),
+            'roi_head.bbox_head': dict(lr_mult=0.5),
+        },
+    ),
+)
 
 # runner = dict(max_epochs=6)
 # lr_config = dict(step=[4])

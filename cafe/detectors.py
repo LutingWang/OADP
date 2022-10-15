@@ -79,47 +79,6 @@ class Cafe(
         logits: torch.Tensor = self._multilabel_classifier(feat)
         return logits
 
-    def _extract_feat(
-        self,
-        img: torch.Tensor,
-    ) -> Tuple[
-        Tuple[torch.Tensor],
-        Optional[torch.Tensor],
-    ]:
-        feats: Tuple[torch.Tensor, ...] = self.backbone(img)
-
-        if self._multilabel_classifier is not None:
-            multilabel_logits = self._multilabel_classify(feats)
-        else:
-            multilabel_logits = None
-
-        assert self.with_neck
-        feats = self.neck(feats)
-
-        if self._post_fpn is not None:
-            feats = self._post_fpn(feats)
-
-        return feats, multilabel_logits
-
-    def _get_losses(
-        self,
-        gt_labels: List[torch.Tensor],
-        multilabel_logits: Optional[torch.Tensor],
-    ) -> Dict[str, torch.Tensor]:
-        losses: Dict[str, torch.Tensor] = dict()
-
-        if multilabel_logits is None:
-            return losses
-
-        img_labels = one_hot(gt_labels, self.num_classes)
-        multilabel_loss: torch.Tensor = self._multilabel_loss(
-            multilabel_logits.sigmoid(),
-            img_labels,
-        )
-        losses.update(loss_multilabel=multilabel_loss)
-
-        return losses
-
     def forward_train(
         self,
         img: torch.Tensor,
@@ -137,9 +96,9 @@ class Cafe(
         todd.inc_iter()
         todd.globals_.training = True
 
-        feats, multilabel_logits = self._extract_feat(img)
+        feats = self.extract_feat(img)
 
-        losses = self._get_losses(gt_labels, multilabel_logits)
+        losses = dict()
 
         # RPN forward and loss
         if self.with_rpn:
@@ -160,20 +119,25 @@ class Cafe(
         else:
             proposal_list = proposals
 
-        # TODO: design a switch for this
-        if multilabel_logits is not None:
-            context = todd.setattr_temp(self.roi_head, 'message', (multilabel_logits,))
-        else:
-            context = nullcontext()
-
-        with context:
-            roi_losses = self.roi_head.forward_train(
-                feats, img_metas, proposal_list,
-                gt_bboxes, gt_labels,
-                gt_bboxes_ignore, gt_masks,
-                **kwargs,
-            )
+        roi_losses = self.roi_head.forward_train(
+            feats, img_metas, proposal_list,
+            gt_bboxes, gt_labels,
+            gt_bboxes_ignore, gt_masks,
+            **kwargs,
+        )
         losses.update(roi_losses)
+
+        if self._post_fpn is not None:
+            feats = self._post_fpn(feats)
+
+        if self._multilabel_classifier is not None:
+            multilabel_logits = self._multilabel_classify(feats)
+            img_labels = one_hot(gt_labels, self.num_classes)
+            multilabel_loss: torch.Tensor = self._multilabel_loss(
+                multilabel_logits.sigmoid(),
+                img_labels,
+            )
+            losses.update(loss_multilabel=multilabel_loss)
 
         distiller = cast(todd.distillers.DistillableProto, self).distiller
         distiller_spec = distiller.spec()
@@ -209,21 +173,26 @@ class Cafe(
         rescale: bool = False,
     ):
         todd.globals_.training = False
-        assert self.with_bbox
 
-        feats, multilabel_logits = self._extract_feat(img)
-
+        assert self.with_bbox, 'Bbox head must be implemented.'
+        feats = self.extract_feat(img)
         if proposals is None:
             proposal_list = self.rpn_head.simple_test_rpn(feats, img_metas)
         else:
             proposal_list = proposals
 
-        if multilabel_logits is not None:
-            context = todd.base.setattr_temp(self.roi_head, 'message', (multilabel_logits,))
+        if self._post_fpn is not None:
+            image_feats = self._post_fpn(feats)
+            if self._multilabel_classifier is not None:
+                pass
+            feats = [torch.stack(feat) for feat in zip(feats, image_feats)]
         else:
-            context = nullcontext()
+            if self._multilabel_classifier is not None:
+                pass
 
-        with context:
-            return self.roi_head.simple_test(
-                feats, proposal_list, img_metas, rescale=rescale,
-            )
+        return self.roi_head.simple_test(
+            feats,
+            proposal_list,
+            img_metas,
+            rescale=rescale,
+        )

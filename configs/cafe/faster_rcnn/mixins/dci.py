@@ -14,7 +14,7 @@ model = dict(
                 weight=dict(
                     type='WarmupScheduler',
                     value=2,
-                    iter_=1000,
+                    iter_=200,
                 ),
                 reduction='sum',
             ),

@@ -2,7 +2,7 @@ model = dict(
     multilabel_classifier=dict(
         type='Classifier',
         pretrained='data/coco/prompt/prompt1.pth',
-        in_features=2048,
+        in_features=256,
         out_features=80,
         split='COCO',
     ),
