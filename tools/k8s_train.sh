@@ -23,7 +23,6 @@ PY_ARGS="${PY_ARGS} --work-dir work_dirs/${JOB_NAME} --launcher pytorch --k8s"
 
 python -m torch.distributed.launch --nproc_per_node=${GPUS} --master_port=${PORT:-23451} tools/train.py ${CONFIG} ${PY_ARGS}
 
-rm data pretrained work_dirs
 
 # PROJECT_NAME=${PROJECT_NAME:-mldec}
 # ENTRY_FILE=${ENTRY_FILE:-tools/train.py}

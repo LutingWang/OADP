@@ -22,6 +22,7 @@ model = dict(
     type='Cafe',
     backbone=dict(
         style='caffe',
+        frozen_stages=4,
         init_cfg=None,
     ),
     neck=dict(
