@@ -12,7 +12,7 @@ _base_ = [
 
     '../_base_/datasets/coco_instance_clip.py',
     '../_base_/datasets/coco_48_17.py',
-    'mixins/mask.py',
+    # 'mixins/mask.py',
     # 'mixins/post.py',
     'mixins/dcp.py',
 
@@ -47,5 +47,30 @@ model = dict(
 )
 load_from = 'data/ckpts/soco_star_mask_rcnn_r50_fpn_400e.pth'
 optimizer = dict(weight_decay=2.5e-5)
-runner = dict(max_epochs=6)
-lr_config = dict(step=[4])
+
+# runner = dict(max_epochs=6)
+# lr_config = dict(step=[4])
+runner = dict(
+    _delete_=True,
+    type='IterBasedRunner',
+    max_iters=40000,
+)
+lr_config = dict(
+    by_epoch=False,
+    step=[30000],
+)
+log_config = dict(
+    hooks=[
+        dict(type='TextLoggerHook', by_epoch=False),
+    ],
+)
+interval = 2000
+workflow = [('train', interval)]
+checkpoint_config = dict(
+    by_epoch=False,
+    interval=interval * 2,
+    save_last=True,
+)
+evaluation = dict(
+    interval=interval,
+)

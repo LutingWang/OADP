@@ -1,9 +1,9 @@
 pycocotools
 # todd_ai==0.2.4a1
-http://mvap-data.oss-cn-zhangjiakou.aliyuncs.com/zhax/wangluting/wheels3/todd_ai-0.2.4a1-py3-none-any.whl
+http://mvap-data.oss-cn-zhangjiakou.aliyuncs.com/zhax/wangluting1/wheels4/todd_ai-0.2.4a1-py3-none-any.whl
 ftfy
 mmdet==2.25.2
-http://mvap-data.oss-cn-zhangjiakou.aliyuncs.com/zhax/wangluting/wheels3/pytorch180/mmcv_full-1.4.6-cp36-cp36m-linux_x86_64.whl
+http://mvap-data.oss-cn-zhangjiakou.aliyuncs.com/zhax/wangluting1/wheels4/pytorch180/mmcv_full-1.4.6-cp36-cp36m-linux_x86_64.whl
 regex
 tqdm
 ipdb

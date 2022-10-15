@@ -143,6 +143,9 @@ def main():
     if debug.DRY_RUN:
         cfg.data.workers_per_gpu = 0
         cfg.log_config.interval = 1
+        cfg.workflow[0] = ('train', 3)
+        cfg.checkpoint_config.interval = 6
+        cfg.evaluation.interval = 3
 
     if args.auto_scale_lr:
         if 'auto_scale_lr' in cfg and \
