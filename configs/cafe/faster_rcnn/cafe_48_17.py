@@ -12,8 +12,8 @@ _base_ = [
 
     '../_base_/datasets/coco_instance_clip.py',
     '../_base_/datasets/coco_48_17.py',
-    # 'mixins/mask.py',
-    # 'mixins/post.py',
+    'mixins/mask.py',
+    'mixins/post.py',
     'mixins/multilabel_48_17.py',
     'mixins/dcp.py',
     'mixins/dci.py',
@@ -24,7 +24,7 @@ model = dict(
     type='Cafe',
     backbone=dict(
         style='caffe',
-        frozen_stages=4,
+        # frozen_stages=4,
         init_cfg=None,
     ),
     neck=dict(
@@ -64,11 +64,11 @@ optimizer = dict(
 runner = dict(
     _delete_=True,
     type='IterBasedRunner',
-    max_iters=40000,
+    max_iters=60000,
 )
 lr_config = dict(
     by_epoch=False,
-    step=[30000],
+    step=[30000, 50000],
 )
 log_config = dict(
     hooks=[
