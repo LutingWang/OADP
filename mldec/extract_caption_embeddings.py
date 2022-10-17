@@ -26,9 +26,9 @@ def main() -> None:
     debug.init()
 
     if debug.CPU:
-        model, _ = clip.load('ViT-B/32', 'cpu')
+        model, _ = clip.load('pretrained/clip/ViT-B-32.pt', 'cpu')
     else:
-        model, _ = clip.load('ViT-B/32')
+        model, _ = clip.load('pretrained/clip/ViT-B-32.pt')
 
     embeddings_root = pathlib.Path('data/coco/caption_embeddings/')
     train_embeddings_root = embeddings_root / 'train'
