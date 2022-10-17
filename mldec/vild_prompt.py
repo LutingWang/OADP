@@ -8,6 +8,7 @@ import einops
 import tqdm
 
 import todd
+import mldec
 
 
 prompts = [
@@ -134,12 +135,7 @@ if __name__ == '__main__':
         clip_model=clip_model,
     )
 
-    # class_names = getattr(datasets, args.split)
-    class_names = ['aerosol_can', 'air_conditioner', 'airplane', 'alarm_clock', 'alcohol',
-        'alligator', 'almond', 'ambulance', 'amplifier', 'anklet', 'antenna',
-        'apple', 'applesauce', 'apricot', 'apron', 'aquarium',
-        'arctic_(type_of_shoe)', 'armband', 'armchair', 'armoire', 'armor',
-        'artichoke', 'trash_can', 'ashtray', 'asparagus', 'atomizer',]
+    class_names = getattr(mldec, args.split)
 
     embeddings_list = []
     with torch.no_grad():
@@ -156,4 +152,4 @@ if __name__ == '__main__':
         embeddings=sum(embeddings_list) / len(embeddings_list),
         names=class_names,
     )
-    torch.save(state_dict, 'data/coco/prompt/vild_coco.pth.tmp')
+    torch.save(state_dict, 'data/coco/prompt/vild_lvis.pth')
