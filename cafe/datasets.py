@@ -8,6 +8,7 @@ _base_ = [
 import contextlib
 import io
 import logging
+import random
 from typing import Any, Dict, Optional, Tuple
 
 from mmcv.parallel import DataContainer as DC
@@ -157,20 +158,23 @@ class LoadCLIPFeatures:
         task_name: str,
         images: Dict[str, Any],
         regions: Dict[str, Any],
+        captions: Dict[str, Any],
     ) -> None:
         assert task_name in ['train', 'val']
         self._task_name = task_name
         self._load_image_patches = images.pop('with_patches')
         self._images = todd.datasets.ACCESS_LAYERS.build(images, default_args=dict(task_name=task_name))
         self._regions = todd.datasets.ACCESS_LAYERS.build(regions, default_args=dict(task_name=task_name))
+        self._captions = todd.datasets.ACCESS_LAYERS.build(captions, default_args=dict(task_name=task_name))
 
     def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
         key = f'{results["img_info"]["id"]:012d}'
         if debug.DRY_RUN:
             key = '000000000139'
         image = self._images[key]
-        results['clip_image'] = image['image'].squeeze(0)
         regions = self._regions[key]
+        captions = self._captions[key]
+
         if self._load_image_patches:
             clip_patches = torch.cat([image['patches'], regions['patches']])
             clip_bboxes = torch.cat([image['bboxes'], regions['bboxes']])
@@ -178,7 +182,10 @@ class LoadCLIPFeatures:
             clip_patches = regions['patches']
             clip_bboxes = regions['bboxes']
         inds = (clip_bboxes[:, 2] > clip_bboxes[:, 0] + 4) & (clip_bboxes[:, 3] > clip_bboxes[:, 1] + 4)  # TODO: update with todd
+
+        results['clip_image'] = image['image'].squeeze(0)
         results['clip_patches'] = clip_patches[inds]
         results['clip_bboxes'] = clip_bboxes[inds].float().numpy()
+        results['clip_captions'] = captions[random.randint(0, captions.shape[0] - 1)]
         results['bbox_fields'].append('clip_bboxes')
         return results

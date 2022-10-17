@@ -43,6 +43,7 @@ class Cafe(
         multilabel_classifier: Optional[Dict[str, Any]] = None,
         multilabel_loss: Optional[Dict[str, Any]] = None,
         post_fpn: Optional[Dict[str, Any]] = None,
+        caption_loss: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -70,6 +71,13 @@ class Cafe(
         else:
             self._post_fpn = None
 
+        if caption_loss is not None:
+            self._caption_loss = todd.losses.LOSSES.build(
+                caption_loss,
+            )
+        else:
+            self._caption_loss = None
+
     @property
     def num_classes(self) -> int:
         return self._multilabel_classifier.num_classes
@@ -91,6 +99,7 @@ class Cafe(
         clip_image: Optional[torch.Tensor] = None,
         clip_patches: Optional[List[torch.Tensor]] = None,
         clip_bboxes: Optional[List[torch.Tensor]] = None,
+        clip_captions: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Dict[str, torch.Tensor]:
         todd.inc_iter()
@@ -157,6 +166,9 @@ class Cafe(
                     feats, clip_rois,
                 ),
             )
+        if 'clip_captions' in distiller_spec.inputs:
+            assert clip_captions is not None
+            custom_tensors.update(clip_captions=clip_captions.float())
 
         if len(distiller_spec.outputs) > 0:
             distill_losses = distiller.distill(custom_tensors)

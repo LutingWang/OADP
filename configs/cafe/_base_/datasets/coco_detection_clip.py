@@ -20,8 +20,17 @@ train_pipeline = [
             type='PthAccessLayer',
             data_root=data_root + 'vild_embeddings',
         ),
+        captions=dict(
+            type='PthAccessLayer',
+            data_root=data_root + 'caption_embeddings',
+        ),
     ),
-    dict(type='Resize', img_scale=(1333, 800), keep_ratio=True),
+    dict(
+        type='Resize',
+        img_scale=[(1330, 640), (1333, 800)],
+        multiscale_mode='range',
+        keep_ratio=True,
+    ),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='Pad', size_divisor=32),
@@ -38,6 +47,7 @@ train_pipeline = [
         'clip_image',
         'clip_patches',
         'clip_bboxes',
+        'clip_captions',
     ]),
 ]
 data = dict(train=dict(pipeline=train_pipeline))

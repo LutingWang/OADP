@@ -7,8 +7,10 @@ from abc import ABC, abstractmethod
 import logging
 import pathlib
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+import einops.layers.torch
 import torch
+import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data as data
 import torch.distributed as dist
@@ -336,3 +338,48 @@ class TrainerMixin(BaseRunner):
             if end:
                 break
         return self._after_train(*args, memo=memo, **kwargs)
+
+
+@todd.losses.LOSSES.register_module()
+class HierGKDLoss(todd.losses.functional.CrossEntropyLoss):
+
+    def __init__(self, *args, temperature=10.0, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._embed = nn.Sequential(
+            nn.AdaptiveMaxPool2d((3, 3)),
+            einops.layers.torch.Rearrange('b c h w -> b c (h w)', h=3, w=3),
+        )
+        self._temperature = temperature
+
+    def forward(
+        self,
+        preds: List[torch.Tensor],
+        targets: torch.Tensor,
+        *args,
+        **kwargs,
+    ) -> torch.Tensor:
+        """Compute HierKD GKD loss.
+
+        Refer to http://arxiv.org/abs/2203.10593.
+
+        Args:
+            preds: [b x c x h x w]
+            targets: b x c
+
+        Returns:
+            loss: 1
+        """
+        preds = list(map(self._embed, preds))
+        fused_preds = F.normalize(torch.cat(preds, -1))
+        attn_weights: torch.Tensor = torch.einsum('a c, b c n -> a b n', targets, fused_preds)
+        attn_weights = attn_weights.softmax(-1)
+        values = torch.einsum('a b n, b c n -> a c b', attn_weights, fused_preds)
+        values = F.normalize(values)
+        logits: torch.Tensor = torch.einsum('a c, a c b -> a b', targets, values)
+        assert logits.shape[0] == logits.shape[1]
+        logits = self._temperature * logits
+        cl_targets = torch.arange(logits.shape[0], device=logits.device)
+        return (
+            super().forward(logits, cl_targets, *args, **kwargs)
+            + super().forward(logits.T, cl_targets, *args, **kwargs)
+        )

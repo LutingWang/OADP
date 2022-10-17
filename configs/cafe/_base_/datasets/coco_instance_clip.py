@@ -20,6 +20,10 @@ train_pipeline = [
             type='PthAccessLayer',
             data_root=data_root + 'proposal_embeddings8',
         ),
+        captions=dict(
+            type='PthAccessLayer',
+            data_root=data_root + 'caption_embeddings',
+        ),
     ),
     dict(
         type='Resize',
@@ -44,6 +48,7 @@ train_pipeline = [
         'clip_image',
         'clip_patches',
         'clip_bboxes',
+        'clip_captions',
     ]),
 ]
 data = dict(train=dict(pipeline=train_pipeline))
