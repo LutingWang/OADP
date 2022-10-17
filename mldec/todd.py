@@ -21,6 +21,12 @@ import todd
 
 from .debug import debug
 
+# fix logging format
+import lvis
+logger = logging.getLogger()
+for handler in logger.handlers:
+    logger.removeHandler(handler)
+
 
 class BaseRunner(ABC):
 
