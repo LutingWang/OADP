@@ -52,8 +52,11 @@ def build(data_file: str, split: str, num_base_classes: Optional[int] = None) ->
 
 
 def main() -> None:
-    build('data/coco/annotations/instances_train2017.json', 'COCO_48_17', 48)
-    build('data/coco/annotations/instances_val2017.json', 'COCO_48_17', 48)
+    # build('data/coco/annotations/instances_train2017.json', 'COCO_48_17', 48)
+    # build('data/coco/annotations/instances_val2017.json', 'COCO_48_17', 48)
+
+    build('data/lvis_v1/annotations/lvis_v1_train.json', 'LVIS', 866)
+    build('data/lvis_v1/annotations/lvis_v1_val.json', 'LVIS', 866)
 
 
 if __name__ == '__main__':

@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional, Tuple
 from mmcv.parallel import DataContainer as DC
 from mmcv.utils import print_log
 from mmdet.core import BitmapMasks
-from mmdet.datasets import PIPELINES, DATASETS, CocoDataset as _CocoDataset, CustomDataset
+from mmdet.datasets import PIPELINES, DATASETS, CocoDataset as _CocoDataset, LVISV1Dataset as _LVISV1Dataset, CustomDataset
 from mmdet.datasets.pipelines import LoadAnnotations as _LoadAnnotations
 from mmdet.datasets.api_wrappers import COCOeval
 import numpy as np
@@ -148,6 +148,31 @@ class CocoDataset4817(CocoDataset):
         eval_results.update(self.summarize(cocoEval, logger, split_name='coco 17'))
 
         return eval_results
+
+
+@DATASETS.register_module(force=True)
+class LVISV1Dataset(DebugMixin, _LVISV1Dataset):
+
+    def load_annotations(self, *args, **kwargs):
+        data_infos = super().load_annotations(*args, **kwargs)
+        if debug.DRY_RUN:
+            self.coco.dataset['images'] = \
+                self.coco.dataset['images'][:len(self)]
+            self.img_ids = [img['id'] for img in self.coco.dataset['images']]
+            self.coco.dataset['annotations'] = [
+                ann for ann in self.coco.dataset['annotations']
+                if ann['image_id'] in self.img_ids
+            ]
+            self.coco.imgs = {
+                img['id']: img
+                for img in self.coco.dataset['images']
+            }
+        return data_infos
+
+
+@DATASETS.register_module()
+class LVISV1Dataset866337(LVISV1Dataset):
+    CLASSES = mldec.LVIS
 
 
 @PIPELINES.register_module()
