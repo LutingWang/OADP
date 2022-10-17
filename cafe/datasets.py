@@ -185,7 +185,13 @@ class LoadCLIPFeatures:
         regions: Dict[str, Any],
         captions: Dict[str, Any],
     ) -> None:
-        assert task_name in ['train', 'val']
+        if task_name in ['train', 'val']:
+            self._dataset = 'coco'
+        elif task_name == '':
+            self._dataset = 'lvis'
+        else:
+            assert False, task_name
+
         self._task_name = task_name
         self._load_image_patches = images.pop('with_patches')
         self._images = todd.datasets.ACCESS_LAYERS.build(images, default_args=dict(task_name=task_name))
@@ -193,9 +199,15 @@ class LoadCLIPFeatures:
         self._captions = todd.datasets.ACCESS_LAYERS.build(captions, default_args=dict(task_name=task_name))
 
     def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
-        key = f'{results["img_info"]["id"]:012d}'
-        if debug.DRY_RUN:
-            key = '000000000139'
+        if self._dataset == 'coco':
+            key = f'{results["img_info"]["id"]:012d}'
+            if debug.DRY_RUN:
+                key = '000000000139'
+        elif self._dataset == 'lvis':
+            key = results['img_info']['filename'][:-4].replace('2017', '')
+            if debug.DRY_RUN:
+                key = 'val/000000000139'
+
         image = self._images[key]
         regions = self._regions[key]
         captions = self._captions[key]

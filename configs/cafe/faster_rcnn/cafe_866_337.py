@@ -5,8 +5,10 @@ _base_ = [
     '../_base_/default_runtime.py',
     'mixins/classifier_866_337.py',
 
-    '../_base_/datasets/lvis_instance.py',
+    '../_base_/datasets/lvis_detection_clip.py',
     '../_base_/datasets/lvis_866_337.py',
+
+    'mixins/dcp.py',
 ]
 
 model = dict(
