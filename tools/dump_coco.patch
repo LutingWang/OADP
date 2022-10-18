@@ -1,5 +1,5 @@
 diff --git a/detectron2/modeling/meta_arch/clip_rcnn.py b/detectron2/modeling/meta_arch/clip_rcnn.py
-index 56524bd..2c1902b 100644
+index 2df36cd..a58c009 100644
 --- a/detectron2/modeling/meta_arch/clip_rcnn.py
 +++ b/detectron2/modeling/meta_arch/clip_rcnn.py
 @@ -1,8 +1,10 @@
@@ -46,7 +46,7 @@ index 56524bd..2c1902b 100644
              processed_results.append({"instances": r})
          return processed_results
 diff --git a/detectron2/modeling/roi_heads/fast_rcnn.py b/detectron2/modeling/roi_heads/fast_rcnn.py
-index 1f46b59..902cefd 100644
+index ae7d196..902cefd 100644
 --- a/detectron2/modeling/roi_heads/fast_rcnn.py
 +++ b/detectron2/modeling/roi_heads/fast_rcnn.py
 @@ -1,6 +1,7 @@
@@ -57,16 +57,180 @@ index 1f46b59..902cefd 100644
  import torch
  from fvcore.nn import giou_loss, smooth_l1_loss
  from torch import nn
-@@ -704,6 +705,9 @@ class FastRCNNOutputLayers(nn.Module):
+@@ -89,7 +90,7 @@ def fast_rcnn_inference(
+     """
+     result_per_image = [
+         fast_rcnn_inference_single_image(
+-            boxes_per_image, scores_per_image, image_shape, score_thresh, nms_thresh, 
++            boxes_per_image, scores_per_image, image_shape, score_thresh, nms_thresh,
+             soft_nms_enabled, soft_nms_method, soft_nms_sigma, soft_nms_prune, topk_per_image, s_bf_per_img, vis
+         )
+         for scores_per_image, boxes_per_image, image_shape, s_bf_per_img in zip(scores, boxes, image_shapes, scores_bf_multiply)
+@@ -193,7 +194,7 @@ def fast_rcnn_inference_single_image(
+             nms_thresh,
+             soft_nms_prune,
+         )
+-        scores[keep] = soft_nms_scores   
++        scores[keep] = soft_nms_scores
+         # scores_bf_multiply? (TBD)
+         scores_bf_multiply = scores
+     if topk_per_image >= 0:
+@@ -205,7 +206,7 @@ def fast_rcnn_inference_single_image(
+     result.pred_boxes = Boxes(boxes)
+     result.scores = scores
+     if vis: # visualization: convert to the original scores before multiplying RPN scores
+-        result.scores = scores_bf_multiply         
++        result.scores = scores_bf_multiply
+     result.pred_classes = filter_inds[:, 1]
+     return result, filter_inds[:, 0]
+ 
+@@ -437,7 +438,7 @@ class FastRCNNOutputLayers(nn.Module):
+         if isinstance(input_shape, int):  # some backward compatibility
+             input_shape = ShapeSpec(channels=input_shape)
+         input_size = input_shape.channels * (input_shape.width or 1) * (input_shape.height or 1)
+-                    
++
+         self.use_clip_cls_emb = clip_cls_emb[0]
+         if self.use_clip_cls_emb: # use CLIP text embeddings as classifier's weights
+             input_size = clip_cls_emb[3] if clip_cls_emb[2] in ['CLIPRes5ROIHeads', 'CLIPStandardROIHeads'] else input_size
+@@ -446,7 +447,7 @@ class FastRCNNOutputLayers(nn.Module):
+             self.temperature = openset_test[2] # 0.01 is default for CLIP
+ 
+             # class embedding
+-            self.cls_score = nn.Linear(input_size, num_classes, bias=self.use_bias)  
++            self.cls_score = nn.Linear(input_size, num_classes, bias=self.use_bias)
+             with torch.no_grad():
+                 if clip_cls_emb[1] is not None: # it could be None during region feature extraction
+                     pre_computed_w = torch.load(clip_cls_emb[1])  # [num_classes, 1024] for RN50
+@@ -454,31 +455,31 @@ class FastRCNNOutputLayers(nn.Module):
+                 self.cls_score.weight.requires_grad = text_emb_require_grad # freeze embeddings
+                 if self.use_bias:
+                     nn.init.constant_(self.cls_score.bias, 0)
+-            
++
+             # background embedding
+-            self.cls_bg_score = nn.Linear(input_size, 1, bias=self.use_bias)  
++            self.cls_bg_score = nn.Linear(input_size, 1, bias=self.use_bias)
+             with torch.no_grad():
+                 nn.init.constant_(self.cls_bg_score.weight, 0)  # zero embeddings
+                 self.cls_bg_score.weight.requires_grad = text_emb_require_grad
+                 if self.use_bias:
+                     nn.init.constant_(self.cls_bg_score.bias, 0)
+ 
+-            # class embedding during test 
++            # class embedding during test
+             self.test_cls_score = None
+             if openset_test[1] is not None:  # openset test enabled
+                 pre_computed_w = torch.load(openset_test[1])  # [#openset_test_num_cls, 1024] for RN50
+                 self.openset_test_num_cls = pre_computed_w.size(0)
+-                self.test_cls_score = nn.Linear(input_size, self.openset_test_num_cls, bias=self.use_bias)  
++                self.test_cls_score = nn.Linear(input_size, self.openset_test_num_cls, bias=self.use_bias)
+                 self.test_cls_score.weight.requires_grad = False # freeze embeddings
+                 with torch.no_grad():
+                     self.test_cls_score.weight.copy_(pre_computed_w)
+                     if self.use_bias:
+-                        nn.init.constant_(self.test_cls_score.bias, 0)    
+-        else: # regular classification layer  
++                        nn.init.constant_(self.test_cls_score.bias, 0)
++        else: # regular classification layer
+             self.cls_score = nn.Linear(input_size, num_classes + 1) # one background class (hence + 1)
+             nn.init.normal_(self.cls_score.weight, std=0.01)
+             nn.init.constant_(self.cls_score.bias, 0)
+- 
++
+         # box regression layer
+         num_bbox_reg_classes = 1 if cls_agnostic_bbox_reg else num_classes
+         box_dim = len(box2box_transform.weights)
+@@ -496,7 +497,7 @@ class FastRCNNOutputLayers(nn.Module):
+         self.no_box_delta = no_box_delta  # box delta after regression
+         self.multiply_rpn_score = multiply_rpn_score[0]
+         self.vis = multiply_rpn_score[1] # if enabled, visualize scores before multiplying RPN scores
+-        
++
+     @classmethod
+     def from_config(cls, cfg, input_shape):
+         # if cfg.MODEL.CLIP.CROP_REGION_TYPE == "RPN":
+@@ -542,21 +543,21 @@ class FastRCNNOutputLayers(nn.Module):
+         """
+         if x.dim() > 2:
+             x = torch.flatten(x, start_dim=1)
+-        
++
+         # use clip text embeddings as classifier's weights
+-        if self.use_clip_cls_emb: 
++        if self.use_clip_cls_emb:
+             normalized_x = F.normalize(x, p=2.0, dim=1)
+              # open-set inference enabled
+-            if not self.training and self.test_cls_score is not None: 
++            if not self.training and self.test_cls_score is not None:
+                 cls_scores = normalized_x @ F.normalize(self.test_cls_score.weight, p=2.0, dim=1).t()
+                 if self.use_bias:
+                     cls_scores += self.test_cls_score.bias
+             # training or closed-set model inference
+-            else: 
++            else:
+                 cls_scores = normalized_x @ F.normalize(self.cls_score.weight, p=2.0, dim=1).t()
+                 if self.use_bias:
+                     cls_scores += self.cls_score.bias
+-            
++
+             # background class (zero embeddings)
+             bg_score = self.cls_bg_score(normalized_x)
+             if self.use_bias:
+@@ -565,9 +566,9 @@ class FastRCNNOutputLayers(nn.Module):
+             scores = torch.cat((cls_scores, bg_score), dim=1)
+             scores = scores / self.temperature
+         # regular classifier
+-        else:  
++        else:
+             scores = self.cls_score(x)
+-        
++
+         # box regression
+         proposal_deltas = self.bbox_pred(x)
+         return scores, proposal_deltas
+@@ -605,13 +606,13 @@ class FastRCNNOutputLayers(nn.Module):
+             )
+         else:
+             proposal_boxes = gt_boxes = torch.empty((0, 4), device=proposal_deltas.device)
+-        
++
+         # loss weights
+         if self.cls_loss_weight is not None and self.cls_loss_weight.device != scores.device:
+             self.cls_loss_weight = self.cls_loss_weight.to(scores.device)
+         if self.focal_scaled_loss is not None:
+             loss_cls = self.focal_loss(scores, gt_classes, gamma=self.focal_scaled_loss)
+-        else:    
++        else:
+             loss_cls = cross_entropy(scores, gt_classes, reduction="mean") if self.cls_loss_weight is None else \
+                        cross_entropy(scores, gt_classes, reduction="mean", weight=self.cls_loss_weight)
+         losses = {
+@@ -626,7 +627,7 @@ class FastRCNNOutputLayers(nn.Module):
+         """Inspired by RetinaNet implementation"""
+         if targets.numel() == 0 and reduction == "mean":
+             return input.sum() * 0.0  # connect the gradient
+-        
++
+         # focal scaling
+         ce_loss = F.cross_entropy(inputs, targets, reduction="none")
+         p = F.softmax(inputs, dim=-1)
+@@ -704,7 +705,10 @@ class FastRCNNOutputLayers(nn.Module):
          scores = self.predict_probs(predictions, proposals)
          image_shapes = [x.image_size for x in proposals]
  
+-        # optional: multiply class scores with RPN scores 
 +        todd.globals_.scores = predictions[0][:, :-1]
 +        todd.globals_.bboxes = boxes[0]
 +
-         # optional: multiply class scores with RPN scores
++        # optional: multiply class scores with RPN scores
          scores_bf_multiply = scores  # as a backup for visualization purpose
          if self.multiply_rpn_score and not self.training:
+             rpn_scores = [p.get('objectness_logits') for p in proposals]
+@@ -809,4 +813,3 @@ class FastRCNNOutputLayers(nn.Module):
+         num_inst_per_image = [len(p) for p in proposals]
+         probs = F.softmax(scores, dim=-1)
+         return probs.split(num_inst_per_image, dim=0)
+-
 diff --git a/test_transfer_learning.sh b/test_transfer_learning.sh
 index 635e3a5..5fd96e8 100644
 --- a/test_transfer_learning.sh
