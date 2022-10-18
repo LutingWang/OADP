@@ -1,0 +1,120 @@
+diff --git a/detectron2/modeling/meta_arch/clip_rcnn.py b/detectron2/modeling/meta_arch/clip_rcnn.py
+index 56524bd..d9a4891 100644
+--- a/detectron2/modeling/meta_arch/clip_rcnn.py
++++ b/detectron2/modeling/meta_arch/clip_rcnn.py
+@@ -1,8 +1,10 @@
+ # Copyright (c) Facebook, Inc. and its affiliates.
+ import logging
++import os
+ import numpy as np
+ from typing import Dict, List, Optional, Tuple
+ from numpy.lib import pad
++import todd
+ import torch
+ from torch import nn
+ from torch.nn import functional as F
+@@ -28,6 +30,9 @@ from detectron2.utils.comm import gather_tensors, MILCrossEntropy
+ 
+ __all__ = ["CLIPFastRCNN", "PretrainFastRCNN"]
+ 
++if not os.path.exists(os.environ['DUMP']):
++    os.makedirs(os.environ['DUMP'])
++
+ @META_ARCH_REGISTRY.register()
+ class CLIPFastRCNN(nn.Module):
+     """
+@@ -338,6 +343,7 @@ class CLIPFastRCNN(nn.Module):
+         Rescale the output instances to the target size.
+         """
+         # note: private function; subject to changes
++        assert len(batched_inputs) == 1
+         processed_results = []
+         for results_per_image, input_per_image in zip(
+             instances, batched_inputs):
+@@ -345,6 +351,13 @@ class CLIPFastRCNN(nn.Module):
+             width = input_per_image["width"]  # original image size, before resizing
+             r = detector_postprocess(results_per_image, height, width)
+             processed_results.append({"instances": r})
++            torch.save(
++                dict(
++                    scores=todd.globals_.pop('scores').float(),
++                    bboxes=r.get('pred_boxes').tensor.float(),
++                ),
++                f'{os.environ["DUMP"]}/{input_per_image["image_id"]:012d}.pth',
++            )
+         return processed_results
+ 
+ @META_ARCH_REGISTRY.register()
+diff --git a/detectron2/modeling/roi_heads/clip_roi_heads.py b/detectron2/modeling/roi_heads/clip_roi_heads.py
+index 35c002e..a9242c5 100644
+--- a/detectron2/modeling/roi_heads/clip_roi_heads.py
++++ b/detectron2/modeling/roi_heads/clip_roi_heads.py
+@@ -3,6 +3,7 @@ import inspect
+ import logging
+ import numpy as np
+ from typing import Dict, List, Optional, Tuple
++import todd
+ import torch
+ from torch import nn
+ 
+@@ -131,6 +132,7 @@ class CLIPRes5ROIHeads(ROIHeads):
+         if attnpool:  # att pooling
+             att_feats = attnpool(box_features)
+             predictions = self.box_predictor(att_feats)
++            todd.globals_.scores = predictions[0][:, :-1]
+         else: # mean pooling
+             predictions = self.box_predictor(box_features.mean(dim=[2, 3]))
+ 
+diff --git a/test_transfer_learning.sh b/test_transfer_learning.sh
+index 635e3a5..5fd96e8 100644
+--- a/test_transfer_learning.sh
++++ b/test_transfer_learning.sh
+@@ -1,16 +1,16 @@
+ # evaluate our trained open-vocabulary object detectors, {RN50, RN50x4} x {COCO, LVIS}
+ 
+ # RN50, COCO (Generalized: Novel + Base)
+-python3 ./tools/train_net.py \
+---eval-only  \
+---num-gpus 1 \
+---config-file ./configs/COCO-InstanceSegmentation/CLIP_fast_rcnn_R_50_C4_ovd.yaml \
+-MODEL.WEIGHTS ./pretrained_ckpt/regionclip/regionclip_finetuned-coco_rn50.pth \
+-MODEL.CLIP.OFFLINE_RPN_CONFIG ./configs/COCO-InstanceSegmentation/mask_rcnn_R_50_C4_1x_ovd_FSD.yaml \
+-MODEL.CLIP.BB_RPN_WEIGHTS ./pretrained_ckpt/rpn/rpn_coco_48.pth \
+-MODEL.CLIP.TEXT_EMB_PATH ./pretrained_ckpt/concept_emb/coco_48_base_cls_emb.pth \
+-MODEL.CLIP.OPENSET_TEST_TEXT_EMB_PATH ./pretrained_ckpt/concept_emb/coco_65_cls_emb.pth \
+-MODEL.ROI_HEADS.SOFT_NMS_ENABLED True \
++# python3 ./tools/train_net.py \
++# --eval-only  \
++# --num-gpus 1 \
++# --config-file ./configs/COCO-InstanceSegmentation/CLIP_fast_rcnn_R_50_C4_ovd.yaml \
++# MODEL.WEIGHTS ./pretrained_ckpt/regionclip/regionclip_finetuned-coco_rn50.pth \
++# MODEL.CLIP.OFFLINE_RPN_CONFIG ./configs/COCO-InstanceSegmentation/mask_rcnn_R_50_C4_1x_ovd_FSD.yaml \
++# MODEL.CLIP.BB_RPN_WEIGHTS ./pretrained_ckpt/rpn/rpn_coco_48.pth \
++# MODEL.CLIP.TEXT_EMB_PATH ./pretrained_ckpt/concept_emb/coco_48_base_cls_emb.pth \
++# MODEL.CLIP.OPENSET_TEST_TEXT_EMB_PATH ./pretrained_ckpt/concept_emb/coco_65_cls_emb.pth \
++# MODEL.ROI_HEADS.SOFT_NMS_ENABLED True \
+ 
+ # # RN50, COCO (only Novel)
+ # # --config-file ./configs/COCO-InstanceSegmentation/CLIP_fast_rcnn_R_50_C4_ovd_testt.yaml \
+@@ -76,4 +76,19 @@ MODEL.ROI_HEADS.SOFT_NMS_ENABLED True \
+ # MODEL.ROI_BOX_HEAD.POOLER_RESOLUTION 18 \
+ # MODEL.ROI_MASK_HEAD.POOLER_RESOLUTION 18 \
+ # MODEL.RESNETS.RES2_OUT_CHANNELS 320 \
+-# MODEL.ROI_HEADS.SOFT_NMS_ENABLED True \
+\ No newline at end of file
++# MODEL.ROI_HEADS.SOFT_NMS_ENABLED True \
++
++python3 ./tools/train_net.py \
++--eval-only  \
++--num-gpus 1 \
++--config-file ./configs/COCO-InstanceSegmentation/CLIP_fast_rcnn_R_50_C4_ovd.yaml \
++MODEL.WEIGHTS ./pretrained_ckpt/regionclip/regionclip_finetuned-coco_rn50x4.pth \
++MODEL.CLIP.OFFLINE_RPN_CONFIG ./configs/COCO-InstanceSegmentation/mask_rcnn_R_50_C4_1x_ovd_FSD.yaml \
++MODEL.CLIP.BB_RPN_WEIGHTS ./pretrained_ckpt/rpn/rpn_coco_48.pth \
++MODEL.CLIP.TEXT_EMB_PATH ./pretrained_ckpt/concept_emb/coco_48_base_cls_emb_rn50x4.pth \
++MODEL.CLIP.OPENSET_TEST_TEXT_EMB_PATH ./pretrained_ckpt/concept_emb/coco_65_cls_emb_rn50x4.pth \
++MODEL.CLIP.TEXT_EMB_DIM 640 \
++MODEL.RESNETS.DEPTH 200 \
++MODEL.ROI_BOX_HEAD.POOLER_RESOLUTION 18 \
++MODEL.ROI_HEADS.SOFT_NMS_ENABLED True \
++MODEL.DEVICE cpu
