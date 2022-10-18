@@ -204,7 +204,10 @@ class LoadCLIPFeatures:
             if debug.DRY_RUN:
                 key = '000000000139'
         elif self._dataset == 'lvis':
-            key = results['img_info']['filename'][:-4].replace('2017', '')
+            key = results['img_info']['filename']\
+                .replace('.jpg', '')\
+                .replace('train2017', 'train')\
+                .replace('val2017', 'val')
             if debug.DRY_RUN:
                 key = 'val/000000000139'
 
