@@ -3,6 +3,7 @@ from typing import Tuple
 
 import todd
 import torch
+from tqdm import tqdm
 
 from mmdet.datasets import build_dataset
 from mmdet.core import bbox2result
@@ -127,19 +128,19 @@ def fast_rcnn_inference_single_image(data):
 
 config = todd.Config.load('configs/cafe/faster_rcnn/cafe_48_17.py')
 access_layer = todd.datasets.PthAccessLayer(
-    data_root='../RegionCLIP/data/coco/regionclip_preds',
+    data_root='data/coco/regionclip_dump',
 )
 dataset = build_dataset(config.data.test, default_args=dict(test_mode=True))
 results = []
-for image_id in dataset.img_ids:
+for image_id in tqdm(dataset.img_ids):
     data = access_layer[f'{image_id:012d}']
     bboxes, classes = fast_rcnn_inference_single_image(data)
 
-    # breakpoint()
-    # import cv2
-    # image = cv2.imread(f'data/coco/val2017/{image_id:012d}.jpg')
-    # todd.visuals.draw_annotations(image, todd.BBoxesXYXY(bboxes[:10, :-1]), [(255,0,0)] * 10, [dataset.CLASSES[c] for c in classes[:10].tolist()])
-    # cv2.imwrite('tmp.jpg', image)
+    import cv2
+    image = cv2.imread(f'data/coco/val2017/{image_id:012d}.jpg')
+    todd.visuals.draw_annotations(image, todd.BBoxesXYXY(bboxes[:10, :-1]), [(255,0,0)] * 10, [dataset.CLASSES[c] for c in classes[:10].tolist()])
+    cv2.imwrite('tmp.jpg', image)
+    breakpoint()
 
     results.append(bbox2result(bboxes, classes, 65))
 result = dataset.evaluate(results)
