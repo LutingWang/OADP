@@ -1,11 +1,21 @@
+import sys
 from typing import Tuple
+
 import todd
 import torch
 
 from mmdet.datasets import build_dataset
 from mmdet.core import bbox2result
 
+sys.path.insert(0, '')
 import cafe
+
+MAP = [
+    0, 1, 2, 3, 6, 7, 8, 9, 10, 13, 14, 17, 18, 19, 20, 22, 24, 25, 26, 28, 30,
+    31, 33, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 46, 48, 49, 50, 51, 52, 53,
+    55, 56, 57, 59, 60, 61, 62, 64, 4, 5, 11, 12, 15, 16, 21, 23, 27, 29, 32,
+    34, 45, 47, 54, 58, 63,
+]
 
 
 def _soft_nms(
@@ -58,11 +68,13 @@ def batched_soft_nms(
     )
 
 
-def fast_rcnn_inference_single_image(
-    boxes,
-    scores,
-    image_wh: Tuple[int, int],
-):
+def fast_rcnn_inference_single_image(data):
+    scores = torch.cat(
+        (data['scores'][:, MAP], torch.zeros_like(data['scores'][:, [0]])),
+        dim=-1,
+    ).float().softmax(-1)
+    boxes = data['bboxes'].float()
+
     valid_mask = torch.isfinite(boxes).all(dim=1) & torch.isfinite(scores).all(dim=1)
     if not valid_mask.all():
         boxes = boxes[valid_mask]
@@ -71,7 +83,7 @@ def fast_rcnn_inference_single_image(
     scores = scores[:, :-1]
     num_bbox_reg_classes = boxes.shape[1] // 4
     # Convert to Boxes to use the `clip` function ...
-    boxes = todd.BBoxesXYXY(boxes.reshape(-1, 4)).clamp(image_wh)
+    boxes = todd.BBoxesXYXY(boxes.reshape(-1, 4)).clamp(data['input_wh'])
     boxes = boxes.to_tensor().view(-1, num_bbox_reg_classes, 4)  # R x C x 4
 
     # 1. Filter results based on detection scores. It can make NMS more efficient
@@ -96,9 +108,21 @@ def fast_rcnn_inference_single_image(
     )
     scores[keep] = soft_nms_scores
     keep = keep[:100]
-    boxes, scores, filter_inds = boxes[keep], scores[keep], filter_inds[keep]
+    bboxes, scores, filter_inds = boxes[keep], scores[keep], filter_inds[keep]
 
-    return boxes, scores, filter_inds[:, 1]
+    bboxes = todd.BBoxesXYXY(bboxes).scale(
+        ratio_wh=(
+            data['image_wh'][0] / data['input_wh'][0],
+            data['image_wh'][1] / data['input_wh'][1],
+        ),
+    )
+    indices = bboxes.indices(min_wh=(0, 0))
+    bboxes = bboxes[indices].to_tensor()
+    scores = scores[indices].unsqueeze(-1)
+    classes = filter_inds[indices, 1]
+
+    bboxes = torch.cat((bboxes, scores), dim=-1)
+    return bboxes, classes
 
 
 config = todd.Config.load('configs/cafe/faster_rcnn/cafe_48_17.py')
@@ -109,32 +133,15 @@ dataset = build_dataset(config.data.test, default_args=dict(test_mode=True))
 results = []
 for image_id in dataset.img_ids:
     data = access_layer[f'{image_id:012d}']
-    scores = torch.cat(
-        (data['scores'], torch.zeros_like(data['scores'][:, [0]])),
-        dim=-1,
-    )
-    bboxes, scores, classes = fast_rcnn_inference_single_image(
-        data['bboxes'].float(),
-        scores.float().softmax(-1),
-        data['input_wh'],
-    )
-    bboxes = todd.BBoxesXYXY(bboxes).scale(
-        ratio_wh=(
-            data['image_wh'][0] / data['input_wh'][0],
-            data['image_wh'][1] / data['input_wh'][1],
-        ),
-    ).clamp(image_wh=data['image_wh'])
-    indices = bboxes.indices(min_wh=(0, 0))
-    bboxes = bboxes[indices].to_tensor()
-    scores = scores[indices]
-    classes = classes[indices]
-    results.append(
-        bbox2result(
-            torch.cat((bboxes, scores.unsqueeze(-1)), dim=-1),
-            classes,
-            65,
-        ),
-    )
+    bboxes, classes = fast_rcnn_inference_single_image(data)
+
+    # breakpoint()
+    # import cv2
+    # image = cv2.imread(f'data/coco/val2017/{image_id:012d}.jpg')
+    # todd.visuals.draw_annotations(image, todd.BBoxesXYXY(bboxes[:10, :-1]), [(255,0,0)] * 10, [dataset.CLASSES[c] for c in classes[:10].tolist()])
+    # cv2.imwrite('tmp.jpg', image)
+
+    results.append(bbox2result(bboxes, classes, 65))
 result = dataset.evaluate(results)
 print(result)
 
