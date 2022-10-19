@@ -21,10 +21,10 @@ train_pipeline = [
             type='PthAccessLayer',
             data_root='data/coco/vild_embeddings',
         ),
-        captions=dict(
-            type='PthAccessLayer',
-            data_root='data/coco/caption_embeddings',
-        ),
+        # captions=dict(
+        #     type='PthAccessLayer',
+        #     data_root='data/coco/caption_embeddings',
+        # ),
     ),
     dict(
         type='Resize',
@@ -46,7 +46,7 @@ train_pipeline = [
         'clip_image',
         'clip_patches',
         'clip_bboxes',
-        'clip_captions',
+        # 'clip_captions',
     ]),
 ]
 data = dict(

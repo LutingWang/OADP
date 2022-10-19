@@ -183,7 +183,7 @@ class LoadCLIPFeatures:
         task_name: str,
         images: Dict[str, Any],
         regions: Dict[str, Any],
-        captions: Dict[str, Any],
+        # captions: Dict[str, Any],
     ) -> None:
         if task_name in ['train', 'val']:
             self._dataset = 'coco'
@@ -196,7 +196,7 @@ class LoadCLIPFeatures:
         self._load_image_patches = images.pop('with_patches')
         self._images = todd.datasets.ACCESS_LAYERS.build(images, default_args=dict(task_name=task_name))
         self._regions = todd.datasets.ACCESS_LAYERS.build(regions, default_args=dict(task_name=task_name))
-        self._captions = todd.datasets.ACCESS_LAYERS.build(captions, default_args=dict(task_name=task_name))
+        # self._captions = todd.datasets.ACCESS_LAYERS.build(captions, default_args=dict(task_name=task_name))
 
     def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
         if self._dataset == 'coco':
@@ -213,7 +213,7 @@ class LoadCLIPFeatures:
 
         image = self._images[key]
         regions = self._regions[key]
-        captions = self._captions[key]
+        # captions = self._captions[key]
 
         if self._load_image_patches:
             clip_patches = torch.cat([image['patches'], regions['patches']])
@@ -226,6 +226,6 @@ class LoadCLIPFeatures:
         results['clip_image'] = image['image'].squeeze(0)
         results['clip_patches'] = clip_patches[inds]
         results['clip_bboxes'] = clip_bboxes[inds].float().numpy()
-        results['clip_captions'] = captions[random.randint(0, captions.shape[0] - 1)]
+        # results['clip_captions'] = captions[random.randint(0, captions.shape[0] - 1)]
         results['bbox_fields'].append('clip_bboxes')
         return results

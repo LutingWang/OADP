@@ -1,7 +1,29 @@
 model = dict(
+    distiller=dict(
+        student_hooks=dict(
+            image=dict(
+                type='StandardHook',
+                path='._multilabel_classifier._linear',
+            ),
+        ),
+        losses=dict(
+            loss_clip_image=dict(
+                type='MSELoss',
+                norm=True,
+                fields=['image', 'clip_image'],
+                weight=dict(
+                    type='WarmupScheduler',
+                    value=2,
+                    iter_=200,
+                ),
+                reduction='sum',
+            ),
+        ),
+    ),
     multilabel_classifier=dict(
         type='Classifier',
         pretrained='data/coco/prompt/prompt1.pth',
+        topK=20,
         in_features=256,
         out_features=80,
         split='COCO',

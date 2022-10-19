@@ -12,6 +12,7 @@ import numpy as np
 import todd
 import torch
 import einops
+import sklearn.metrics
 
 from .classifiers import Classifier, ViLDClassifier
 from .necks import PostFPN
@@ -43,7 +44,7 @@ class Cafe(
         multilabel_classifier: Optional[Dict[str, Any]] = None,
         multilabel_loss: Optional[Dict[str, Any]] = None,
         post_fpn: Optional[Dict[str, Any]] = None,
-        caption_loss: Optional[Dict[str, Any]] = None,
+        # caption_loss: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -51,6 +52,7 @@ class Cafe(
         todd.init_iter()
 
         if multilabel_classifier is not None:
+            self._multilabel_topK = multilabel_classifier.pop('topK')
             self._multilabel_classifier: Classifier = LINEAR_LAYERS.build(
                 multilabel_classifier,
             )
@@ -71,12 +73,12 @@ class Cafe(
         else:
             self._post_fpn = None
 
-        if caption_loss is not None:
-            self._caption_loss = todd.losses.LOSSES.build(
-                caption_loss,
-            )
-        else:
-            self._caption_loss = None
+        # if caption_loss is not None:
+        #     self._caption_loss = todd.losses.LOSSES.build(
+        #         caption_loss,
+        #     )
+        # else:
+        #     self._caption_loss = None
 
     @property
     def num_classes(self) -> int:
@@ -99,7 +101,7 @@ class Cafe(
         clip_image: Optional[torch.Tensor] = None,
         clip_patches: Optional[List[torch.Tensor]] = None,
         clip_bboxes: Optional[List[torch.Tensor]] = None,
-        clip_captions: Optional[torch.Tensor] = None,
+        # clip_captions: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Dict[str, torch.Tensor]:
         todd.inc_iter()
@@ -136,9 +138,6 @@ class Cafe(
         )
         losses.update(roi_losses)
 
-        if self._post_fpn is not None:
-            feats = self._post_fpn(feats)
-
         if self._multilabel_classifier is not None:
             multilabel_logits = self._multilabel_classify(feats)
             img_labels = one_hot(gt_labels, self.num_classes)
@@ -147,6 +146,28 @@ class Cafe(
                 img_labels,
             )
             losses.update(loss_multilabel=multilabel_loss)
+
+            topK_logits, topK_inds = multilabel_logits.topk(self._multilabel_topK)
+            topK_preds = one_hot(topK_inds, self.num_classes)
+            topK_recall = sklearn.metrics.recall_score(
+                img_labels.cpu().numpy(),
+                topK_preds.cpu().numpy(),
+                labels=torch.where(img_labels.sum(0))[0].cpu().numpy(),
+                average='macro',
+                zero_division=0,
+            )
+            multilabel_topK_recall = torch.tensor(
+                topK_recall * 100,
+                device=topK_inds.device,
+            )
+            losses.update(recall_multilabel=multilabel_topK_recall)
+
+            ce = self._multilabel_classifier.embeddings[topK_inds]
+        else:
+            ce = None
+
+        if self._post_fpn is not None:
+            feats = self._post_fpn(feats, ce)
 
         distiller = cast(todd.distillers.DistillableProto, self).distiller
         distiller_spec = distiller.spec()
@@ -166,9 +187,9 @@ class Cafe(
                     feats, clip_rois,
                 ),
             )
-        if 'clip_captions' in distiller_spec.inputs:
-            assert clip_captions is not None
-            custom_tensors.update(clip_captions=clip_captions.float())
+        # if 'clip_captions' in distiller_spec.inputs:
+        #     assert clip_captions is not None
+        #     custom_tensors.update(clip_captions=clip_captions.float())
 
         if len(distiller_spec.outputs) > 0:
             distill_losses = distiller.distill(custom_tensors)
@@ -193,14 +214,16 @@ class Cafe(
         else:
             proposal_list = proposals
 
-        if self._post_fpn is not None:
-            image_feats = self._post_fpn(feats)
-            if self._multilabel_classifier is not None:
-                pass
-            feats = [torch.stack(feat) for feat in zip(feats, image_feats)]
+        if self._multilabel_classifier is not None:
+            multilabel_logits = self._multilabel_classify(feats)
+            topK_logits, topK_inds = multilabel_logits.topk(self._multilabel_topK)
+            ce = self._multilabel_classifier.embeddings[topK_inds]
         else:
-            if self._multilabel_classifier is not None:
-                pass
+            ce = None
+
+        if self._post_fpn is not None:
+            image_feats = self._post_fpn(feats, ce)
+            feats = [torch.stack(feat) for feat in zip(feats, image_feats)]
 
         return self.roi_head.simple_test(
             feats,

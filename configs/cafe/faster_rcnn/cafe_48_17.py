@@ -12,12 +12,9 @@ _base_ = [
 
     '../_base_/datasets/coco_detection_clip.py',
     '../_base_/datasets/coco_48_17.py',
-    # 'mixins/mask.py',
-    'mixins/post.py',
-    'mixins/multilabel_48_17.py',
     'mixins/dcp.py',
-    'mixins/dci.py',
-    'mixins/caption.py',
+    'mixins/multilabel_48_17.py',
+    # 'mixins/post.py',
 
 ]
 
