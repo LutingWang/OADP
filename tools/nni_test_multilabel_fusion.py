@@ -4,16 +4,10 @@ from nni.experiment import Experiment
 
 experiment = Experiment('local')
 
-experiment.config.experiment_name = 'debug'
+experiment.config.experiment_name = 'v1_multilabel'
 
 experiment.config.trial_command = '''
-torchrun \
-    --nproc_per_node=4 \
-    --rdzv_backend=c10d \
-    --rdzv_endpoint=localhost:0 \
-    --master_port=0 \
-    --nnodes=1 \
-    -m mldec.test_vild test_vild work_dirs/oln/oln_test
+python -m cafe.test_multilabel_fusion debug work_dirs/v1_multilabel/cafe_48_17.py work_dirs/v1_multilabel/debug
 '''
 experiment.config.trial_code_directory = pathlib.Path(__file__).parent.parent
 
@@ -28,7 +22,7 @@ experiment.config.search_space = dict(
     ),
     bbox_score_scaler=dict(
         _type='uniform',
-        _value=[20, 200],
+        _value=[0.2, 2.0],
     ),
     bbox_objectness_gamma=dict(
         _type='uniform',
@@ -36,7 +30,7 @@ experiment.config.search_space = dict(
     ),
     image_score_scaler=dict(
         _type='uniform',
-        _value=[20, 200],
+        _value=[0.2, 2.0],
     ),
     image_objectness_gamma=dict(
         _type='uniform',
@@ -50,4 +44,4 @@ experiment.config.tuner.class_args['optimize_mode'] = 'maximize'
 experiment.config.max_trial_number = 1000
 experiment.config.trial_concurrency = 4
 
-experiment.run(5002)
+experiment.run(8080)

@@ -1,5 +1,6 @@
 import argparse
 import functools
+import os
 import pathlib
 import sys
 from typing import Any, Dict, List, Literal, NamedTuple, Optional, Tuple
@@ -15,7 +16,7 @@ import torch.utils.data.distributed
 from mmdet.datasets import build_dataset
 from mmdet.core import multiclass_nms, bbox2result
 
-from ..mldec.todd import BaseRunner
+from mldec import debug, BaseRunner
 
 sys.path.insert(0, '')
 import cafe
@@ -73,9 +74,7 @@ class Model(todd.Module):
         objectness: torch.Tensor,
         cfg: Dict[str, Any],
     ) -> torch.Tensor:
-        scores *= cfg['score_scaler'] + cfg['score_bias']
-        if cfg['score_zero_bg']:
-            scores[..., -1] = float('-inf')
+        scores *= cfg['score_scaler']
         scores = scores.softmax(-1)
         scores = (
             scores ** cfg['objectness_gamma']
@@ -124,14 +123,17 @@ class Runner(BaseRunner):
         **kwargs,
     ) -> Tuple[
         Dataset,
-        torch.utils.data.distributed.DistributedSampler,
+        Optional[torch.utils.data.distributed.DistributedSampler],
         torch.utils.data.DataLoader,
     ]:
         assert config is not None
         dataset = Dataset(**config.dataset)
-        sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, shuffle=False,
-        )
+        if todd.get_world_size() > 1:
+            sampler = torch.utils.data.distributed.DistributedSampler(
+                dataset, shuffle=False,
+            )
+        else:
+            sampler = None
         dataloader = torch.utils.data.DataLoader(
             dataset,
             batch_size=config.batch_size,
@@ -191,14 +193,13 @@ class Runner(BaseRunner):
     def _after_run(self, *args, memo: Dict[str, Any], **kwargs) -> float:
         super()._after_run(*args, memo=memo, **kwargs)
 
-        result_dicts = (
-            [None] * todd.get_world_size()
-            if todd.get_rank() == 0 else None
-        )
-        torch.distributed.gather_object(memo['result_dict'], result_dicts)
-
-        if todd.get_rank() != 0:
-            return
+        if todd.get_world_size() > 1:
+            result_dicts = [None] * todd.get_world_size()
+            torch.distributed.all_gather_object(result_dicts, memo['result_dict'])
+            if todd.get_rank() != 0:
+                return
+        else:
+            result_dicts = [memo['result_dict']]
 
         result_dict = functools.reduce(
             lambda a, b: {**a, **b},
@@ -220,29 +221,28 @@ class Runner(BaseRunner):
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Train')
     parser.add_argument('name', type=str)
+    parser.add_argument('config', type=pathlib.Path)
     parser.add_argument('root', type=pathlib.Path)
     args = parser.parse_args()
     return args
 
 
 if __name__ == '__main__':
-    args = parse_args()
-
     params = nni.get_next_parameter()
     if len(params) == 0:
         params = dict(
             base_ensemble_mask=2 / 3,
             novel_ensemble_mask=1 / 3,
-            bbox_score_scaler=100,
+            bbox_score_scaler=1,
             bbox_objectness_gamma=1,
-            image_score_scaler=100,
+            image_score_scaler=1,
             image_objectness_gamma=1,
         )
     print(params)
 
-    config = todd.Config.load(
-        'configs/cafe/faster_rcnn/cafe_48_17.py',
-    )
+    args = parse_args()
+
+    config = todd.Config.load(args.config)
     config = todd.Config(
         val=dict(
             dataloader=dict(
@@ -265,12 +265,10 @@ if __name__ == '__main__':
             bbox_cfg=dict(
                 score_scaler=params['bbox_score_scaler'],
                 objectness_gamma=params['bbox_objectness_gamma'],
-                score_zero_bg=False,
             ),
             image_cfg=dict(
                 score_scaler=params['image_score_scaler'],
                 objectness_gamma=params['image_objectness_gamma'],
-                score_zero_bg=True,
             ),
         ),
         evaluator=config.data.test,
@@ -280,7 +278,9 @@ if __name__ == '__main__':
     )
 
     mldec.debug.init()
-    torch.distributed.init_process_group(backend='nccl')
-    torch.cuda.set_device(todd.base.get_local_rank())
+    # if not debug.CPU:
+    #     torch.distributed.init_process_group(backend='nccl')
+    #     torch.cuda.set_device(todd.base.get_local_rank())
+
     runner = Runner(name=args.name, config=config)
     runner.run()

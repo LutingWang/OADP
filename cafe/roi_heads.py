@@ -194,7 +194,7 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
                     objectness=proposals[0][:, -1].half(),
                     bbox_scores=bbox_head_status.value.half(),
                     image_scores=image_head_status.value.half(),
-                    multilabel_logits=todd.gloabls_.pop('multilabel_logits', None),
+                    multilabel_logits=todd.globals_.pop('multilabel_logits', None),
                 ),
                 save_path,
             )
