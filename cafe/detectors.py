@@ -14,6 +14,8 @@ import torch
 import einops
 import sklearn.metrics
 
+from mldec import debug
+
 from .classifiers import Classifier, ViLDClassifier
 from .necks import PostFPN
 from .patches import one_hot
@@ -216,6 +218,9 @@ class Cafe(
 
         if self._multilabel_classifier is not None:
             multilabel_logits = self._multilabel_classify(feats)
+            if debug.DUMP:
+                todd.globals_.multilabel_logits = multilabel_logits
+
             topK_logits, topK_inds = multilabel_logits.topk(self._multilabel_topK)
             ce = self._multilabel_classifier.embeddings[topK_inds]
         else:

@@ -4,11 +4,14 @@ __all__ = [
     'DoubleHeadRoIHead',
 ]
 
+import os
 from typing import Dict, Sequence, List, cast, Any
 
 import mmdet.models
 import torch
 import todd
+
+from mldec import debug
 
 from .classifiers import Classifier
 
@@ -168,3 +171,31 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
         ) as hook_status:
             self._image_head(bbox_feats)
         return hook_status.value
+
+    if debug.DUMP:
+        if not os.path.exists(os.getenv('DUMP')):
+            os.makedirs(os.getenv('DUMP'))
+
+        def simple_test_bboxes(self, x, img_metas, proposals, rcnn_test_cfg, rescale=False):
+            assert len(img_metas) == 1
+            with todd.hooks.hook(
+                dict(type='StandardHook', path='fc_cls'),
+                self.bbox_head,
+            ) as bbox_head_status, todd.hooks.hook(
+                dict(type='StandardHook', path='fc_cls'),
+                self._image_head,
+            ) as image_head_status:
+                det_bboxes, _ = super().simple_test_bboxes(x, img_metas, proposals, None, rescale)
+            image_id = img_metas[0]['ori_filename'][:-4]
+            save_path = os.path.join(os.getenv('DUMP'), f'{image_id}.pth')
+            torch.save(
+                dict(
+                    bboxes=det_bboxes[0].half(),
+                    objectness=proposals[0][:, -1].half(),
+                    bbox_scores=bbox_head_status.value.half(),
+                    image_scores=image_head_status.value.half(),
+                    multilabel_logits=todd.gloabls_.pop('multilabel_logits', None),
+                ),
+                save_path,
+            )
+            return [torch.tensor([[0, 0, 1, 1]])], [torch.empty([0])]
