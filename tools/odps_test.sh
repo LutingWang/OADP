@@ -8,9 +8,10 @@ grep -n -r "ipdb\|breakpoint" \
     --exclude tools/odps_test_multilabel.sh \
     --exclude tools/odps_extract_mask_embeddings.sh \
     --exclude tools/k8s_train.sh \
+    --exclude tools/k8s_test.sh \
     cafe clip mldec tools
 if [[ $? -eq 0 ]]; then
-    echo "`ipdb` and `breakpoint` are not allowed in this repo."
+    echo "ipdb and breakpoint are not allowed in this repo."
     exit 1
 fi
 
@@ -20,8 +21,8 @@ CONFIG=$1
 CHECKPOINT=$2
 GPUS=$3
 PY_ARGS=${@:4}
-PY_ARGS="${PY_ARGS} --launcher pytorch --gpu-collect"
-PY_ARGS="${PY_ARGS} --cfg-options evaluation.tmpdir=work_dirs/tmp${RANDOM}"
+PY_ARGS="${PY_ARGS} --launcher pytorch"
+PY_ARGS="${PY_ARGS} --cfg-options evaluation.tmpdir=tmp${RANDOM}"
 PY_ARGS="${PY_ARGS} --odps GIT_COMMIT_ID:\\\'$(git rev-parse --short HEAD)\\\'"
 
 PROJECT_NAME=${PROJECT_NAME:-denseclip_test}
