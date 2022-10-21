@@ -8,3 +8,4 @@ regex
 tqdm
 ipdb
 scikit-learn
+lvis

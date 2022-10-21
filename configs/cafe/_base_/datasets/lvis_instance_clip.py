@@ -1,5 +1,5 @@
 _base_ = [
-    'coco_detection.py',
+    'coco_instance.py',
 ]
 
 dataset_type = 'LVISV1Dataset'
@@ -8,29 +8,20 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
-    dict(type='LoadAnnotations', with_bbox=True),
+    dict(type='LoadProposals'),
+    dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
     dict(
-        type='LoadCLIPFeatures',
-        task_name='',
-        images=dict(
-            type='PthAccessLayer',
-            data_root='data/coco/embeddings',
-            with_patches=False,
-        ),
+        type='LoadDetproFeatures',
+        task_name='train2017',
         regions=dict(
             type='PthAccessLayer',
-            data_root='data/coco/vild_embeddings',
+            data_root='data/lvis_v1/data/lvis_clip_image_embedding/',
         ),
-        # captions=dict(
-        #     type='PthAccessLayer',
-        #     data_root='data/coco/caption_embeddings',
-        # ),
     ),
     dict(
         type='Resize',
-        img_scale=[(1333, 640), (1333, 672), (1333, 704), (1333, 736),
-                   (1333, 768), (1333, 800)],
-        multiscale_mode='value',
+        img_scale=[(1333, 640), (1333, 800)],
+        multiscale_mode='range',
         keep_ratio=True),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Normalize', **img_norm_cfg),
@@ -42,11 +33,9 @@ train_pipeline = [
         dict(key='clip_bboxes'),
     ]),
     dict(type='Collect', keys=[
-        'img', 'gt_bboxes', 'gt_labels',
-        'clip_image',
+        'img', 'gt_bboxes', 'gt_labels', 'gt_masks',
         'clip_patches',
         'clip_bboxes',
-        # 'clip_captions',
     ]),
 ]
 data = dict(
@@ -58,6 +47,7 @@ data = dict(
             type=dataset_type,
             ann_file=data_root + 'annotations/lvis_v1_train.json',
             img_prefix='data/coco/',
+            proposal_file=data_root + 'proposals/rpn_r101_fpn_lvis_v1_train.pkl',
             pipeline=train_pipeline,
         ),
     ),

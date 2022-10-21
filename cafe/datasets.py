@@ -185,13 +185,6 @@ class LoadCLIPFeatures:
         regions: Dict[str, Any],
         # captions: Dict[str, Any],
     ) -> None:
-        if task_name in ['train', 'val']:
-            self._dataset = 'coco'
-        elif task_name == '':
-            self._dataset = 'lvis'
-        else:
-            assert False, task_name
-
         self._task_name = task_name
         self._load_image_patches = images.pop('with_patches')
         self._images = todd.datasets.ACCESS_LAYERS.build(images, default_args=dict(task_name=task_name))
@@ -199,17 +192,9 @@ class LoadCLIPFeatures:
         # self._captions = todd.datasets.ACCESS_LAYERS.build(captions, default_args=dict(task_name=task_name))
 
     def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
-        if self._dataset == 'coco':
-            key = f'{results["img_info"]["id"]:012d}'
-            if debug.DRY_RUN:
-                key = '000000000139'
-        elif self._dataset == 'lvis':
-            key = results['img_info']['filename']\
-                .replace('.jpg', '')\
-                .replace('train2017', 'train')\
-                .replace('val2017', 'val')
-            if debug.DRY_RUN:
-                key = 'val/000000000139'
+        key = f'{results["img_info"]["id"]:012d}'
+        if debug.DRY_RUN:
+            key = '000000000139'
 
         image = self._images[key]
         regions = self._regions[key]
@@ -228,4 +213,35 @@ class LoadCLIPFeatures:
         results['clip_bboxes'] = clip_bboxes[inds].float().numpy()
         # results['clip_captions'] = captions[random.randint(0, captions.shape[0] - 1)]
         results['bbox_fields'].append('clip_bboxes')
+        return results
+
+
+@PIPELINES.register_module()
+class LoadDetproFeatures:
+
+    def __init__(
+        self,
+        task_name: str,
+        regions: Dict[str, Any],
+    ) -> None:
+        self._task_name = task_name
+        self._regions = todd.datasets.ACCESS_LAYERS.build(regions, default_args=dict(task_name=task_name))
+
+    def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
+        key = results['img_info']['filename']\
+            .replace('.jpg', '')\
+            .replace('train2017/', '')\
+            .replace('val2017/', '')
+        if debug.DRY_RUN:
+            key = '000000000030'
+
+        clip_patches = self._regions[key]
+        clip_bboxes = results.pop('proposals')
+
+        results['bbox_fields'].remove('proposals')
+        results['bbox_fields'].append('clip_bboxes')
+
+        inds = (clip_bboxes[:, 2] > clip_bboxes[:, 0] + 32) & (clip_bboxes[:, 3] > clip_bboxes[:, 1] + 32)  # TODO: update with todd
+        results['clip_patches'] = clip_patches[inds]
+        results['clip_bboxes'] = clip_bboxes[inds]
         return results

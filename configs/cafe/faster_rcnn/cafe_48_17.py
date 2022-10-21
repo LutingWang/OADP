@@ -14,7 +14,7 @@ _base_ = [
     '../_base_/datasets/coco_48_17.py',
     'mixins/dcp.py',
     'mixins/multilabel_48_17.py',
-    # 'mixins/post.py',
+    'mixins/post.py',
 
 ]
 

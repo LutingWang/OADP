@@ -5,10 +5,11 @@ _base_ = [
     '../_base_/default_runtime.py',
     'mixins/classifier_866_337.py',
 
-    '../_base_/datasets/lvis_detection_clip.py',
+    '../_base_/datasets/lvis_instance_clip.py',
     '../_base_/datasets/lvis_866_337.py',
 
     'mixins/dcp.py',
+    'mixins/mask_866_337.py',
 ]
 
 model = dict(
@@ -43,10 +44,10 @@ model = dict(
 load_from = 'data/ckpts/soco_star_mask_rcnn_r50_fpn_400e.pth'
 optimizer = dict(
     weight_decay=2.5e-5,
-    paramwise_cfg=dict(
-        custom_keys={
-            'neck': dict(lr_mult=0.1),
-            'roi_head.bbox_head': dict(lr_mult=0.5),
-        },
-    ),
+    # paramwise_cfg=dict(
+    #     custom_keys={
+    #         'neck': dict(lr_mult=0.1),
+    #         'roi_head.bbox_head': dict(lr_mult=0.5),
+    #     },
+    # ),
 )
