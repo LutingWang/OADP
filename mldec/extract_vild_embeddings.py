@@ -74,7 +74,11 @@ class CocoClassification(torchvision.datasets.CocoDetection):
     def embeddings_root(self) -> pathlib.Path:
         return self._embeddings_root
 
-    def _crop(self, image: PIL.Image.Image, bboxes: todd.BBoxesXYXY) -> torch.Tensor:
+    def _crop(
+        self,
+        image: PIL.Image.Image,
+        bboxes: todd.BBoxesXYXY,
+    ) -> torch.Tensor:
         return torch.stack([
             self._transform(image.crop(bbox))
             for bbox in bboxes.round().to_tensor().int().tolist()
@@ -193,7 +197,7 @@ class Runner(BaseRunner):
     ) -> None:
         if batch is None:
             return
-        patches: torch.Tensor = batch.patches
+        patches = batch.patches
         if debug.DRY_RUN:
             patches = patches[:, :5]
             batch = Batch(

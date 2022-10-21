@@ -6,20 +6,20 @@ experiment = Experiment('local')
 
 experiment.config.experiment_name = 'gen_pl_v2_custom_dataset_train_test'
 
-# experiment.config.trial_command = '''
-# python \
-#     -m mldec.test_gen_pl_v2_custom_dataset_train test_gen_pl_v2_custom_dataset_train_test --hotwater
-# '''
-
 experiment.config.trial_command = '''
-torchrun \
-    --nproc_per_node=4 \
-    --rdzv_backend=c10d \
-    --rdzv_endpoint=localhost:0 \
-    --master_port=0 \
-    --nnodes=1 \
-    -m mldec.test_gen_pl_v2_custom_dataset_train test_gen_pl_v2_custom_dataset_train_test 
+python \
+    -m mldec.test_gen_pl_v2_custom_dataset_train test_gen_pl_v2_custom_dataset_train_test --hotwater
 '''
+
+# experiment.config.trial_command = '''
+# torchrun \
+#     --nproc_per_node=4 \
+#     --rdzv_backend=c10d \
+#     --rdzv_endpoint=localhost:0 \
+#     --master_port=0 \
+#     --nnodes=1 \
+#     -m mldec.test_gen_pl_v2_custom_dataset_train test_gen_pl_v2_custom_dataset_train_test 
+# '''
 experiment.config.trial_code_directory = pathlib.Path(__file__).parent.parent
 
 experiment.config.search_space = dict(

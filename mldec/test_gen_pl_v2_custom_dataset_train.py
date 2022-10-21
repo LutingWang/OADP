@@ -33,7 +33,6 @@ try:
     BICUBIC = InterpolationMode.BICUBIC
 except ImportError:
     BICUBIC = PIL.Image.BICUBIC
-from .spatial_vit import CLIPMaskedSpatialViT
 from sklearn.metrics import accuracy_score,confusion_matrix,precision_score
 from sklearn.utils.class_weight import compute_sample_weight
 from mmdet.core.visualization import imshow_det_bboxes
@@ -317,11 +316,13 @@ class Runner(BaseRunner):
         memo['results'].append((final_bboxes,final_labels,final_image))
 
 
-    def _after_run_iter(self, *args, i: int, batch, memo: Dict[str, Any], **kwargs) -> None:
-        if i % self._config.log_interval == 0:
+    def _after_run_iter(self, *args, i: int, batch, memo: Dict[str, Any], log: bool = False, **kwargs) -> None:
+        if log and todd.base.get_rank() == 0:
             self._logger.info(
                 f'Val Step [{i}/{len(self._dataloader)}]'
             )
+        if log and debug.DRY_RUN:
+            return True
 
     def _after_run(self, *args, memo: Dict[str, Any], **kwargs) -> float:
         results: Iterator[Tuple[torch.Tensor, ...]] = zip(*memo['results'])
@@ -422,26 +423,28 @@ if __name__ == '__main__':
     config = todd.Config(
         val = dict(
             dataloader=dict(
-                batch_size=3,
-                num_workers=0,
+                batch_size=8,
+                num_workers=8,
                 sample = not args.hotwater,
                 dataset=dict(
-                    root=data_root+"val2017",
-                    ann_file=data_root+'annotations/instances_val2017.json',
-                    pretrained='work_dirs/prompt/epoch_3_classes.pth',
+                    root=data_root+"train2017",
+                    ann_file=data_root+'annotations/instances_train2017.json',
+                    pretrained='data/coco/prompt/prompt2.pth',
                     split='COCO_17',
-                    proposal = '/mnt/data2/wlt/open_set_new/OpenSet-dev/data/coco/mask_embeddings_test_oln_base/val',
+                    proposal = 'data/coco/mask_embeddings/train',
                     top_KP = params['top_KP'],
-                    lvis_ann_file='data/lvis_v1/lvis_v1_val.json',
+                    lvis_ann_file='data/lvis_v1/annotations/lvis_v1_train.json',
                     lvis_split='LVIS'
                     
             ),
         )),
-        log_interval=64,
+        logger=dict(
+            nterval=64,
+        ),
         
         model = dict(
             dis = not args.hotwater,
-            pretrained = 'ViT-B/32',
+            pretrained = 'pretrained/clip/ViT-B-32.pt',
             softmax_t = params['softmax_t'],
             # softmax_t = 1,
             topK_clip_scores = params['topK_clip_scores'],

@@ -42,6 +42,6 @@ experiment.config.tuner.name = 'TPE'
 experiment.config.tuner.class_args['optimize_mode'] = 'maximize'
 
 experiment.config.max_trial_number = 1000
-experiment.config.trial_concurrency = 4
+experiment.config.trial_concurrency = 2
 
 experiment.run(8080)

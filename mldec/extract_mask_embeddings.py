@@ -53,6 +53,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         root: str,
         ann_file: str,
         proposal_file: str,
+        proposal_sorted: bool,
         mask_size: int,
         expand_mode: str,
         embeddings_root: str,
@@ -61,12 +62,11 @@ class CocoClassification(torchvision.datasets.CocoDetection):
             root=root,
             annFile=ann_file,
         )
+        if not proposal_sorted:
+            self.ids = list(self.coco.imgs.keys())
 
-        with open(proposal_file,'rb') as f:
-            self.proposals = torch.tensor(
-                pickle.load(f),
-                dtype=torch.float,
-            )
+        with open(proposal_file, 'rb') as f:
+            self.proposals = pickle.load(f)
 
         self._mask_size = mask_size
         self._expand_mode = ExpandMode[expand_mode.upper()]
@@ -91,7 +91,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
     def _crop(
         self,
         image: PIL.Image.Image,
-        bboxes: todd.base.BBoxesXYXY,
+        bboxes: todd.BBoxesXYXY,
         **kwargs,
     )-> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -114,7 +114,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         elif self._expand_mode == ExpandMode.ADAPTIVE:
             scale_ratio = kwargs.get('scale_ratio', 8)
             max_length = einops.rearrange(
-                torch.sqrt(bboxes.areas * scale_ratio),
+                torch.sqrt(bboxes.area * scale_ratio),
                 'n -> n 1',
             )
         else:
@@ -158,22 +158,20 @@ class CocoClassification(torchvision.datasets.CocoDetection):
     def __getitem__(self, index: int) -> Optional[Batch]:
         image_id = self.ids[index]
         embedding_file = self._embeddings_root / f'{image_id:012d}.pth'
-        if embedding_file.exists():
+        if not debug.DRY_RUN and embedding_file.exists():
             try:
                 torch.load(embedding_file, map_location='cpu')
                 return None
             except Exception:
                 pass
         image = self._load_image(image_id)
-        proposals = self.proposals[index]
-        inds = (proposals[:, 2] >= 4) & (proposals[:, 3] >= 4)
-        proposals = proposals[inds]
+        proposals = todd.BBoxesXYXY(self.proposals[index][:, :4])
+        indices = proposals.indices(min_wh=(4, 4))
+        proposals = proposals[indices]
+        objectness = torch.tensor(self.proposals[index][indices, -1])
 
-        bboxes = proposals[:, :4]
-        objectness = proposals[:,-1]
-        bboxes[:, 2:] += bboxes[:, :2]
-        patches, masks = self._crop(image, todd.base.BBoxesXYXY(bboxes))
-        return Batch(image_id, patches, bboxes, objectness, masks)
+        patches, masks = self._crop(image, proposals)
+        return Batch(image_id, patches, proposals.to_tensor(), objectness, masks)
 
     @staticmethod
     def collate(batch: List[Optional[Batch]]) -> Optional[Batch]:
