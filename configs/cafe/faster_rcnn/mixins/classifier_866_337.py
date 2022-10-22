@@ -8,7 +8,7 @@ model = dict(
             reg_class_agnostic=True,
             cls_predictor_cfg=dict(
                 type='ViLDClassifier',
-                pretrained='data/lvis_v1/prompt/detpro_lvis.pth',
+                pretrained='data/lvis_v1/prompt/detpro_lvis_1.pth',
                 split='LVIS',
                 num_base_classes=866,
             ),
