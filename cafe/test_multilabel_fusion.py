@@ -72,14 +72,18 @@ class Model(todd.Module):
         self,
         scores: torch.Tensor,
         objectness: torch.Tensor,
+        multilabel_logits: torch.Tensor,
         cfg: Dict[str, Any],
     ) -> torch.Tensor:
         scores *= cfg['score_scaler']
         scores = scores.softmax(-1)
+        multilabel_logits *= cfg['multilabel_logit_scaler']
+        multilabel_scores = multilabel_logits.softmax(-1)
         scores = (
-            scores ** cfg['objectness_gamma']
-            * objectness ** (1 - cfg['objectness_gamma'])
+            scores ** cfg['score_gamma']
+            * objectness ** cfg['objectness_gamma']
         )
+        scores[..., :-1] *= multilabel_scores ** cfg['multilabel_score_gamma']
         return scores
 
     def forward(
@@ -93,8 +97,8 @@ class Model(todd.Module):
     ) -> Dict[int, Any]:
 
         objectness = einops.rearrange(objectness, 'b n -> b n 1')
-        bbox_scores = self._classify(bbox_scores, objectness, self._bbox_cfg)
-        image_scores = self._classify(image_scores, objectness, self._image_cfg)
+        bbox_scores = self._classify(bbox_scores, objectness, multilabel_logits, self._bbox_cfg)
+        image_scores = self._classify(image_scores, objectness, multilabel_logits, self._image_cfg)
 
         ensemble_score = (
             bbox_scores ** self._ensemble_mask
@@ -234,9 +238,15 @@ if __name__ == '__main__':
             base_ensemble_mask=2 / 3,
             novel_ensemble_mask=1 / 3,
             bbox_score_scaler=1,
-            bbox_objectness_gamma=1,
+            bbox_multilabel_logit_scaler=1,
+            bbox_score_gamma=1,
+            bbox_objectness_gamma=0,
+            bbox_multilabel_score_gamma=0,
             image_score_scaler=1,
-            image_objectness_gamma=1,
+            image_multilabel_logit_scaler=1,
+            image_score_gamma=1,
+            image_objectness_gamma=0,
+            image_multilabel_score_gamma=0,
         )
     print(params)
 
@@ -264,11 +274,17 @@ if __name__ == '__main__':
             ),
             bbox_cfg=dict(
                 score_scaler=params['bbox_score_scaler'],
+                multilabel_logit_scaler=params['bbox_multilabel_logit_scaler'],
+                score_gamma=params['bbox_score_gamma'],
                 objectness_gamma=params['bbox_objectness_gamma'],
+                multilabel_score_gamma=params['bbox_multilabel_score_gamma'],
             ),
             image_cfg=dict(
                 score_scaler=params['image_score_scaler'],
+                multilabel_logit_scaler=params['image_multilabel_logit_scaler'],
+                score_gamma=params['image_score_gamma'],
                 objectness_gamma=params['image_objectness_gamma'],
+                multilabel_score_gamma=params['image_multilabel_score_gamma'],
             ),
         ),
         evaluator=config.data.test,

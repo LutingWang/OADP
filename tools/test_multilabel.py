@@ -15,6 +15,8 @@ sys.path.insert(0, '')
 from cafe import Cafe, one_hot
 from mldec import odps_init, debug
 
+todd.globals_.training = False
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Train')
@@ -57,7 +59,7 @@ if __name__ == '__main__':
     )
     model.eval()
     model.requires_grad_(False)
-    model.load_state_dict(ckpt['state_dict'])
+    model.load_state_dict(ckpt['state_dict'], strict=False)
     if not debug.CPU:
         model = model.cuda()
 
@@ -68,15 +70,25 @@ if __name__ == '__main__':
         if not debug.CPU:
             img = img.cuda()
         x = img.unsqueeze(0)
-        feats = model.backbone(x)
+        feats = model.extract_feat(x)
         multilabel_logits = model._multilabel_classify(feats)
         results.append((multilabel_logits, sample['gt_labels']))
+        if debug.DRY_RUN and i > 10:
+            break
 
     multilabel_logits_, gt_labels = zip(*results)
     multilabel_logits = torch.cat(multilabel_logits_)
     img_labels = one_hot(gt_labels, model._multilabel_classifier.num_classes)
     mAP = sklearn.metrics.average_precision_score(img_labels.cpu().numpy(), multilabel_logits.cpu().numpy(), average=None)
-    topK_recall = model.topK(multilabel_logits, img_labels, average=None)
+    topK_logits, topK_inds = multilabel_logits.topk(model._multilabel_topK)
+    topK_preds = one_hot(topK_inds, model.num_classes)
+    topK_recall = sklearn.metrics.recall_score(
+        img_labels.cpu().numpy(),
+        topK_preds.cpu().numpy(),
+        labels=torch.where(img_labels.sum(0))[0].cpu().numpy(),
+        average=None,
+        zero_division=0,
+    )
     for class_, mAP_, topK_recall_ in zip(CocoDataset.CLASSES, mAP, topK_recall):
         print(f"{class_} mAP={mAP_} recall={topK_recall_}")
     print(f"mAP {mAP.mean()}, topK_recall {topK_recall.mean()}")
