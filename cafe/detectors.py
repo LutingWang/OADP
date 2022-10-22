@@ -43,12 +43,15 @@ class Cafe(
     def __init__(
         self,
         *args,
+        num_classes: int,
         multilabel_classifier: Optional[Dict[str, Any]] = None,
         multilabel_loss: Optional[Dict[str, Any]] = None,
         post_fpn: Optional[Dict[str, Any]] = None,
         # caption_loss: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> None:
+        todd.globals_.num_classes = num_classes
+
         super().__init__(*args, **kwargs)
 
         todd.init_iter()
@@ -99,9 +102,12 @@ class Cafe(
         gt_labels: List[torch.Tensor],
         gt_bboxes_ignore: Optional[List[torch.Tensor]] = None,
         gt_masks: Optional[List[BitmapMasks]] = None,
-        proposals=None,
+        proposals: Optional[List[torch.Tensor]] = None,
         clip_image: Optional[torch.Tensor] = None,
+        clip_patch_feats: Optional[List[torch.Tensor]] = None,
         clip_patches: Optional[List[torch.Tensor]] = None,
+        clip_patch_labels: Optional[List[torch.Tensor]] = None,
+        clip_bbox_feats: Optional[List[torch.Tensor]] = None,
         clip_bboxes: Optional[List[torch.Tensor]] = None,
         # clip_captions: Optional[torch.Tensor] = None,
         **kwargs,
@@ -171,6 +177,20 @@ class Cafe(
         if self._post_fpn is not None:
             feats = self._post_fpn(feats, ce)
 
+        if self.roi_head.with_patch:
+            assert clip_patches is not None
+            assert clip_patch_labels is not None
+            clip_rois = bbox2roi(clip_patches)
+            patch_feats, patch_loss, patch_acc = self.roi_head._bbox_forward_patch(
+                feats, clip_rois, torch.cat(clip_patch_labels),
+            )
+            losses.update(
+                loss_patch=patch_loss,
+                acc_patch=patch_acc,
+            )
+        else:
+            patch_feats = None
+
         distiller = cast(todd.distillers.DistillableProto, self).distiller
         distiller_spec = distiller.spec()
 
@@ -178,14 +198,20 @@ class Cafe(
         if 'clip_image' in distiller_spec.inputs:
             assert clip_image is not None
             custom_tensors.update(clip_image=clip_image.float())
-        if 'clip_patches' in distiller_spec.inputs:
-            assert clip_patches is not None
-            custom_tensors.update(clip_patches=torch.cat(clip_patches).float())
-        if 'patches' in distiller_spec.inputs:
+        if 'clip_patch_feats' in distiller_spec.inputs:
+            assert clip_patch_feats is not None
+            custom_tensors.update(clip_patch_feats=torch.cat(clip_patch_feats).float())
+        if 'patch_feats' in distiller_spec.inputs:
+            assert patch_feats is not None
+            custom_tensors.update(patch_feats=patch_feats)
+        if 'clip_bbox_feats' in distiller_spec.inputs:
+            assert clip_bbox_feats is not None
+            custom_tensors.update(clip_bbox_feats=torch.cat(clip_bbox_feats).float())
+        if 'bbox_feats' in distiller_spec.inputs:
             assert clip_bboxes is not None
             clip_rois = bbox2roi(clip_bboxes)
             custom_tensors.update(
-                patches=self.roi_head._bbox_forward_distill(
+                bbox_feats=self.roi_head._bbox_forward_distill(
                     feats, clip_rois,
                 ),
             )
@@ -204,7 +230,8 @@ class Cafe(
         self,
         img: torch.Tensor,
         img_metas: List[Dict[str, Any]],
-        proposals=None,
+        proposals: Optional[List[torch.Tensor]] = None,
+        clip_patches: Optional[List[torch.Tensor]] = None,
         rescale: bool = False,
     ):
         todd.globals_.training = False

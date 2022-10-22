@@ -10,7 +10,7 @@ _base_ = [
     # '../_base_/datasets/coco_detection.py',
     # '../_base_/datasets/coco_48_17.py',
 
-    '../_base_/datasets/coco_detection_clip.py',
+    '../_base_/datasets/coco_instance_clip.py',
     '../_base_/datasets/coco_48_17.py',
     'mixins/dcp.py',
     'mixins/multilabel_48_17.py',
@@ -20,6 +20,7 @@ _base_ = [
 
 model = dict(
     type='Cafe',
+    num_classes=65,
     backbone=dict(
         style='caffe',
         # frozen_stages=4,
@@ -33,6 +34,30 @@ model = dict(
             norm_cfg=dict(type='SyncBN', requires_grad=True),
             # norm_cfg=None,
         ),
+
+        patch_head=dict(
+            type='Shared2FCBBoxHead',
+            with_reg=False,
+            cls_predictor_cfg=dict(
+                type='Classifier',
+                pretrained='data/coco/prompt/prompt1.pth',
+                split='COCO_48_17',
+                num_base_classes=48,
+            ),
+            loss=dict(
+                type='AsymmetricLoss',
+                weight=dict(
+                    type='WarmupScheduler',
+                    value=16,
+                    iter_=1000,
+                ),
+                gamma_neg=4,
+                gamma_pos=0,
+                clip=0.05,
+                disable_torch_grad_focal_loss=True,
+            ),
+        ),
+
     ),
     distiller=dict(
         student_hooks=dict(),

@@ -145,6 +145,7 @@ def main():
         train_dataset.ann_file = cfg.data.val.ann_file
         train_dataset.img_prefix = cfg.data.val.img_prefix
     if debug.DRY_RUN:
+        cfg.data.samples_per_gpu = 1
         cfg.data.workers_per_gpu = 0
         cfg.log_config.interval = 1
         cfg.workflow[0] = ('train', 3)

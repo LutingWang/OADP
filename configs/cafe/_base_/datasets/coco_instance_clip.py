@@ -1,5 +1,5 @@
 _base_ = [
-    'coco_instance.py',
+    'coco_detection_clip.py',
 ]
 
 data_root = 'data/coco/'
@@ -14,16 +14,11 @@ train_pipeline = [
         images=dict(
             type='PthAccessLayer',
             data_root=data_root + 'embeddings',
-            with_patches=False,
         ),
         regions=dict(
             type='PthAccessLayer',
             data_root=data_root + 'proposal_embeddings8',
         ),
-        # captions=dict(
-        #     type='PthAccessLayer',
-        #     data_root=data_root + 'caption_embeddings',
-        # ),
     ),
     dict(
         type='Resize',
@@ -35,9 +30,16 @@ train_pipeline = [
     dict(type='Normalize', **img_norm_cfg),
     dict(type='Pad', size_divisor=32),
     dict(type='DefaultFormatBundle'),
-    dict(type='ToTensor', keys=['clip_bboxes']),
+    dict(type='ToTensor', keys=[
+        'clip_patches',
+        'clip_patch_labels',
+        'clip_bboxes',
+    ]),
     dict(type='ToDataContainer', fields=[
+        dict(key='clip_patch_feats'),
         dict(key='clip_patches'),
+        dict(key='clip_patch_labels'),
+        dict(key='clip_bbox_feats'),
         dict(key='clip_bboxes'),
     ]),
     dict(type='Collect', keys=[
@@ -46,10 +48,13 @@ train_pipeline = [
         'gt_labels',
         'gt_masks',
         'clip_image',
+        'clip_patch_feats',
         'clip_patches',
+        'clip_patch_labels',
+        'clip_bbox_feats',
         'clip_bboxes',
         # 'clip_captions',
     ]),
 ]
 data = dict(train=dict(pipeline=train_pipeline))
-evaluation = dict(interval=1, metric='bbox')
+# evaluation = dict(interval=1, metric='bbox')

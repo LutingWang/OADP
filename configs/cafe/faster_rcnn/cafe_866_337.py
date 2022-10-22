@@ -14,6 +14,7 @@ _base_ = [
 
 model = dict(
     type='Cafe',
+    num_classes=1203,
     backbone=dict(
         style='caffe',
         # frozen_stages=4,

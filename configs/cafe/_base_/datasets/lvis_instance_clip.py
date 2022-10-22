@@ -29,12 +29,12 @@ train_pipeline = [
     dict(type='DefaultFormatBundle'),
     dict(type='ToTensor', keys=['clip_bboxes']),
     dict(type='ToDataContainer', fields=[
-        dict(key='clip_patches'),
+        dict(key='clip_bbox_feats'),
         dict(key='clip_bboxes'),
     ]),
     dict(type='Collect', keys=[
         'img', 'gt_bboxes', 'gt_labels', 'gt_masks',
-        'clip_patches',
+        'clip_bbox_feats',
         'clip_bboxes',
     ]),
 ]

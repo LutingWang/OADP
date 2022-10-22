@@ -5,8 +5,9 @@ __all__ = [
 ]
 
 import os
-from typing import Dict, Sequence, List, cast, Any
+from typing import Dict, Sequence, List, cast, Any, Optional
 
+import einops
 import mmdet.models
 import torch
 import todd
@@ -94,6 +95,7 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
         *args,
         bbox_head: Dict[str, Any],
         image_head: Dict[str, Any],
+        patch_head: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, bbox_head=bbox_head, **kwargs)
@@ -107,6 +109,15 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
         ensemble_mask[:classifier.num_base_classes] *= 2
         self.register_buffer('_ensemble_mask', ensemble_mask, persistent=False)
 
+        if patch_head is not None:
+            self._patch_loss = todd.losses.LOSSES.build(
+                patch_head.pop('loss'),
+            )
+            self._patch_head: mmdet.models.BBoxHead = mmdet.models.HEADS.build(
+                patch_head,
+                default_args=bbox_head,
+            )
+
     @property
     def ensemble_mask(self) -> torch.Tensor:
         return self._ensemble_mask
@@ -114,6 +125,10 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
     @property
     def with_mask(self) -> bool:
         return todd.globals_.training and super().with_mask
+
+    @property
+    def with_patch(self) -> bool:
+        return hasattr(self, '_patch_head')
 
     def _bbox_forward(
         self,
@@ -171,6 +186,32 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
         ) as hook_status:
             self._image_head(bbox_feats)
         return hook_status.value
+
+    def _bbox_forward_patch(
+        self,
+        x: Sequence[torch.Tensor],
+        rois: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> torch.Tensor:
+        bbox_feats = self.bbox_roi_extractor(
+            x[:self.bbox_roi_extractor.num_inputs], rois,
+        )
+        if self.with_shared_head:
+            bbox_feats = self.shared_head(bbox_feats)
+        with todd.hooks.hook(
+            dict(
+                type='StandardHook',
+                path='.fc_cls._linear',
+            ),
+            self._patch_head,
+        ) as hook_status:
+            logits, _ = self._patch_head(bbox_feats)
+        logits = logits[:, :-1]
+        patch_loss = self._patch_loss(logits.sigmoid(), labels)
+        _, topK_inds = logits.detach().topk(10)
+        inds = einops.repeat(torch.arange(labels.shape[0]), 'n -> n k', k=10)
+        patch_acc = labels[inds, topK_inds].sum() / labels.sum()
+        return hook_status.value, patch_loss, patch_acc
 
     if debug.DUMP:
         if not os.path.exists(os.getenv('DUMP')):

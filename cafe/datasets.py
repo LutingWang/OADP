@@ -181,38 +181,57 @@ class LoadCLIPFeatures:
     def __init__(
         self,
         task_name: str,
-        images: Dict[str, Any],
-        regions: Dict[str, Any],
-        # captions: Dict[str, Any],
+        images: Optional[Dict[str, Any]] = None,
+        regions: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._task_name = task_name
-        self._load_image_patches = images.pop('with_patches')
-        self._images = todd.datasets.ACCESS_LAYERS.build(images, default_args=dict(task_name=task_name))
-        self._regions = todd.datasets.ACCESS_LAYERS.build(regions, default_args=dict(task_name=task_name))
-        # self._captions = todd.datasets.ACCESS_LAYERS.build(captions, default_args=dict(task_name=task_name))
+
+        if images is not None:
+            self._images = todd.datasets.ACCESS_LAYERS.build(
+                images,
+                default_args=dict(task_name=task_name),
+            )
+        else:
+            self._images = None
+
+        if regions is not None:
+            self._regions = todd.datasets.ACCESS_LAYERS.build(
+                regions,
+                default_args=dict(task_name=task_name),
+            )
+        else:
+            self._regions = None
 
     def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
         key = f'{results["img_info"]["id"]:012d}'
         if debug.DRY_RUN:
             key = '000000000139'
 
-        image = self._images[key]
-        regions = self._regions[key]
-        # captions = self._captions[key]
+        if self._images is not None:
+            image = self._images[key]
+            results['clip_image'] = image['image'].squeeze(0)
 
-        if self._load_image_patches:
-            clip_patches = torch.cat([image['patches'], regions['patches']])
-            clip_bboxes = torch.cat([image['bboxes'], regions['bboxes']])
-        else:
-            clip_patches = regions['patches']
+            clip_patches = todd.base.BBoxesXYWH(image['bboxes'])
+            if 'gt_bboxes' in results:
+                gt_bboxes = todd.base.BBoxesXYWH(results['gt_bboxes'])
+                patch_ids, bbox_ids = torch.where(clip_patches.intersections(gt_bboxes) > 0)
+                labels = np.zeros((len(clip_patches), todd.globals_.num_classes), dtype=bool)
+                labels[patch_ids, results['gt_labels'][bbox_ids]] = True
+                results['clip_patch_labels'] = labels
+
+            results['clip_patch_feats'] = image['patches']
+            results['clip_patches'] = todd.base.BBoxesXYXY(clip_patches).to_tensor().float().numpy()
+            results['bbox_fields'].append('clip_patches')
+
+        if self._regions is not None:
+            regions = self._regions[key]
+            clip_bbox_feats = regions['patches']
             clip_bboxes = regions['bboxes']
-        inds = (clip_bboxes[:, 2] > clip_bboxes[:, 0] + 4) & (clip_bboxes[:, 3] > clip_bboxes[:, 1] + 4)  # TODO: update with todd
+            inds = (clip_bboxes[:, 2] > clip_bboxes[:, 0] + 4) & (clip_bboxes[:, 3] > clip_bboxes[:, 1] + 4)  # TODO: update with todd
+            results['clip_bbox_feats'] = clip_bbox_feats[inds]
+            results['clip_bboxes'] = clip_bboxes[inds].float().numpy()
+            results['bbox_fields'].append('clip_bboxes')
 
-        results['clip_image'] = image['image'].squeeze(0)
-        results['clip_patches'] = clip_patches[inds]
-        results['clip_bboxes'] = clip_bboxes[inds].float().numpy()
-        # results['clip_captions'] = captions[random.randint(0, captions.shape[0] - 1)]
-        results['bbox_fields'].append('clip_bboxes')
         return results
 
 
@@ -242,6 +261,6 @@ class LoadDetproFeatures:
         results['bbox_fields'].append('clip_bboxes')
 
         inds = (clip_bboxes[:, 2] > clip_bboxes[:, 0] + 32) & (clip_bboxes[:, 3] > clip_bboxes[:, 1] + 32)  # TODO: update with todd
-        results['clip_patches'] = clip_patches[inds]
+        results['clip_bbox_feats'] = clip_patches[inds]
         results['clip_bboxes'] = clip_bboxes[inds]
         return results

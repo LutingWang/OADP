@@ -14,16 +14,11 @@ train_pipeline = [
         images=dict(
             type='PthAccessLayer',
             data_root=data_root + 'embeddings',
-            with_patches=False,
         ),
         regions=dict(
             type='PthAccessLayer',
             data_root=data_root + 'vild_embeddings',
         ),
-        # captions=dict(
-        #     type='PthAccessLayer',
-        #     data_root=data_root + 'caption_embeddings',
-        # ),
     ),
     dict(
         type='Resize',
@@ -35,9 +30,16 @@ train_pipeline = [
     dict(type='Normalize', **img_norm_cfg),
     dict(type='Pad', size_divisor=32),
     dict(type='DefaultFormatBundle'),
-    dict(type='ToTensor', keys=['clip_bboxes']),
+    dict(type='ToTensor', keys=[
+        'clip_patches',
+        'clip_patch_labels',
+        'clip_bboxes',
+    ]),
     dict(type='ToDataContainer', fields=[
+        dict(key='clip_patch_feats'),
         dict(key='clip_patches'),
+        dict(key='clip_patch_labels'),
+        dict(key='clip_bbox_feats'),
         dict(key='clip_bboxes'),
     ]),
     dict(type='Collect', keys=[
@@ -45,9 +47,43 @@ train_pipeline = [
         'gt_bboxes',
         'gt_labels',
         'clip_image',
+        'clip_patch_feats',
         'clip_patches',
+        'clip_patch_labels',
+        'clip_bbox_feats',
         'clip_bboxes',
         # 'clip_captions',
     ]),
 ]
-data = dict(train=dict(pipeline=train_pipeline))
+test_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(
+        type='LoadCLIPFeatures',
+        task_name='val',
+        images=dict(
+            type='PthAccessLayer',
+            data_root=data_root + 'embeddings',
+        ),
+    ),
+    dict(
+        type='MultiScaleFlipAug',
+        img_scale=(1333, 800),
+        flip=False,
+        transforms=[
+            dict(type='Resize', keep_ratio=True),
+            dict(type='RandomFlip'),
+            dict(type='Normalize', **img_norm_cfg),
+            dict(type='Pad', size_divisor=32),
+            dict(type='ImageToTensor', keys=['img']),
+            dict(type='ToTensor', keys=['clip_patches']),
+            dict(type='ToDataContainer', fields=[
+                dict(key='clip_patches'),
+            ]),
+            dict(type='Collect', keys=['img', 'clip_patches']),
+        ])
+]
+data = dict(
+    train=dict(pipeline=train_pipeline),
+    val=dict(pipeline=test_pipeline),
+    test=dict(pipeline=test_pipeline),
+)
