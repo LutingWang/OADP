@@ -240,27 +240,49 @@ class LoadDetproFeatures:
 
     def __init__(
         self,
-        task_name: str,
-        regions: Dict[str, Any],
+        images: Optional[Dict[str, Any]] = None,
+        regions: Optional[Dict[str, Any]] = None,
     ) -> None:
-        self._task_name = task_name
-        self._regions = todd.datasets.ACCESS_LAYERS.build(regions, default_args=dict(task_name=task_name))
+        if images is not None:
+            self._images = todd.datasets.ACCESS_LAYERS.build(
+                images,
+            )
+        else:
+            self._images = None
+
+        if regions is not None:
+            self._regions = todd.datasets.ACCESS_LAYERS.build(
+                regions,
+            )
+        else:
+            self._regions = None
+
 
     def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
-        key = results['img_info']['filename']\
-            .replace('.jpg', '')\
-            .replace('train2017/', '')\
-            .replace('val2017/', '')
-        if debug.DRY_RUN:
-            key = '000000000030'
+        if self._images is not None:
+            key = results['img_info']['filename']\
+                .replace('.jpg', '')\
+                .replace('train2017/', 'train/')\
+                .replace('val2017/', 'val/')
+            image = self._images[key]
+            results['clip_image'] = image['image'].squeeze(0)
 
-        clip_patches = self._regions[key]
-        clip_bboxes = results.pop('proposals')
+        if self._regions is not None:
+            key = results['img_info']['filename']\
+                .replace('.jpg', '')\
+                .replace('train2017/', '')\
+                .replace('val2017/', '')
+            if debug.DRY_RUN:
+                key = '000000000030'
 
-        results['bbox_fields'].remove('proposals')
-        results['bbox_fields'].append('clip_bboxes')
+            clip_patches = self._regions[key]
+            clip_bboxes = results.pop('proposals')
 
-        inds = (clip_bboxes[:, 2] > clip_bboxes[:, 0] + 32) & (clip_bboxes[:, 3] > clip_bboxes[:, 1] + 32)  # TODO: update with todd
-        results['clip_bbox_feats'] = clip_patches[inds]
-        results['clip_bboxes'] = clip_bboxes[inds]
+            results['bbox_fields'].remove('proposals')
+            results['bbox_fields'].append('clip_bboxes')
+
+            inds = (clip_bboxes[:, 2] > clip_bboxes[:, 0] + 32) & (clip_bboxes[:, 3] > clip_bboxes[:, 1] + 32)  # TODO: update with todd
+            results['clip_bbox_feats'] = clip_patches[inds]
+            results['clip_bboxes'] = clip_bboxes[inds]
+
         return results

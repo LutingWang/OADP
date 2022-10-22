@@ -10,6 +10,8 @@ _base_ = [
 
     'mixins/dcp.py',
     'mixins/mask_866_337.py',
+
+    'mixins/multilabel_866_337.py',
 ]
 
 model = dict(

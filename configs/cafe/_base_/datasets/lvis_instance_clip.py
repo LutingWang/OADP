@@ -12,10 +12,15 @@ train_pipeline = [
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
     dict(
         type='LoadDetproFeatures',
-        task_name='train2017',
+        images=dict(
+            type='PthAccessLayer',
+            data_root='data/coco/embeddings',
+            task_name='',
+        ),
         regions=dict(
             type='PthAccessLayer',
             data_root='data/lvis_v1/data/lvis_clip_image_embedding/',
+            task_name='train2017',
         ),
     ),
     dict(
@@ -34,6 +39,7 @@ train_pipeline = [
     ]),
     dict(type='Collect', keys=[
         'img', 'gt_bboxes', 'gt_labels', 'gt_masks',
+        'clip_image',
         'clip_bbox_feats',
         'clip_bboxes',
     ]),

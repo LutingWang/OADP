@@ -134,6 +134,8 @@ def main():
         cfg.merge_from_dict(args.cfg_options)
 
     debug.init()
+    if debug.CPU:
+        cfg.fp16 = None
     if debug.TRAIN_WITH_VAL_DATASET:
         if 'dataset' in cfg.data.train:
             train_dataset = cfg.data.train.dataset
