@@ -181,12 +181,12 @@ class Cafe(
             assert clip_patches is not None
             assert clip_patch_labels is not None
             clip_rois = bbox2roi(clip_patches)
-            patch_feats, patch_loss, patch_acc = self.roi_head._bbox_forward_patch(
+            patch_feats, patch_loss, patch_topK_recall = self.roi_head._bbox_forward_patch(
                 feats, clip_rois, torch.cat(clip_patch_labels),
             )
             losses.update(
                 loss_patch=patch_loss,
-                acc_patch=patch_acc,
+                recall_patch_topK=patch_topK_recall,
             )
         else:
             patch_feats = None

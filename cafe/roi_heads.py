@@ -210,8 +210,8 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
         patch_loss = self._patch_loss(logits.sigmoid(), labels)
         _, topK_inds = logits.detach().topk(10)
         inds = einops.repeat(torch.arange(labels.shape[0]), 'n -> n k', k=10)
-        patch_acc = labels[inds, topK_inds].sum() / labels.sum()
-        return hook_status.value, patch_loss, patch_acc
+        patch_topK_recall = labels[inds, topK_inds].sum() / labels.sum()
+        return hook_status.value, patch_loss, patch_topK_recall
 
     if debug.DUMP:
         if not os.path.exists(os.getenv('DUMP')):
