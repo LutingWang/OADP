@@ -22,7 +22,7 @@ CHECKPOINT=$2
 GPUS=$3
 PY_ARGS=${@:4}
 PY_ARGS="${PY_ARGS} --launcher pytorch"
-PY_ARGS="${PY_ARGS} --cfg-options evaluation.tmpdir=work_dirs/tmp${RANDOM}"
+PY_ARGS="${PY_ARGS} --tmpdir work_dirs/tmp${RANDOM}"
 PY_ARGS="${PY_ARGS} --odps GIT_COMMIT_ID:\\\'$(git rev-parse --short HEAD)\\\'"
 
 PROJECT_NAME=${PROJECT_NAME:-denseclip_test}
