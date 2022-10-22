@@ -9,7 +9,7 @@ model = dict(
             # ),
         ),
         losses=dict(
-            loss_clip_patches=dict(
+            loss_clip_bboxes=dict(
                 type='L1Loss',
                 norm=True,
                 fields=['bbox_feats', 'clip_bbox_feats'],
