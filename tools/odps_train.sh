@@ -44,6 +44,7 @@ tar -zchf /tmp/${PROJECT_NAME}.tar.gz cafe clip configs mldec tools requirements
 cmd_oss="
 use ${WORKBENCH};
 pai -name pytorch180
+    -Doversubscription=false
     -Dscript=\"file:///tmp/${PROJECT_NAME}.tar.gz\"
     -DentryFile=\"${ENTRY_FILE}\"
     -DworkerCount=${GPUS}
