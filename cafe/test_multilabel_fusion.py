@@ -82,38 +82,30 @@ class Model(todd.Module):
     def _classify(
         self,
         scores: torch.Tensor,
+        patch_relevance: torch.Tensor,
         objectness: torch.Tensor,
-        multilabel_logits: Optional[torch.Tensor],
-        patch_logits: torch.Tensor,
+        batch: Batch,
         cfg: Dict[str, Any],
     ) -> torch.Tensor:
         scores *= cfg['score_scaler']
         scores = scores.softmax(-1)
+
         scores = (
             scores ** cfg['score_gamma']
             * objectness ** cfg['objectness_gamma']
         )
         return scores
 
-    def forward(
-        self,
-        bboxes: torch.Tensor,
-        bbox_scores: torch.Tensor,
-        image_scores: torch.Tensor,
-        objectness: torch.Tensor,
-        multilabel_logits: Optional[torch.Tensor],
-        patch_logits: torch.Tensor,
-        patch_bboxes: torch.Tensor,
-        image_ids: torch.Tensor,
-    ) -> Dict[int, Any]:
-        patch_relevance = todd.BBoxesXYXY(bboxes).intersections(
-            todd.BBoxesXYXY(patch_bboxes),
+    def forward(self, batch: Batch) -> Dict[int, Any]:
+        patch_relevance = todd.BBoxesXYXY(batch.bboxes).intersections(
+            todd.BBoxesXYXY(batch.patch_bboxes),
         )
         patch_relevance[patch_relevance <= 0] = float('-inf')
 
-        objectness = einops.rearrange(objectness, 'b n -> b n 1')
-        bbox_scores = self._classify(bbox_scores, objectness, multilabel_logits, self._bbox_cfg)
-        image_scores = self._classify(image_scores, objectness, multilabel_logits, self._image_cfg)
+        objectness = einops.rearrange(batch.objectness, 'b n -> b n 1')
+
+        bbox_scores = self._classify(batch.bbox_scores, patch_relevance, objectness, batch, self._bbox_cfg)
+        image_scores = self._classify(batch.image_scores, patch_relevance, objectness, batch, self._image_cfg)
 
         ensemble_score = (
             bbox_scores ** self._ensemble_mask
@@ -124,12 +116,12 @@ class Model(todd.Module):
         return {
             image_id: bbox2result(
                 *multiclass_nms(
-                    bboxes[i], ensemble_score[i],
+                    batch.bboxes[i], ensemble_score[i],
                     **self._nms_cfg,
                 ),
                 65,
             )
-            for i, image_id in enumerate(image_ids)
+            for i, image_id in enumerate(batch.image_ids)
         }
 
 
@@ -183,16 +175,12 @@ class Runner(BaseRunner):
         memo: Dict[str, Any],
         **kwargs,
     ) -> None:
-        result_dict = self._model(
-            batch.bboxes.cuda().float(),
-            batch.bbox_scores.cuda(),
-            batch.image_scores.cuda(),
-            batch.objectness.cuda(),
-            None,
-            batch.patch_logits.cuda(),
-            batch.patch_bboxes.cuda(),
-            batch.image_ids,
-        )
+        if not debug.CPU:
+            batch = Batch(*[
+                field.cuda().float() if isinstance(field, torch.Tensor) else field
+                for field in batch
+            ])
+        result_dict = self._model(batch)
         memo['result_dict'].update(result_dict)
 
     def _after_run_iter(
