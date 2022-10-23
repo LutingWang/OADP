@@ -30,6 +30,8 @@ class Batch(NamedTuple):
     image_scores: torch.Tensor
     objectness: torch.Tensor
     multilabel_logits: Optional[torch.Tensor]
+    patch_logits: Optional[torch.Tensor]
+    patch_bboxes: Optional[torch.Tensor]
 
 
 class Dataset(todd.datasets.PthDataset):
@@ -41,10 +43,19 @@ class Dataset(todd.datasets.PthDataset):
                 data_root=root,
             ),
         )
+        self._patch_access_layer = todd.datasets.PthAccessLayer(
+            data_root='data/coco/embeddings',
+            task_name='val',
+        )
 
     def __getitem__(self, index: int) -> Batch:
-        item: Dict[str, Any] = super().__getitem__(index)
-        return Batch(image_ids=self._keys[index], **item)
+        key = self._keys[index]
+        item: Dict[str, Any] = self._access_layer[key]
+        item.update(
+            patch_bboxes=self._patch_access_layer[key]['bboxes'],
+            image_ids=key,
+        )
+        return Batch(**item)
 
 
 class Model(todd.Module):
@@ -72,18 +83,16 @@ class Model(todd.Module):
         self,
         scores: torch.Tensor,
         objectness: torch.Tensor,
-        multilabel_logits: torch.Tensor,
+        multilabel_logits: Optional[torch.Tensor],
+        patch_logits: torch.Tensor,
         cfg: Dict[str, Any],
     ) -> torch.Tensor:
         scores *= cfg['score_scaler']
         scores = scores.softmax(-1)
-        multilabel_logits *= cfg['multilabel_logit_scaler']
-        multilabel_scores = multilabel_logits.softmax(-1)
         scores = (
             scores ** cfg['score_gamma']
             * objectness ** cfg['objectness_gamma']
         )
-        scores[..., :-1] *= multilabel_scores ** cfg['multilabel_score_gamma']
         return scores
 
     def forward(
@@ -93,8 +102,14 @@ class Model(todd.Module):
         image_scores: torch.Tensor,
         objectness: torch.Tensor,
         multilabel_logits: Optional[torch.Tensor],
+        patch_logits: torch.Tensor,
+        patch_bboxes: torch.Tensor,
         image_ids: torch.Tensor,
     ) -> Dict[int, Any]:
+        patch_relevance = todd.BBoxesXYXY(bboxes).intersections(
+            todd.BBoxesXYXY(patch_bboxes),
+        )
+        patch_relevance[patch_relevance <= 0] = float('-inf')
 
         objectness = einops.rearrange(objectness, 'b n -> b n 1')
         bbox_scores = self._classify(bbox_scores, objectness, multilabel_logits, self._bbox_cfg)
@@ -173,7 +188,9 @@ class Runner(BaseRunner):
             batch.bbox_scores.cuda(),
             batch.image_scores.cuda(),
             batch.objectness.cuda(),
-            None if batch.multilabel_logits is None else batch.multilabel_logits.cuda(),
+            None,
+            batch.patch_logits.cuda(),
+            batch.patch_bboxes.cuda(),
             batch.image_ids,
         )
         memo['result_dict'].update(result_dict)
@@ -238,15 +255,11 @@ if __name__ == '__main__':
             base_ensemble_mask=2 / 3,
             novel_ensemble_mask=1 / 3,
             bbox_score_scaler=1,
-            bbox_multilabel_logit_scaler=1,
             bbox_score_gamma=1,
             bbox_objectness_gamma=0,
-            bbox_multilabel_score_gamma=0,
             image_score_scaler=1,
-            image_multilabel_logit_scaler=1,
             image_score_gamma=1,
             image_objectness_gamma=0,
-            image_multilabel_score_gamma=0,
         )
     print(params)
 

@@ -222,13 +222,17 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
             ) as image_head_status:
                 det_bboxes, _ = super().simple_test_bboxes(x, img_metas, proposals, None, rescale)
 
-            patch_feats = self.bbox_roi_extractor(
-                x[:self.bbox_roi_extractor.num_inputs],
-                todd.globals_.pop('clip_rois'),
-            )
-            if self.with_shared_head:
-                patch_feats = self.shared_head(patch_feats)
-            patch_logits, _ = self._patch_head(patch_feats)
+            if self.with_patch:
+                patch_feats = self.bbox_roi_extractor(
+                    x[:self.bbox_roi_extractor.num_inputs],
+                    todd.globals_.pop('clip_rois'),
+                )
+                if self.with_shared_head:
+                    patch_feats = self.shared_head(patch_feats)
+                patch_logits, _ = self._patch_head(patch_feats)
+                patch_logits = patch_logits[:, :-1].half(),
+            else:
+                patch_logits = None
 
             image_id = img_metas[0]['ori_filename'][:-4]
             save_path = os.path.join(os.getenv('DUMP'), f'{image_id}.pth')

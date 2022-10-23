@@ -1,26 +1,20 @@
 import argparse
-from asyncio.log import logger
+import os
 from collections import namedtuple
-from logging import raiseExceptions
-import pathlib
-from typing import Any, Dict, Iterator, List, Optional, Tuple, final
+from typing import Any, Dict, Iterator, List, Optional, Tuple
+
 import torch
 import torch.distributed
 import torch.utils.data
 import torch.utils.data.dataloader
 import torch.utils.data.distributed
 import torch.nn as nn
+
 import PIL.Image
-from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
 import clip
 import clip.model
-import os
 import todd
 import torchvision
-from . import datasets
-from .debug import debug
-from .utils import odps_init
-from .todd import BaseRunner
 from mmdet.core import  multiclass_nms
 import torch.distributed as dist
 from mmcv.runner import get_dist_info
@@ -31,17 +25,17 @@ try:
     BICUBIC = InterpolationMode.BICUBIC
 except ImportError:
     BICUBIC = PIL.Image.BICUBIC
-from sklearn.metrics import accuracy_score,confusion_matrix,precision_score
-from sklearn.utils.class_weight import compute_sample_weight
-from mmdet.core.visualization import imshow_det_bboxes
 import json
 import nni
-from pycocotools.coco import COCO
-from pycocotools.cocoeval import COCOeval
 from lvis.lvis import LVIS
 from lvis.results import LVISResults
 from lvis.eval import LVISEval
-from lvis.vis import LVISVis
+
+from . import datasets
+from .debug import debug
+from .utils import odps_init
+from .todd import BaseRunner
+
 Batch = namedtuple(
     'Batch',
     [ 'proposal_embeddings', 'proposal_objectness','proposal_bboxes','image_ids','class_embeddings', 'scaler', 'bias','mask'],
@@ -152,8 +146,6 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         return [anno for anno in target if anno['category_id'] in self._cat2label]
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor,torch.Tensor]:
-        data = super().__getitem__(index)
-        image,target = data
         image_id = torch.tensor(self.ids[index])
         proposal_pth = f'{image_id.item():012d}.pth'
         data_path = os.path.join(self.proposal_root,proposal_pth)
@@ -172,7 +164,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
             proposal_embeddings = data_ckpt['patches']
             proposal_objectness= torch.ones_like(proposal_bboxes[:,-1])
         else:
-            raiseExceptions("No such data format")    
+            raise RuntimeError("No such data format")    
         
         inds = torch.arange(self.top_KP)
         return proposal_embeddings[inds],proposal_objectness[inds],proposal_bboxes[inds],image_id
@@ -192,16 +184,11 @@ class Model(todd.base.Module):
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self.model, _ = clip.load(config.pretrained, 'cpu')
-        assert "ViT-B" in config.pretrained and "32" in config.pretrained
-        self.model.requires_grad_(False)
         self.softmax_t = config.softmax_t
         self.topK_clip_scores = config.topK_clip_scores
         self.nms_score_thres = config.nms_score_thres
         self.nms_iou_thres =  config.nms_iou_thres
         self.score_fusion_cfg = config.bbox_objectness
-
-
 
     def forward(self, batch: Batch) -> torch.Tensor:
 
@@ -232,7 +219,6 @@ class Model(todd.base.Module):
         final_bboxes = []
         final_labels = []
         final_image = []
-        import ipdb;ipdb.set_trace()
         for i,(result,logit) in enumerate(zip(batch.proposal_bboxes,final_logit_k)):
             # assert (result[:,3]<result[:,1]).any()
             final_bbox_c, final_label = multiclass_nms(result[...,:4].float(),logit.float(),score_thr=self.nms_score_thres,nms_cfg=dict(type='nms', iou_threshold=self.nms_iou_thres))
@@ -369,10 +355,10 @@ class Runner(BaseRunner):
                     'score': curConf,
                     # 'is_crowd':0,
                     }
-            if self._config.save_json:
-                if data['score'] < 0.8:
-                    # import ipdb;ipdb.set_trace()
-                    continue
+            # if self._config.save_json:
+            #     if data['score'] < 0.8:
+            #         # import ipdb;ipdb.set_trace()
+            #         continue
 
                 
             new_annotations.append(data)
@@ -425,7 +411,6 @@ class Runner(BaseRunner):
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Train')
     parser.add_argument('name', type=str)
-    # parser.add_argument('root', type=pathlib.Path)
     parser.add_argument('--hotwater', action='store_true')
     parser.add_argument('--save', action='store_true')
     parser.add_argument('--odps', action=todd.base.DictAction)
@@ -458,17 +443,17 @@ if __name__ == '__main__':
     config = todd.Config(
         val = dict(
             dataloader=dict(
-                batch_size=3,
+                batch_size=4,
                 num_workers=0,
                 sample = not args.hotwater,
                 dataset=dict(
-                    root=data_root+"val2017",
-                    ann_file=data_root+'annotations/instances_val2017.json',
-                    pretrained='work_dirs/prompt/epoch_3_classes.pth',
+                    root=data_root+"train2017",
+                    ann_file=data_root+'annotations/instances_train2017.json',
+                    pretrained=data_root + 'prompt/prompt2.pth',
                     split='COCO_17',
-                    proposal = '/mnt/data2/wlt/open_set_new/OpenSet-dev/data/coco/mask_embeddings_test_oln_base/val',
+                    proposal = data_root + 'mask_embeddings/train',
                     top_KP = params['top_KP'],
-                    lvis_ann_file='data/lvis_v1/lvis_v1_val.json',
+                    lvis_ann_file='data/lvis_v1/annotations/lvis_v1_train.json',
                     lvis_split='LVIS'
                     
             ),
@@ -477,7 +462,6 @@ if __name__ == '__main__':
         
         model = dict(
             dis = not args.hotwater,
-            pretrained = 'ViT-B/32',
             softmax_t = params['softmax_t'],
             # softmax_t = 1,
             topK_clip_scores = params['topK_clip_scores'],
@@ -486,7 +470,7 @@ if __name__ == '__main__':
             bbox_objectness = params['bbox_objectness']
         ),
         save_json = args.save,
-        json_path = "data/lvis_pl.json"
+        json_path = "work_dirs/pl_debug/lvis_pl.json"
         
     )
     if args.odps is not None:
