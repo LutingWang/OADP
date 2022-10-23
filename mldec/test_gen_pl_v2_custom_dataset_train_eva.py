@@ -377,7 +377,8 @@ class Runner(BaseRunner):
             lvisEval.run()
             results = lvisEval.get_results()
             lvisEval.print_results()
-            nni.report_final_result(results['AP50'])
+            # import ipdb;ipdb.set_trace()
+            nni.report_final_result(results['APr'])
             self._logger.info("Evaluation END")
         else:
             lvis_data = lvisGt.dataset
@@ -455,7 +456,7 @@ if __name__ == '__main__':
                 dataset=dict(
                     root=data_root+"val2017",
                     ann_file=data_root+'annotations/instances_val2017.json',
-                    pretrained=data_root + 'prompt/prompt2.pth',
+                    pretrained=data_root + 'prompt/vild.pth',
                     split='COCO_17',
                     proposal = data_root + 'mask_embeddings/',
                     top_KP = params['top_KP'],
