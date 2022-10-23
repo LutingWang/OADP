@@ -70,7 +70,6 @@ def build_coco_from_pl(pl_data_file: str, coco_data_file: str, coco_split: str,p
     
     save_path = f'{coco_data_file}.{pl_split}'
     logger.info(f'Saving {save_path}')
-    import ipdb;ipdb.set_trace()
     with open(f'{save_path}', 'w') as f:
         json.dump(coco_data, f, separators=(',', ':'))
     logger.info(f'Saved {save_path}')
@@ -119,7 +118,7 @@ def build_lvis_from_pl(pl_data_file: str, lvis_data_file: str, lvis_split: str,p
 
 
 def main() -> None:
-    build_coco_from_pl('data/lvis_pl.json','data/coco/annotations/instances_val2017.json','COCO_48_17','LVIS',False)
+    build_coco_from_pl('work_dirs/pl_debug/lvis_pl.json', 'data/coco/annotations/instances_train2017.json','COCO_48_17','LVIS',False)
     pass
 
 
