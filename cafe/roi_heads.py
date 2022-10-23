@@ -135,24 +135,18 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
         x: List[torch.Tensor],
         rois: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
-        if x[0].ndim == 5:
-            image_x = [feat[1] for feat in x]
-            x = [feat[0] for feat in x]
-        else:
-            assert x[0].ndim == 4
-            image_x = None
         bbox_results = super()._bbox_forward(x, rois)
 
         if todd.globals_.training:
             return bbox_results
 
-        if image_x is None:
-            bbox_feats = bbox_results['bbox_feats']
-        else:
+        if 'extra_feats' in todd.globals_:
             bbox_feats = self.bbox_roi_extractor(
-                image_x[:self.bbox_roi_extractor.num_inputs],
+                todd.globals_.pop('extra_feats')[:self.bbox_roi_extractor.num_inputs],
                 rois,
             )
+        else:
+            bbox_feats = bbox_results['bbox_feats']
 
         assert not self.with_shared_head
         cls_score, _ = self._image_head(bbox_feats)

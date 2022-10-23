@@ -254,8 +254,7 @@ class Cafe(
             ce = None
 
         if self._post_fpn is not None:
-            image_feats = self._post_fpn(feats, ce)
-            feats = [torch.stack(feat) for feat in zip(feats, image_feats)]
+            todd.globals_.extra_feats = self._post_fpn(feats, ce)
 
         return self.roi_head.simple_test(
             feats,

@@ -29,7 +29,7 @@ class DebugMixin(CustomDataset):
 
     def __len__(self) -> int:
         if debug.DRY_RUN:
-            return 6
+            return 3
         return super().__len__()
 
     def load_annotations(self, *args, **kwargs):

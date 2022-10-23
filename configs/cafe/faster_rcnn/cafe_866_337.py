@@ -11,7 +11,7 @@ _base_ = [
     'mixins/dcp.py',
     'mixins/mask_866_337.py',
 
-    'mixins/multilabel_866_337.py',
+    # 'mixins/multilabel_866_337.py',
 ]
 
 model = dict(
@@ -54,4 +54,4 @@ optimizer = dict(
     #     },
     # ),
 )
-fp16 = dict(loss_scale=dict(init_scale=64.0))
+evaluation = dict(interval=4)
