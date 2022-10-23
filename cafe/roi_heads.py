@@ -230,7 +230,7 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
                 if self.with_shared_head:
                     patch_feats = self.shared_head(patch_feats)
                 patch_logits, _ = self._patch_head(patch_feats)
-                patch_logits = patch_logits[:, :-1].half(),
+                patch_logits = patch_logits[:, :-1].half()
             else:
                 patch_logits = None
 

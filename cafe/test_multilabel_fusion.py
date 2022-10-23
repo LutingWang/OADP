@@ -24,7 +24,7 @@ import mldec
 
 
 class Batch(NamedTuple):
-    image_ids: List[int]
+    image_ids: str
     bboxes: torch.Tensor
     bbox_scores: torch.Tensor
     image_scores: torch.Tensor
@@ -57,6 +57,11 @@ class Dataset(todd.datasets.PthDataset):
         )
         return Batch(**item)
 
+    @staticmethod
+    def collate(batch: List[Batch]) -> Batch:
+        assert len(batch) == 1
+        return batch[0]
+
 
 class Model(todd.Module):
 
@@ -82,30 +87,30 @@ class Model(todd.Module):
     def _classify(
         self,
         scores: torch.Tensor,
-        patch_relevance: torch.Tensor,
-        objectness: torch.Tensor,
         batch: Batch,
         cfg: Dict[str, Any],
     ) -> torch.Tensor:
         scores *= cfg['score_scaler']
         scores = scores.softmax(-1)
+        scores = scores ** cfg['score_gamma']
 
-        scores = (
-            scores ** cfg['score_gamma']
-            * objectness ** cfg['objectness_gamma']
+        patch_relevance = todd.BBoxesXYXY(batch.bboxes).intersections(
+            todd.BBoxesXYWH(batch.patch_bboxes),
         )
+        patch_logits = batch.patch_logits[0][patch_relevance.argmax(-1)].cuda().float()
+        patch_logits *= cfg['patch_scaler']
+        patch_scores = patch_logits.softmax(-1)
+        patch_scores = patch_scores ** cfg['patch_gamma']
+        scores[:, :65] *= patch_scores
+
+        objectness = einops.rearrange(batch.objectness, 'n -> n 1')
+        objectness = objectness ** cfg['objectness_gamma']
+        scores *= objectness
         return scores
 
     def forward(self, batch: Batch) -> Dict[int, Any]:
-        patch_relevance = todd.BBoxesXYXY(batch.bboxes).intersections(
-            todd.BBoxesXYXY(batch.patch_bboxes),
-        )
-        patch_relevance[patch_relevance <= 0] = float('-inf')
-
-        objectness = einops.rearrange(batch.objectness, 'b n -> b n 1')
-
-        bbox_scores = self._classify(batch.bbox_scores, patch_relevance, objectness, batch, self._bbox_cfg)
-        image_scores = self._classify(batch.image_scores, patch_relevance, objectness, batch, self._image_cfg)
+        bbox_scores = self._classify(batch.bbox_scores, batch, self._bbox_cfg)
+        image_scores = self._classify(batch.image_scores, batch, self._image_cfg)
 
         ensemble_score = (
             bbox_scores ** self._ensemble_mask
@@ -114,14 +119,13 @@ class Model(todd.Module):
 
         ensemble_score = ensemble_score.float()
         return {
-            image_id: bbox2result(
+            batch.image_ids: bbox2result(
                 *multiclass_nms(
-                    batch.bboxes[i], ensemble_score[i],
+                    batch.bboxes, ensemble_score,
                     **self._nms_cfg,
                 ),
                 65,
             )
-            for i, image_id in enumerate(batch.image_ids)
         }
 
 
@@ -150,6 +154,7 @@ class Runner(BaseRunner):
             batch_size=config.batch_size,
             sampler=sampler,
             num_workers=config.num_workers,
+            collate_fn=dataset.collate,
         )
         return dataset, sampler, dataloader
 
@@ -243,10 +248,14 @@ if __name__ == '__main__':
             base_ensemble_mask=2 / 3,
             novel_ensemble_mask=1 / 3,
             bbox_score_scaler=1,
+            bbox_patch_scaler=0,
             bbox_score_gamma=1,
+            bbox_patch_gamma=0,
             bbox_objectness_gamma=0,
             image_score_scaler=1,
+            image_patch_scaler=0,
             image_score_gamma=1,
+            image_patch_gamma=0,
             image_objectness_gamma=0,
         )
     print(params)
@@ -275,22 +284,22 @@ if __name__ == '__main__':
             ),
             bbox_cfg=dict(
                 score_scaler=params['bbox_score_scaler'],
-                multilabel_logit_scaler=params['bbox_multilabel_logit_scaler'],
+                patch_scaler=params['bbox_patch_scaler'],
                 score_gamma=params['bbox_score_gamma'],
+                patch_gamma=params['bbox_patch_gamma'],
                 objectness_gamma=params['bbox_objectness_gamma'],
-                multilabel_score_gamma=params['bbox_multilabel_score_gamma'],
             ),
             image_cfg=dict(
                 score_scaler=params['image_score_scaler'],
-                multilabel_logit_scaler=params['image_multilabel_logit_scaler'],
+                patch_scaler=params['image_patch_scaler'],
                 score_gamma=params['image_score_gamma'],
+                patch_gamma=params['image_patch_gamma'],
                 objectness_gamma=params['image_objectness_gamma'],
-                multilabel_score_gamma=params['image_multilabel_score_gamma'],
             ),
         ),
         evaluator=config.data.test,
         logger=dict(
-            interval=16,
+            interval=64,
         ),
     )
 
