@@ -202,8 +202,8 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
             logits, _ = self._patch_head(bbox_feats)
         logits = logits[:, :-1]
         patch_loss = self._patch_loss(logits.sigmoid(), labels)
-        _, topK_inds = logits.detach().topk(10)
-        inds = einops.repeat(torch.arange(labels.shape[0]), 'n -> n k', k=10)
+        _, topK_inds = logits.detach().topk(5)
+        inds = einops.repeat(torch.arange(labels.shape[0]), 'n -> n k', k=5)
         patch_topK_recall = labels[inds, topK_inds].sum() / labels.sum()
         return hook_status.value, patch_loss, patch_topK_recall
 
