@@ -25,7 +25,7 @@ experiment.config.trial_code_directory = pathlib.Path(__file__).parent.parent
 experiment.config.search_space = dict(
     top_KP=dict(
         _type='randint',
-        _value=[60, 100],
+        _value=[60, 300],
     ),
     softmax_t=dict(
         _type='uniform',
@@ -33,35 +33,35 @@ experiment.config.search_space = dict(
     ),
     nms_iou_thres=dict(
         _type='uniform',
-        _value=[0.5, 0.7],
+        _value=[0.3, 0.7],
     ),
     topK_clip_scores=dict(
         _type='randint',
-        _value=[1, 2],
+        _value=[1, 6],
     ),
     bbox_objectness=dict(
         _type='choice',
         _value=[
-            # dict(
-            #     _name='add',
-            #     clip_score_ratio=dict(
-            #         _type='uniform',
-            #         _value=[0, 1],
-            #     ),
-            #     obj_score_ratio=dict(
-            #         _type='uniform',
-            #         _value=[0, 1],
-            #     ),
-            # ),
+            dict(
+                _name='add',
+                clip_score_ratio=dict(
+                    _type='uniform',
+                    _value=[0, 1],
+                ),
+                obj_score_ratio=dict(
+                    _type='uniform',
+                    _value=[0, 1],
+                ),
+            ),
             dict(
                 _name='mul',
                 clip_score_ratio=dict(
                     _type='uniform',
-                    _value=[0.15, 0.9],
+                    _value=[0., 1],
                 ),
                 obj_score_ratio=dict(
                     _type='uniform',
-                    _value=[0.3, 1],
+                    _value=[0., 1],
             ),)
         ],
     ),
@@ -72,6 +72,6 @@ experiment.config.tuner.name = 'TPE'
 experiment.config.tuner.class_args['optimize_mode'] = 'maximize'
 
 experiment.config.max_trial_number = 1000
-experiment.config.trial_concurrency = 1
+experiment.config.trial_concurrency = 2
 
 experiment.run(5014)
