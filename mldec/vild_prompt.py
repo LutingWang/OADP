@@ -121,7 +121,6 @@ class TextEncoder(todd.base.Module):
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Train')
     parser.add_argument('pretrained')
-    parser.add_argument('split')
     args = parser.parse_args()
     return args
 
@@ -129,20 +128,18 @@ def parse_args() -> argparse.Namespace:
 if __name__ == '__main__':
     args = parse_args()
 
-    clip_model, _ = clip.load(args.pretrained, 'cpu')
+    clip_model, _ = clip.load(args.pretrained)
     clip_model.requires_grad_(False)
     text_encoder = TextEncoder(
         clip_model=clip_model,
-    )
-
-    class_names = getattr(mldec, args.split)
+    ).float()
 
     embeddings_list = []
     with torch.no_grad():
         for prompt in tqdm.tqdm(prompts):
             tokens = clip.tokenize([
-                prompt.format(class_name) for class_name in class_names
-            ])
+                prompt.format(class_name) for class_name in mldec.ALL_CLASS_NAMES
+            ]).cuda()
             embeddings = clip_model.token_embedding(tokens)
             lengths = tokens.argmax(dim=-1)
             embeddings = text_encoder(embeddings, lengths)
@@ -150,6 +147,6 @@ if __name__ == '__main__':
 
     state_dict = dict(
         embeddings=sum(embeddings_list) / len(embeddings_list),
-        names=class_names,
+        names=mldec.ALL_CLASS_NAMES,
     )
-    torch.save(state_dict, 'data/coco/prompt/vild_lvis.pth')
+    torch.save(state_dict, 'data/prompts/vild.pth')
