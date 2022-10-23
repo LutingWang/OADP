@@ -7,8 +7,7 @@ experiment = Experiment('local')
 experiment.config.experiment_name = 'gen_pl_v2_custom_dataset_train_test'
 
 experiment.config.trial_command = '''
-python \
-    -m mldec.test_gen_pl_v2_custom_dataset_train_eva test_gen_pl_v2_custom_dataset_train_test --hotwater
+python -m mldec.test_gen_pl_v2_custom_dataset_train_eva test_gen_pl_v2_custom_dataset_train_test --hotwater
 '''
 
 # experiment.config.trial_command = '''
