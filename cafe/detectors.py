@@ -256,6 +256,10 @@ class Cafe(
         if self._post_fpn is not None:
             todd.globals_.extra_feats = self._post_fpn(feats, ce)
 
+        if debug.DUMP:
+            clip_rois = bbox2roi(clip_patches[0])
+            todd.globals_.clip_rois = clip_rois
+
         return self.roi_head.simple_test(
             feats,
             proposal_list,

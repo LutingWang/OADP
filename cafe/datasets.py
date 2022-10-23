@@ -257,7 +257,6 @@ class LoadDetproFeatures:
         else:
             self._regions = None
 
-
     def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
         if self._images is not None:
             key = results['img_info']['filename']\

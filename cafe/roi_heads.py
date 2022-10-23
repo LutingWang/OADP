@@ -221,6 +221,15 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
                 self._image_head,
             ) as image_head_status:
                 det_bboxes, _ = super().simple_test_bboxes(x, img_metas, proposals, None, rescale)
+
+            patch_feats = self.bbox_roi_extractor(
+                x[:self.bbox_roi_extractor.num_inputs],
+                todd.globals_.pop('clip_rois'),
+            )
+            if self.with_shared_head:
+                patch_feats = self.shared_head(patch_feats)
+            patch_logits, _ = self._patch_head(patch_feats)
+
             image_id = img_metas[0]['ori_filename'][:-4]
             save_path = os.path.join(os.getenv('DUMP'), f'{image_id}.pth')
             torch.save(
@@ -230,6 +239,7 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
                     bbox_scores=bbox_head_status.value.half(),
                     image_scores=image_head_status.value.half(),
                     multilabel_logits=todd.globals_.pop('multilabel_logits', None),
+                    patch_logits=patch_logits,
                 ),
                 save_path,
             )

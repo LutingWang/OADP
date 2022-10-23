@@ -76,9 +76,6 @@ test_pipeline = [
             dict(type='Pad', size_divisor=32),
             dict(type='ImageToTensor', keys=['img']),
             dict(type='ToTensor', keys=['clip_patches']),
-            dict(type='ToDataContainer', fields=[
-                dict(key='clip_patches'),
-            ]),
             dict(type='Collect', keys=['img', 'clip_patches']),
         ])
 ]
