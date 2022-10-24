@@ -31,23 +31,20 @@ def build_coco_from_pl(pl_data_file: str, coco_data_file: str, coco_split: str,p
     ]
     for annotation in coco_annotations:
         annotation['category_id'] = coco_category_ids.index(annotation['category_id'])
-    
+
     for i, category in enumerate(coco_categories):
-        # import ipdb;ipdb.set_trace()
         category['id'] = i
     coco_category_ids = [category['id'] for category in coco_categories]
 
     pl_category_dict = {category['name']: category for category in pl_data['categories']}
-    # import ipdb;ipdb.set_trace()
     for i,class_ in enumerate(getattr(mldec, pl_split)):
-        cat = pl_category_dict[class_] 
+        cat = pl_category_dict[class_]
         assert cat['id'] == i
         if class_ not in coco_category_dict.keys():
             cat['id'] = cat['id'] + 80
             coco_categories.append(cat)
 
     coco_category_ids = [category['id'] for category in coco_categories]
-    # import ipdb;ipdb.set_trace()
     for anno in pl_data['annotations']:
         if anno['category_id'] + 80 not in coco_category_ids:
             if delete:
@@ -59,15 +56,13 @@ def build_coco_from_pl(pl_data_file: str, coco_data_file: str, coco_split: str,p
         else:
             anno['category_id'] = anno['category_id']+80
             # anno['category_id'] = coco_category_ids.index(anno['category_id'])
-            coco_annotations.append(anno)   
+            coco_annotations.append(anno)
 
     # for i, category in enumerate(coco_categories):
-    #     # import ipdb;ipdb.set_trace()
     #     category['id'] = i
-    # import ipdb;ipdb.set_trace()
     coco_data['categories'] = coco_categories
     coco_data['annotations'] = coco_annotations
-    
+
     save_path = f'{coco_data_file}.{pl_split}'
     logger.info(f'Saving {save_path}')
     with open(f'{save_path}', 'w') as f:
@@ -96,7 +91,7 @@ def build_lvis_from_pl(pl_data_file: str, lvis_data_file: str, lvis_split: str,p
     ]
     for annotation in lvis_annotations:
         annotation['category_id'] = lvis_category_ids.index(annotation['category_id'])
-    
+
     image_ids = [image['id'] for image in lvis_data['images']]
     for anno in pl_data['annotations']:
         if anno['image_id'] in image_ids:
@@ -104,10 +99,9 @@ def build_lvis_from_pl(pl_data_file: str, lvis_data_file: str, lvis_split: str,p
 
     for i, category in enumerate(lvis_categories):
         category['id'] = i
-    import ipdb;ipdb.set_trace()
     lvis_data['categories'] = lvis_categories
     lvis_data['annotations'] = lvis_annotations
-    
+
     save_path = f'Saving {lvis_data_file}.{pl_split}'
     logger.info(f'Saving {save_path}')
     with open(f'{save_path}', 'w') as f:
