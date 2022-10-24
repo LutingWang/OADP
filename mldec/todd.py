@@ -389,3 +389,50 @@ class HierGKDLoss(todd.losses.functional.CrossEntropyLoss):
             super().forward(logits, cl_targets, *args, **kwargs)
             + super().forward(logits.T, cl_targets, *args, **kwargs)
         )
+
+
+@todd.losses.LOSSES.register_module()
+class RKDLoss(todd.losses.functional.MSELoss):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+    def get_relations(self, feats: torch.Tensor) -> torch.Tensor:
+        """Get relations between each pair of feats.
+
+        Args:
+            feats: * x c
+
+        Returns:
+            relations: prod(*) x prod(*)
+        """
+        feats = feats.reshape(-1, feats.shape[-1])
+        feats = F.normalize(feats)
+        relations = torch.einsum('m c, n c -> m n', feats, feats)
+        return relations
+
+    def forward(
+        self,
+        preds: torch.Tensor,
+        targets: torch.Tensor,
+        *args,
+        **kwargs,
+    ) -> torch.Tensor:
+        """Compute RKD loss.
+
+        Args:
+            preds: * x c
+            targets: * x d
+
+        Returns:
+            loss: 1
+        """
+        assert preds.shape[:-1] == targets.shape[:-1]
+        pred_relations = self.get_relations(preds)
+        target_relations = self.get_relations(targets)
+        return super().forward(
+            pred_relations,
+            target_relations,
+            *args,
+            **kwargs,
+        )

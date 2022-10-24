@@ -36,6 +36,16 @@ model = dict(
                 ),
                 # reduction='mean',
             ),
+            loss_clip_patches_relation=dict(
+                type='RKDLoss',
+                fields=['patch_feats', 'clip_patch_feats'],
+                weight=dict(
+                    type='WarmupScheduler',
+                    value=128,
+                    iter_=200,
+                ),
+                reduction='mean',
+            ),
         ),
     ),
 )
