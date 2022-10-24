@@ -297,7 +297,7 @@ class Runner(BaseRunner):
         assert config is not None
         dataset = CocoClassification(clip_model=clip_model, **config.dataset)
         sampler = (
-            None if debug.CPU else
+            None if debug.CPU or todd.get_world_size() == 1 else
             torch.utils.data.distributed.DistributedSampler(
                 dataset,
                 shuffle=False,
@@ -325,11 +325,13 @@ class Runner(BaseRunner):
             clip_model=clip_model,
             config=config,
         ).requires_grad_()
-        if not debug.CPU:
+        if todd.get_world_size() > 1:
             model = torch.nn.parallel.DistributedDataParallel(
                 model.cuda(),
                 device_ids=[torch.cuda.current_device()],
             )
+        elif not debug.CPU:
+            model = model.cuda()
         return model
 
     def _before_run(self, *args, **kwargs) -> Dict[str, Any]:
@@ -355,7 +357,7 @@ class Runner(BaseRunner):
 
     def _after_run(self, *args, memo: Dict[str, Any], **kwargs) -> float:
         results: Iterator[Tuple[torch.Tensor, ...]] = zip(*memo['results'])
-        if not debug.CPU:
+        if not debug.CPU and todd.get_world_size() > 1:
             results = tuple(  # all_gather must exec for all ranks
                 map(all_gather, results),
             )
@@ -399,10 +401,10 @@ class Trainer(TrainerMixin, Runner):
         assert config is not None
         dataset = CocoClassification(clip_model=clip_model, **config.dataset)
         sampler = (
-            None if debug.CPU else
+            None if debug.CPU or todd.get_world_size() == 1 else
             torch.utils.data.distributed.DistributedSampler(
                 dataset,
-                shuffle=not debug.CPU,
+                shuffle=True,
             )
         )
         dataloader = torch.utils.data.DataLoader(
@@ -496,7 +498,7 @@ if __name__ == '__main__':
         for k, v in args.override.items():
             todd.setattr_recur(config, k, v)
 
-    if not debug.CPU:
+    if not debug.CPU and todd.get_world_size() > 1:
         torch.distributed.init_process_group(backend='nccl')
         torch.cuda.set_device(todd.get_local_rank())
 
