@@ -34,7 +34,7 @@ class BaseRunner(ABC):
         self,
         *args,
         name: str,
-        config: todd.base.Config,
+        config: todd.Config,
         load=None,
         **kwargs,
     ) -> None:
@@ -50,7 +50,7 @@ class BaseRunner(ABC):
         self._dataset, self._sampler, self._dataloader = \
             self._build_dataloader(
                 *args,
-                config=todd.base.getattr_recur(
+                config=todd.getattr_recur(
                     config,
                     '.val.dataloader',
                     None,
@@ -67,7 +67,7 @@ class BaseRunner(ABC):
 
         self._epoch = -1
         if load is None:
-            todd.base.init_iter()
+            todd.init_iter()
         else:
             self.load_checkpoint(
                 *args,
@@ -78,7 +78,7 @@ class BaseRunner(ABC):
     def _build_work_dir(
         self,
         *args,
-        config: todd.base.Config,
+        config: todd.Config,
         **kwargs,
     ) -> pathlib.Path:
         work_dir = pathlib.Path(f'work_dirs/{self._name}')
@@ -88,16 +88,16 @@ class BaseRunner(ABC):
     def _build_logger(
         self,
         *args,
-        config: Optional[todd.base.Config],
+        config: Optional[todd.Config],
         **kwargs,
     ) -> logging.Logger:
         init_log_file = config is None or config.get('init_log_file', True)
-        if init_log_file and todd.base.get_rank() == 0:
+        if init_log_file and todd.get_rank() == 0:
             timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
             log_file = self._work_dir / f'{timestamp}.log'
-            todd.base.init_log_file(log_file)
-        logger = todd.base.get_logger()
-        logger.info(f"Version {todd.base.git_commit_id()}")
+            todd.init_log_file(log_file)
+        logger = todd.get_logger()
+        logger.info(f"Version {todd.git_commit_id()}")
         logger.info(f"Config\n{self._config.dumps()}")
         return logger
 
@@ -105,7 +105,7 @@ class BaseRunner(ABC):
     def _build_dataloader(
         self,
         *args,
-        config: Optional[todd.base.Config],
+        config: Optional[todd.Config],
         **kwargs,
     ):
         pass
@@ -114,7 +114,7 @@ class BaseRunner(ABC):
     def _build_model(
         self,
         *args,
-        config: Optional[todd.base.Config],
+        config: Optional[todd.Config],
         **kwargs,
     ) -> nn.Module:
         pass
@@ -122,19 +122,19 @@ class BaseRunner(ABC):
     def _build_custom(
         self,
         *args,
-        config: todd.base.Config,
+        config: todd.Config,
         **kwargs,
     ) -> None:
         pass
 
-    def load_checkpoint(self, *args, epoch, config: Optional[todd.base.Config] = None, **kwargs) -> None:
+    def load_checkpoint(self, *args, epoch, config: Optional[todd.Config] = None, **kwargs) -> None:
         if config is None:
-            config = todd.base.getattr_recur(self._config, '.checkpoint.load_', dict())
-        todd.base.load_checkpoint(
+            config = todd.getattr_recur(self._config, '.checkpoint.load_', dict())
+        todd.load_checkpoint(
             self._model, self._work_dir / f'epoch_{epoch}.pth',
             **config,
         )
-        todd.base.init_iter((epoch + 1) * len(self._dataloader))
+        todd.init_iter((epoch + 1) * len(self._dataloader))
         self._epoch = epoch
 
     def _before_run(self, *args, **kwargs) -> Dict[str, Any]:
@@ -175,7 +175,7 @@ class BaseRunner(ABC):
                 i=i,
                 batch=batch,
                 memo=memo,
-                log=(i % todd.base.getattr_recur(self._config, '.logger.interval', 1) == 0),
+                log=(i % todd.getattr_recur(self._config, '.logger.interval', 1) == 0),
                 **kwargs,
             )
             if end:
@@ -185,12 +185,12 @@ class BaseRunner(ABC):
 
 class TrainerMixin(BaseRunner):
 
-    def _build_custom(self, *args, config: todd.base.Config, **kwargs) -> None:
+    def _build_custom(self, *args, config: todd.Config, **kwargs) -> None:
         super()._build_custom(*args, config=config, **kwargs)
         self._train_dataset, self._train_sampler, self._train_dataloader = \
             self._build_train_dataloader(
                 *args,
-                config=todd.base.getattr_recur(
+                config=todd.getattr_recur(
                     config,
                     '.train.dataloader',
                     None,
@@ -204,7 +204,7 @@ class TrainerMixin(BaseRunner):
         )
         self._optimizer = self._build_optimizer(
             *args,
-            config=todd.base.getattr_recur(
+            config=todd.getattr_recur(
                 config,
                 '.train.optimizer',
                 None,
@@ -213,7 +213,7 @@ class TrainerMixin(BaseRunner):
         )
         self._scheduler = self._build_scheduler(
             *args,
-            config=todd.base.getattr_recur(
+            config=todd.getattr_recur(
                 config,
                 '.train.lr_scheduler',
                 None,
@@ -225,7 +225,7 @@ class TrainerMixin(BaseRunner):
     def _build_train_dataloader(
         self,
         *args,
-        config: Optional[todd.base.Config],
+        config: Optional[todd.Config],
         **kwargs,
     ):
         pass
@@ -234,7 +234,7 @@ class TrainerMixin(BaseRunner):
     def _build_train_fixtures(
         self,
         *args,
-        config: Optional[todd.base.Config],
+        config: Optional[todd.Config],
         **kwargs,
     ) -> None:
         pass
@@ -242,7 +242,7 @@ class TrainerMixin(BaseRunner):
     def _build_optimizer(
         self,
         *args,
-        config: Optional[todd.base.Config],
+        config: Optional[todd.Config],
         **kwargs,
     ) -> Optional[optim.Optimizer]:
         if config is None:
@@ -255,7 +255,7 @@ class TrainerMixin(BaseRunner):
     def _build_scheduler(
         self,
         *args,
-        config: Optional[todd.base.Config],
+        config: Optional[todd.Config],
         **kwargs,
     ) -> Optional[optim.lr_scheduler._LRScheduler]:
         if config is None:
@@ -265,22 +265,22 @@ class TrainerMixin(BaseRunner):
             default_args=dict(optimizer=self._optimizer),
         )
 
-    def load_checkpoint(self, *args, epoch, config: Optional[todd.base.Config] = None, **kwargs) -> None:
+    def load_checkpoint(self, *args, epoch, config: Optional[todd.Config] = None, **kwargs) -> None:
         if config is None:
-            config = todd.base.getattr_recur(self._config, '.checkpoint.load_', dict())
-        todd.base.load_checkpoint(
+            config = todd.getattr_recur(self._config, '.checkpoint.load_', dict())
+        todd.load_checkpoint(
             self._model, self._work_dir / f'epoch_{epoch}.pth',
             optimizer=self._optimizer,
             scheduler=self._scheduler,
             **config,
         )
-        todd.base.init_iter((epoch + 1) * len(self._train_dataloader))
+        todd.init_iter((epoch + 1) * len(self._train_dataloader))
         self._epoch = epoch
 
-    def save_checkpoint(self, *args, epoch, config: Optional[todd.base.Config] = None, **kwargs) -> None:
+    def save_checkpoint(self, *args, epoch, config: Optional[todd.Config] = None, **kwargs) -> None:
         if config is None:
-            config = todd.base.getattr_recur(self._config, '.checkpoint.save', dict())
-        todd.base.save_checkpoint(
+            config = todd.getattr_recur(self._config, '.checkpoint.save', dict())
+        todd.save_checkpoint(
             self._model, self._work_dir / f'epoch_{epoch}.pth',
             optimizer=self._optimizer, scheduler=self._scheduler,
             **config,
@@ -335,7 +335,7 @@ class TrainerMixin(BaseRunner):
                     i=i,
                     batch=batch,
                     memo=memo,
-                    log=(i % todd.base.getattr_recur(self._config, '.logger.interval', 1) == 0),
+                    log=(i % todd.getattr_recur(self._config, '.logger.interval', 1) == 0),
                     **kwargs,
                 )
                 if end:

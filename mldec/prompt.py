@@ -99,8 +99,8 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         if self._mode == "patches":
             images = embedding['patches']
             labels = torch.zeros((images.shape[0], self.num_classes), dtype=torch.bool)
-            patch_bboxes = todd.base.BBoxesXYWH(embedding['bboxes'])
-            bboxes = todd.base.BBoxesXYWH([anno['bbox'] for anno in target])
+            patch_bboxes = todd.BBoxesXYWH(embedding['bboxes'])
+            bboxes = todd.BBoxesXYWH([anno['bbox'] for anno in target])
             patch_ids, bbox_ids = torch.where(patch_bboxes.intersections(bboxes) > 0)
             labels[patch_ids, torch.tensor(bbox_labels, dtype=torch.long)[bbox_ids]] = True
         elif self._mode == "image":
@@ -111,6 +111,23 @@ class CocoClassification(torchvision.datasets.CocoDetection):
             images = embedding['patches'][[0]]
             labels = torch.zeros((1, self.num_classes), dtype=torch.bool)
             labels[0, bbox_labels] = True
+        elif self._mode == 'objects':
+            from mmdet.core import MaxIoUAssigner
+            assigner = MaxIoUAssigner(
+                pos_iou_thr=0.5,
+                neg_iou_thr=0.5,
+                min_pos_iou=0.5,
+                match_low_quality=False,
+                ignore_iof_thr=-1,
+            )
+            images = embedding['patches']
+            patch_bboxes = todd.BBoxesXYXY(todd.BBoxesXYWH(embedding['bboxes'])).to_tensor()
+            bboxes = todd.BBoxesXYXY(todd.BBoxesXYWH([anno['bbox'] for anno in target])).to_tensor()
+            assign_result = assigner.assign(patch_bboxes, bboxes, gt_labels=torch.tensor(bbox_labels))
+            labels = assign_result.labels
+            inds = labels >= 0
+            images = images[inds]
+            labels = F.one_hot(labels[inds], num_classes=self.num_classes)
         else:
             raise ValueError(f"Unexpected mode {self._mode}.")
 
@@ -121,7 +138,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         return Batch(images, labels, self._class_embeddings, self._class_lengths)
 
 
-class TextPrompt(todd.base.Module):
+class TextPrompt(todd.Module):
 
     def __init__(
         self,
@@ -154,7 +171,7 @@ class TextPrompt(todd.base.Module):
         return x, l
 
 
-class TextEncoder(todd.base.Module):
+class TextEncoder(todd.Module):
 
     def __init__(
         self,
@@ -180,7 +197,7 @@ class TextEncoder(todd.base.Module):
         return F.normalize(x)
 
 
-class Model(todd.reproduction.FrozenMixin, todd.base.Module):
+class Model(todd.reproduction.FrozenMixin, todd.Module):
 
     def _is_frozen(self, key: str) -> bool:
         return any(name in key for name in self._frozen_names)
@@ -210,10 +227,10 @@ class Model(todd.reproduction.FrozenMixin, todd.base.Module):
         self,
         *args,
         clip_model: clip.model.CLIP,
-        config: todd.base.Config,
+        config: todd.Config,
         **kwargs,
     ) -> None:
-        todd.base.Module.__init__(self, *args, **kwargs)
+        todd.Module.__init__(self, *args, **kwargs)
         self._text_prompt = TextPrompt(
             clip_model=clip_model,
             **config.text_prompt,
@@ -269,7 +286,7 @@ class Runner(BaseRunner):
     def _build_dataloader(
         self,
         *args,
-        config: Optional[todd.base.Config],
+        config: Optional[todd.Config],
         clip_model: clip.model.CLIP,
         **kwargs,
     ) -> Tuple[
@@ -298,7 +315,7 @@ class Runner(BaseRunner):
     def _build_model(
         self,
         *args,
-        config: Optional[todd.base.Config],
+        config: Optional[todd.Config],
         clip_model: clip.model.CLIP,
         **kwargs,
     ) -> nn.Module:
@@ -342,7 +359,7 @@ class Runner(BaseRunner):
             results = tuple(  # all_gather must exec for all ranks
                 map(all_gather, results),
             )
-        if todd.base.get_rank() == 0:
+        if todd.get_rank() == 0:
             results = map(lambda result: torch.cat(result).cpu().numpy(), results)
             image_logits, image_labels = results
             mAP = sklearn.metrics.average_precision_score(image_labels, image_logits)
@@ -371,7 +388,7 @@ class Trainer(TrainerMixin, Runner):
     def _build_train_dataloader(
         self,
         *args,
-        config: Optional[todd.base.Config],
+        config: Optional[todd.Config],
         clip_model: clip.model.CLIP,
         **kwargs,
     ) -> Tuple[
@@ -400,7 +417,7 @@ class Trainer(TrainerMixin, Runner):
     def _build_train_fixtures(
         self,
         *args,
-        config: Optional[todd.base.Config],
+        config: Optional[todd.Config],
         **kwargs,
     ) -> None:
         assert config is not None
@@ -417,7 +434,12 @@ class Trainer(TrainerMixin, Runner):
         if not debug.CPU:
             batch = Batch(*[x.cuda() for x in batch])
         outputs = self._model(batch)
-        loss: torch.Tensor = self._criterion(outputs.sigmoid(), batch.labels)
+        loss: torch.Tensor = self._criterion(
+            # outputs.sigmoid(),
+            # batch.labels,
+            outputs,
+            batch.labels.argmax(-1),
+        )
         self._model.zero_grad()
         loss.backward()
         self._optimizer.step()
@@ -436,13 +458,13 @@ class Trainer(TrainerMixin, Runner):
 
     def _after_train_epoch(self, *args, epoch: int, memo: Dict[str, Any], **kwargs) -> None:
         # self._scheduler.step()
-        if todd.base.get_rank() == 0:
-            self.save_checkpoint(epoch)
+        if todd.get_rank() == 0:
+            self.save_checkpoint(epoch=epoch)
         mAP = self.run()
         memo.update(
             record=max(memo['record'], mAP),
         )
-        if todd.base.get_rank() == 0:
+        if todd.get_rank() == 0:
             self._logger.info(
                 f"record {memo['record'] * 100:.3f}, "
             )
@@ -456,8 +478,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('mode', choices=['train', 'val', 'dump'])
     parser.add_argument('name', type=str)
     parser.add_argument('config', type=pathlib.Path)
-    parser.add_argument('--odps', action=todd.base.DictAction)
-    parser.add_argument('--override', action=todd.base.DictAction)
+    parser.add_argument('--odps', action=todd.DictAction)
+    parser.add_argument('--override', action=todd.DictAction)
     parser.add_argument('--load', type=int)
     parser.add_argument('--seed', type=int, default=3407)
     args = parser.parse_args()
@@ -466,17 +488,17 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == '__main__':
     args = parse_args()
-    config = todd.base.Config.load(args.config)
+    config = todd.Config.load(args.config)
     if args.odps is not None:
         odps_init(args.odps)
     debug.init(config=config)
     if args.override is not None:
         for k, v in args.override.items():
-            todd.base.setattr_recur(config, k, v)
+            todd.setattr_recur(config, k, v)
 
     if not debug.CPU:
         torch.distributed.init_process_group(backend='nccl')
-        torch.cuda.set_device(todd.base.get_local_rank())
+        torch.cuda.set_device(todd.get_local_rank())
 
     todd.reproduction.init_seed(args.seed)
 
