@@ -313,7 +313,7 @@ class TrainerMixin(BaseRunner):
     def train(self, *args, **kwargs):
         memo = self._before_train(*args, **kwargs)
         for epoch in range(self._epoch + 1, self._config.train.epoch):
-            if not debug.CPU:
+            if not debug.CPU and todd.get_world_size() > 1:
                 dist.barrier()
             self._before_train_epoch(*args, epoch=epoch, memo=memo, **kwargs)
             for i, batch in enumerate(self._train_dataloader, 1):

@@ -1,15 +1,15 @@
 data_root = 'data/coco/'
-embeddings_root = data_root + 'embeddings/'
+embeddings_root = data_root + 'mask_embeddings/'
 train = dict(
     epoch=4,
     optimizer=dict(
         type='Adam',
-        lr=5e-2,
-        weight_decay=1e-3,
+        lr=2e-3,
+        weight_decay=0,
     ),
 
     dataloader=dict(
-        batch_size=16,
+        batch_size=64,
         num_workers=4,
         dataset=dict(
             root=data_root + 'train2017',
@@ -32,7 +32,7 @@ train = dict(
 
     loss=dict(
         type='CrossEntropyLoss',
-        weight=8,
+        weight=1,
     ),
 
 )
@@ -63,7 +63,7 @@ checkpoint = dict(
 )
 model = dict(
     text_prompt=dict(
-        prompt='a photo of a',
+        prompt='In the photo, there is a medium',
     ),
     text_encoder=dict(),
 )
