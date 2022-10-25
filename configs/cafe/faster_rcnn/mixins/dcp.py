@@ -15,7 +15,7 @@ model = dict(
                 fields=['bbox_feats', 'clip_bbox_feats'],
                 weight=dict(
                     type='WarmupScheduler',
-                    value=512,
+                    value=256,
                     iter_=200,
                 ),
                 # reduction='mean',

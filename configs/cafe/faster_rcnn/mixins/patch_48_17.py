@@ -13,7 +13,7 @@ model = dict(
                 type='AsymmetricLoss',
                 weight=dict(
                     type='WarmupScheduler',
-                    value=8,
+                    value=32,
                     iter_=1000,
                 ),
                 gamma_neg=4,
@@ -45,7 +45,7 @@ model = dict(
                     value=8,
                     iter_=200,
                 ),
-                reduction='mean',
+                # reduction='mean',
             ),
 
         ),
