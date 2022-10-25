@@ -17,7 +17,8 @@ model = dict(
         image_head=dict(
             cls_predictor_cfg=dict(
                 type='ViLDClassifier',
-                pretrained='data/coco/prompt/vild_coco.pth',
+                # pretrained='data/coco/prompt/vild_coco.pth',
+                pretrained='data/coco/prompt/prompt1.pth',
                 split='COCO_48_17',
                 num_base_classes=48,
             ),

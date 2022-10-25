@@ -195,6 +195,7 @@ class LoadCLIPFeatures:
             self._images = None
 
         if regions is not None:
+            self._regions_as_proposals = regions.pop('as_proposals', False)
             self._regions = todd.datasets.ACCESS_LAYERS.build(
                 regions,
                 default_args=dict(task_name=task_name),
@@ -204,7 +205,7 @@ class LoadCLIPFeatures:
 
     def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
         key = f'{results["img_info"]["id"]:012d}'
-        if debug.DRY_RUN:
+        if debug.CPU:
             key = '000000000139'
 
         if self._images is not None:
@@ -231,6 +232,9 @@ class LoadCLIPFeatures:
             results['clip_bbox_feats'] = clip_bbox_feats[inds]
             results['clip_bboxes'] = clip_bboxes[inds].float().numpy()
             results['bbox_fields'].append('clip_bboxes')
+            if self._regions_as_proposals:
+                results['proposals'] = results['clip_bboxes']
+                results['bbox_fields'].append('proposals')
 
         return results
 
