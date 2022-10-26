@@ -18,6 +18,7 @@ _base_ = [
 
     'mixins/patch_48_17.py',
 
+    'mixins/ext.py',
 ]
 
 model = dict(
