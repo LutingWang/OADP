@@ -31,6 +31,10 @@ model = dict(
     neck=dict(
         norm_cfg=dict(type='SyncBN', requires_grad=True),
     ),
+    rpn_head=dict(
+        loss_cls=dict(loss_weight=0.1),
+        loss_bbox=dict(loss_weight=0.1),
+    ),
     roi_head=dict(
         bbox_head=dict(
             norm_cfg=dict(type='SyncBN', requires_grad=True),
