@@ -197,8 +197,8 @@ class LVISVis:
 
 
 import os
-json_path = "work_dirs/gen_lvis_pl_on_coco/lvis_pl_2.json"
-save_fig_dir = 'work_dirs/visual/lvis/'
+json_path = "/mnt/data2/wlt/open_set_new/git_edition/OpenSet-dev/data/coco/annotations/instances_val2017.json.LVIS"
+save_fig_dir = 'work_dirs/visual/lvis_coco/'
 img_dir = "data/coco/val2017"
 os.makedirs(save_fig_dir,exist_ok=True)
 lvis = LVIS(json_path)
