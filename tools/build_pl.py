@@ -45,6 +45,7 @@ def build_coco_from_pl(pl_data_file: str, coco_data_file: str, coco_split: str,p
             coco_categories.append(cat)
 
     coco_category_ids = [category['id'] for category in coco_categories]
+    exist_cat_ids = set()
     for anno in pl_data['annotations']:
         if anno['category_id'] + 80 not in coco_category_ids:
             if delete:
@@ -55,12 +56,20 @@ def build_coco_from_pl(pl_data_file: str, coco_data_file: str, coco_split: str,p
                 coco_annotations.append(anno)
         else:
             anno['category_id'] = anno['category_id']+80
+            exist_cat_ids.add(anno['category_id'])
             # anno['category_id'] = coco_category_ids.index(anno['category_id'])
             coco_annotations.append(anno)
 
     # for i, category in enumerate(coco_categories):
     #     category['id'] = i
-    coco_data['categories'] = coco_categories
+    coco_exist_categories = []
+    for cat in coco_categories:
+        if cat['name'] in getattr(mldec, coco_split):
+            coco_exist_categories.append(cat)
+        else:
+            if cat['id'] in exist_cat_ids:
+               coco_exist_categories.append(cat) 
+    coco_data['categories'] = coco_exist_categories
     coco_data['annotations'] = coco_annotations
 
     save_path = f'{coco_data_file}.{pl_split}'
@@ -112,7 +121,7 @@ def build_lvis_from_pl(pl_data_file: str, lvis_data_file: str, lvis_split: str,p
 
 
 def main() -> None:
-    build_coco_from_pl('work_dirs/pl_debug/lvis_pl.json', 'data/coco/annotations/instances_train2017.json','COCO_48_17','LVIS',False)
+    build_coco_from_pl('work_dirs/gen_lvis_pl_on_coco/lvis_pl.json', 'data/coco/annotations/instances_train2017.json','COCO_48_17','LVIS',True)
     pass
 
 

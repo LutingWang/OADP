@@ -18,10 +18,10 @@ import torchvision
 from mmdet.core import  multiclass_nms
 import torch.distributed as dist
 from mmcv.runner import get_dist_info
-from pycocotools.coco import COCO
-from pycocotools.cocoeval import COCOeval
 # from ..todd import BBoxesXYXY
 import torch.nn.functional as F
+
+from mldec import lvis_vis
 try:
     from torchvision.transforms import InterpolationMode
     BICUBIC = InterpolationMode.BICUBIC
@@ -29,8 +29,11 @@ except ImportError:
     BICUBIC = PIL.Image.BICUBIC
 import json
 import nni
+from lvis.lvis import LVIS
+from lvis.results import LVISResults
+from lvis.eval import LVISEval
 
-
+from .lvis_vis import LVISVis
 from . import datasets
 from .debug import debug
 from .utils import odps_init
@@ -38,7 +41,7 @@ from .todd import BaseRunner
 
 Batch = namedtuple(
     'Batch',
-    [ 'proposal_embeddings', 'proposal_objectness','proposal_bboxes','image_ids','class_embeddings', 'scaler', 'bias'],
+    [ 'proposal_embeddings', 'proposal_objectness','proposal_bboxes','image_ids','class_embeddings', 'scaler', 'bias','mask'],
 )
 
 def all_gather(tensors_: Tuple[torch.Tensor],shape:torch.Tensor) -> List[torch.Tensor]:
@@ -76,6 +79,8 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         pretrained: str,
         proposal: Optional[str] = None,
         split: Optional[str] = None,
+        lvis_ann_file:Optional[str] = None,
+        lvis_split: Optional[str] = None,
         top_KP :int = 100,
     ) -> None:
         super().__init__(
@@ -88,17 +93,22 @@ class CocoClassification(torchvision.datasets.CocoDetection):
             self._classnames = [cat['name'] for cat in self.coco.cats.values()]
             self._cat2label = {cat: i for i, cat in enumerate(self.coco.cats)}
         else:
-            classnames = getattr(datasets, split)
-            self._classnames = []
+            classnames = getattr(datasets, lvis_split)
+            self._lvis = LVIS(lvis_ann_file)
+            self._classnames =[]
+            
+            self._novelids = []
             self._cat2label = dict()
-            for cat in self.coco.cats.values():
+            for cat in self._lvis.cats.values():
                 if cat['name'] in classnames:
                     self._classnames.append(cat['name'])
                     self._cat2label[cat['id']] = len(self._cat2label)
+            self._mask = torch.ones(len(self._classnames))
+            # self._mask[self._novelids] = 1*(-10000000000000)
+
             self._label2cat = dict()
             for cat_id in self._cat2label.keys():
                 self._label2cat[self._cat2label[cat_id]] = cat_id
-
         ckpt = torch.load(pretrained, 'cpu')
         embeddings: torch.Tensor = ckpt['embeddings']
         name2ind = {name: i for i, name in enumerate(ckpt['names'])}
@@ -133,7 +143,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         return [anno for anno in target if anno['category_id'] in self._cat2label]
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor,torch.Tensor]:
-        # import ipdb;ipdb.set_trace()
+
         image_id = torch.tensor(self.ids[index])
         proposal_pth = f'{image_id.item():012d}.pth'
         data_path = os.path.join(self.proposal_root,'val',proposal_pth)
@@ -162,7 +172,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
     def collate(self, batch: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]) -> Batch:
 
         proposal_embeddings, proposal_objectness, proposal_bboxes,image_ids = map(torch.stack, zip(*batch))
-        return Batch(proposal_embeddings, proposal_objectness, proposal_bboxes,image_ids,self._class_embeddings, self._scaler, self._bias)
+        return Batch(proposal_embeddings, proposal_objectness, proposal_bboxes,image_ids,self._class_embeddings, self._scaler, self._bias,self._mask)
 
 
 class Model(todd.base.Module):
@@ -188,12 +198,10 @@ class Model(todd.base.Module):
         proposal_embeddings = proposal_embeddings / \
         proposal_embeddings.norm(dim=2, keepdim=True)
 
-        # clip_logit = (proposal_embeddings @ batch.class_embeddings.T)
+        clip_logit = (proposal_embeddings @ batch.class_embeddings.T)
 
-        # clip_logit = clip_logit*batch.mask[None,None]
-
-        # clip_logit = (1/self.softmax_t)*clip_logit
-        clip_logit = (proposal_embeddings @ batch.class_embeddings.T)*batch.scaler - batch.bias
+        clip_logit = clip_logit*batch.mask[None,None]
+        clip_logit = (1/self.softmax_t)*clip_logit
         clip_logit = torch.softmax(clip_logit,dim = 2)
         clip_logit_v,clip_logit_i = torch.topk(clip_logit,self.topK_clip_scores,dim = 2)
 
@@ -211,12 +219,14 @@ class Model(todd.base.Module):
         final_bboxes = []
         final_labels = []
         final_image = []
+        # import ipdb;ipdb.set_trace()
         for i,(result,logit) in enumerate(zip(batch.proposal_bboxes,final_logit_k)):
-            
+            # assert (result[:,3]<result[:,1]).any()
             final_bbox_c, final_label = multiclass_nms(result[...,:4].float(),logit.float(),score_thr=self.nms_score_thres,nms_cfg=dict(type='nms', iou_threshold=self.nms_iou_thres))
 
             image_ids = batch.image_ids[i].repeat(final_bbox_c.shape[0])
-            
+            # final_bbox = torch.cat((final_bbox,image_ids),dim = -1)
+            # assert (final_bbox_c[:,3]<final_bbox_c[:,1]).any()
             final_bboxes.append(final_bbox_c)
             final_labels.append(final_label)
             final_image.append(image_ids)
@@ -326,11 +336,11 @@ class Runner(BaseRunner):
         bboxes = torch.cat(bboxes).tolist()
         labels = torch.cat(labels).tolist()
         images = torch.cat(images).tolist()
-        cocoGt = COCO(self._config.evaluator)
+        lvisGt:LVIS = self._dataset._lvis
         new_annotations = list()
         imageId_list=list()
         for currbox,label,image_id in zip(bboxes, labels, images):
-            if image_id not in cocoGt.imgs.keys() :
+            if image_id not in lvisGt.imgs.keys() :
                     continue
             x0, y0, x1, y1 = currbox[:4]       # xyxy
             box = [x0, y0, x1 - x0, y1 - y0]    # xywh
@@ -350,17 +360,31 @@ class Runner(BaseRunner):
             new_annotations.append(data)
             imageId_list.append(image_id)
         self._logger.info( 'Total image num: %d' % (len(set(imageId_list))))
-        # import ipdb;ipdb.set_trace()
         self._logger.info( 'Total PL boxes num: %d, avg num: %.2f' % (len(new_annotations), len(new_annotations)/len(set(imageId_list))) )
         
-        cocoDt = cocoGt.loadRes(new_annotations)
-        cocoEval = COCOeval(cocoGt, cocoDt, iouType='bbox')
-        cocoEval.evaluate()
-        cocoEval.accumulate()
+        lvisDt = LVISResults(lvisGt,new_annotations)
+        self._logger.info("Begin Evaluation")
         # import ipdb;ipdb.set_trace()
-        cocoEval.summarize()
-        results = cocoEval.stats
-        nni.report_final_result(results[1])
+        # img_ids = list(set(images))
+        # lvisVis = LVISVis(lvisGt,lvisDt,img_dir="/mnt/data2/wlt/open_set_new/git_edition/OpenSet-dev/data/coco/val2017")
+        # for i in range(len(img_ids)//100):
+        #     img_id = img_ids[i*100]
+        #     if len(lvisDt.get_ann_ids([img_id]))== 0 or len(lvisGt.get_ann_ids([img_id]))== 0:
+        #         continue
+        #     res = lvisVis.vis_result(img_id,show_boxes=True,show_classes=True,show_segms=False)
+        #     res.savefig('work_dirs/visual/lvis/'+str(img_id)+'.jpg')
+        #     gt = lvisVis.vis_img(img_id,show_boxes=True,show_classes=True,show_segms=False)
+        #     gt.savefig('work_dirs/visual/lvis/'+str(img_id)+'gt.jpg')
+        lvisEval = LVISEval(lvisGt, lvisDt, iou_type='bbox')
+        lvisEval.params.img_ids = sorted(list(set(imageId_list) & set(lvisGt.get_img_ids())))
+        lvisEval.run()
+        results = lvisEval.get_results()
+        lvisEval.print_results()
+        nni.report_final_result(results['APr'])
+        # import ipdb;ipdb.set_trace()
+        
+        
+        self._logger.info("Evaluation END")
 
 
 
@@ -382,15 +406,15 @@ if __name__ == '__main__':
     params = nni.get_next_parameter()
     if len(params) == 0:
         params = dict(
-            top_KP = 100,
-            softmax_t = 1,
-            topK_clip_scores = 1,
+            top_KP = 149,
+            softmax_t = 0.13976,
+            topK_clip_scores = 5,
             # nms_score_thres = 0.0,
-            nms_iou_thres = 0.49705,
+            nms_iou_thres = 0.45664,
             bbox_objectness=dict(
                 _name='mul',
-                clip_score_ratio= 0.306,
-                obj_score_ratio = 0.758,
+                clip_score_ratio= 0.489887,
+                obj_score_ratio = 0.79821,
 
             ),
         )
@@ -406,11 +430,12 @@ if __name__ == '__main__':
                 dataset=dict(
                     root=data_root+"val2017",
                     ann_file=data_root+'annotations/instances_val2017.json',
-                    pretrained='data/epoch_3_classes.pth',
-                    split='COCO_48_17',
-                    proposal = data_root + 'mask_embeddings/',
+                    pretrained='data/prompts/prompt2.pth',
+                    split='COCO_17',
+                    proposal = data_root + 'mask_embeddings_test_oln_base/',
                     top_KP = params['top_KP'],
-
+                    lvis_ann_file='data/lvis_v1/annotations/lvis_v1_val.json',
+                    lvis_split='LVIS'
 
             ),
         )),
@@ -423,11 +448,11 @@ if __name__ == '__main__':
             softmax_t = params['softmax_t'],
             # softmax_t = 1,
             topK_clip_scores = params['topK_clip_scores'],
-            nms_score_thres = 0.56,
+            nms_score_thres = 0.0,
             nms_iou_thres = params['nms_iou_thres'],
             bbox_objectness = params['bbox_objectness']
         ),
-        evaluator=data_root+"annotations/inst_val2017_novel.json",
+
 
     )
     if args.odps is not None:
