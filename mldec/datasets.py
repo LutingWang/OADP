@@ -6,7 +6,7 @@ __all__ = [
     'LVIS_866',
     'LVIS_337',
     'LVIS',
-    'ALL_CLASS_NAMES',
+    'ALL',
 ]
 
 from mmdet.datasets import CocoDataset
@@ -263,4 +263,4 @@ LVIS_337 = (
 
 LVIS = LVIS_866 + LVIS_337
 
-ALL_CLASS_NAMES = COCO + LVIS
+ALL = COCO + LVIS

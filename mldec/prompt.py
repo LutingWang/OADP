@@ -1,7 +1,8 @@
 import argparse
-from collections import namedtuple
 import pathlib
-from typing import Any, Dict, Iterator, List, MutableMapping, Optional, Tuple
+from typing import Any, Dict, Iterator, List, MutableMapping, Optional, Tuple, NamedTuple
+import os
+
 import sklearn.metrics
 import torch
 import torch.distributed
@@ -25,10 +26,12 @@ from .debug import debug
 from .utils import all_gather, odps_init
 from .todd import BaseRunner, TrainerMixin
 
-Batch = namedtuple(
-    'Batch',
-    ['images', 'labels', 'class_embeddings', 'class_lengths'],
-)
+
+class Batch(NamedTuple):
+    images: torch.Tensor
+    labels: torch.Tensor
+    class_embeddings: torch.Tensor
+    class_lengths: torch.Tensor
 
 
 class CocoClassification(torchvision.datasets.CocoDetection):
@@ -56,10 +59,13 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         if split is None:
             self._classnames = [cat['name'] for cat in self.coco.cats.values()]
             self._cat2label = {cat: i for i, cat in enumerate(self.coco.cats)}
+        elif debug.DUMP:
+            self._classnames = getattr(datasets, split)
+            self._cat2label = {cat: i for i, cat in enumerate(self.coco.cats)}
         else:
-            classnames = getattr(datasets, split)
             self._classnames = []
             self._cat2label = dict()
+            classnames = getattr(datasets, split)
             for cat in self.coco.cats.values():
                 if cat['name'] in classnames:
                     self._classnames.append(cat['name'])
@@ -117,8 +123,8 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         return images, labels
 
     def collate(self, batch: List[Tuple[torch.Tensor, torch.Tensor]]) -> Batch:
-        images, labels = map(torch.cat, zip(*batch))
-        return Batch(images, labels, self._class_embeddings, self._class_lengths)
+        tensors = map(torch.cat, zip(*batch))
+        return Batch(*tensors, self._class_embeddings, self._class_lengths)
 
 
 class TextPrompt(todd.Module):
@@ -236,6 +242,12 @@ class Model(todd.reproduction.FrozenMixin, todd.Module):
         # self.register_load_state_dict_post_hook(self._load_state_dict_post_hook)
 
     def forward(self, batch: Batch, memo: Optional[Dict[str, Any]] = None) -> torch.Tensor:
+        if debug.DUMP:
+            return dict(
+                embeddings=self.encode_texts(batch),
+                scaler=self._scaler,
+                bias=self._bias,
+            )
         if memo is None or 'texts' not in memo:
             texts = self.encode_texts(batch)
             if memo is not None:
@@ -250,13 +262,6 @@ class Model(todd.reproduction.FrozenMixin, todd.Module):
 
     def encode_texts(self, batch: Batch) -> torch.Tensor:
         return self._text_encoder(batch, self._text_prompt)
-
-    def dump_texts(self, batch: Batch) -> Dict[str, torch.Tensor]:
-        return dict(
-            embeddings=self.encode_texts(batch),
-            scaler=self._scaler,
-            bias=self._bias,
-        )
 
 
 class Runner(BaseRunner):
@@ -328,9 +333,17 @@ class Runner(BaseRunner):
         if not debug.CPU:
             batch = Batch(*[x.cuda() for x in batch])
         logits = self._model(batch, memo)
-        memo['results'].append((logits, batch.labels))
+        if debug.DUMP:
+            memo['state_dict'] = logits
+        else:
+            memo['results'].append((logits, batch.labels))
 
     def _after_run_iter(self, *args, i: int, batch, memo: Dict[str, Any], log: bool = False, **kwargs) -> Optional[bool]:
+        if debug.DUMP:
+            state_dict = memo.pop('state_dict')
+            state_dict.update(names=self._dataset.classnames)
+            torch.save(state_dict, os.getenv('DUMP'))
+            return True
         if log:
             self._logger.info(
                 f'Val Step [{i}/{len(self._dataloader)}]'
@@ -339,6 +352,8 @@ class Runner(BaseRunner):
             return True
 
     def _after_run(self, *args, memo: Dict[str, Any], **kwargs) -> float:
+        if debug.DUMP:
+            return -1
         results: Iterator[Tuple[torch.Tensor, ...]] = zip(*memo['results'])
         if not debug.CPU and todd.get_world_size() > 1:
             results = tuple(  # all_gather must exec for all ranks
@@ -352,20 +367,6 @@ class Runner(BaseRunner):
             return mAP
         else:
             return -1
-
-    @torch.no_grad()
-    def dump(self) -> None:
-        model = self._model
-        if isinstance(model, nn.parallel.DistributedDataParallel):
-            model = model.module
-        batch = next(iter(self._dataloader))
-        if not debug.CPU:
-            batch = Batch(*[x.cuda() for x in batch])
-        state_dict = model.dump_texts(batch)
-        state_dict.update(
-            names=self._dataset.classnames,
-        ),
-        torch.save(state_dict, self._work_dir / f'epoch_{self._epoch}_classes.pth')
 
 
 class Trainer(TrainerMixin, Runner):
@@ -455,7 +456,7 @@ class Trainer(TrainerMixin, Runner):
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Train')
-    parser.add_argument('mode', choices=['train', 'val', 'dump'])
+    parser.add_argument('mode', choices=['train', 'val'])
     parser.add_argument('name', type=str)
     parser.add_argument('config', type=pathlib.Path)
     parser.add_argument('--odps', action=todd.DictAction)
@@ -485,12 +486,8 @@ if __name__ == '__main__':
     init_dict = dict(name=args.name, config=config, load=args.load)
     if args.mode == 'train':
         runner = Trainer(**init_dict)
+        runner.train()
     else:
         runner = Runner(**init_dict)
-
-    if args.mode == 'train':
-        runner.train()
-    elif args.mode == 'val':
         runner.run()
-    else:
-        runner.dump()
+

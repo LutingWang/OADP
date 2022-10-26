@@ -12,7 +12,7 @@ train = dict(
 val = dict(
     dataloader=dict(
         dataset=dict(
-            split=None,
+            split='ALL',
         ),
     ),
 )

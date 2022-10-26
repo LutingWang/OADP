@@ -7,7 +7,7 @@ experiment = Experiment('local')
 experiment.config.experiment_name = 'multilabel_post'
 
 experiment.config.trial_command = '''
-python -m cafe.test_multilabel_fusion debug work_dirs/patch_32_128/cafe_48_17.py work_dirs/patch_32_128/debug
+python -m cafe.test_multilabel_fusion debug work_dirs/patch_fixed_32_128/cafe_48_17.py work_dirs/patch_fixed_32_128/debug1
 '''
 experiment.config.trial_code_directory = pathlib.Path(__file__).parent.parent
 
@@ -66,6 +66,6 @@ experiment.config.tuner.name = 'TPE'
 experiment.config.tuner.class_args['optimize_mode'] = 'maximize'
 
 experiment.config.max_trial_number = 1000
-experiment.config.trial_concurrency = 2
+experiment.config.trial_concurrency = 1
 
 experiment.run(8080)

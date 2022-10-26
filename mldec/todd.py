@@ -128,10 +128,13 @@ class BaseRunner(ABC):
         pass
 
     def load_checkpoint(self, *args, epoch, config: Optional[todd.Config] = None, **kwargs) -> None:
+        model = self._model
+        if isinstance(model, nn.parallel.DistributedDataParallel):
+            model = model.module
         if config is None:
             config = todd.getattr_recur(self._config, '.checkpoint.load_', dict())
         todd.load_checkpoint(
-            self._model, self._work_dir / f'epoch_{epoch}.pth',
+            model, self._work_dir / f'epoch_{epoch}.pth',
             **config,
         )
         todd.init_iter((epoch + 1) * len(self._dataloader))
@@ -266,10 +269,13 @@ class TrainerMixin(BaseRunner):
         )
 
     def load_checkpoint(self, *args, epoch, config: Optional[todd.Config] = None, **kwargs) -> None:
+        model = self._model
+        if isinstance(model, nn.parallel.DistributedDataParallel):
+            model = model.module
         if config is None:
             config = todd.getattr_recur(self._config, '.checkpoint.load_', dict())
         todd.load_checkpoint(
-            self._model, self._work_dir / f'epoch_{epoch}.pth',
+            model, self._work_dir / f'epoch_{epoch}.pth',
             optimizer=self._optimizer,
             scheduler=self._scheduler,
             **config,
@@ -278,10 +284,13 @@ class TrainerMixin(BaseRunner):
         self._epoch = epoch
 
     def save_checkpoint(self, *args, epoch, config: Optional[todd.Config] = None, **kwargs) -> None:
+        model = self._model
+        if isinstance(model, nn.parallel.DistributedDataParallel):
+            model = model.module
         if config is None:
             config = todd.getattr_recur(self._config, '.checkpoint.save', dict())
         todd.save_checkpoint(
-            self._model, self._work_dir / f'epoch_{epoch}.pth',
+            model, self._work_dir / f'epoch_{epoch}.pth',
             optimizer=self._optimizer, scheduler=self._scheduler,
             **config,
         )

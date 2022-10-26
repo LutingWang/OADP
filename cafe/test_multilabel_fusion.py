@@ -97,7 +97,7 @@ class Model(todd.Module):
         patch_relevance = todd.BBoxesXYXY(batch.bboxes).intersections(
             todd.BBoxesXYWH(batch.patch_bboxes),
         )
-        patch_logits = batch.patch_logits[0][patch_relevance.argmax(-1)].cuda().float()
+        patch_logits = batch.patch_logits[patch_relevance.argmax(-1)]
         patch_logits *= cfg['patch_scaler']
         patch_scores = patch_logits.softmax(-1)
         patch_scores = patch_scores ** cfg['patch_gamma']
