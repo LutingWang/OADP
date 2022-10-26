@@ -111,23 +111,6 @@ class CocoClassification(torchvision.datasets.CocoDetection):
             images = embedding['patches'][[0]]
             labels = torch.zeros((1, self.num_classes), dtype=torch.bool)
             labels[0, bbox_labels] = True
-        elif self._mode == 'objects':
-            from mmdet.core import MaxIoUAssigner
-            assigner = MaxIoUAssigner(
-                pos_iou_thr=0.5,
-                neg_iou_thr=0.5,
-                min_pos_iou=0.5,
-                match_low_quality=False,
-                ignore_iof_thr=-1,
-            )
-            images = embedding['patches']
-            patch_bboxes = todd.BBoxesXYXY(todd.BBoxesXYWH(embedding['bboxes'])).to_tensor()
-            bboxes = todd.BBoxesXYXY(todd.BBoxesXYWH([anno['bbox'] for anno in target])).to_tensor()
-            assign_result = assigner.assign(patch_bboxes, bboxes, gt_labels=torch.tensor(bbox_labels))
-            labels = assign_result.labels
-            inds = labels >= 0
-            images = images[inds]
-            labels = F.one_hot(labels[inds], num_classes=self.num_classes)
         else:
             raise ValueError(f"Unexpected mode {self._mode}.")
 
@@ -325,13 +308,13 @@ class Runner(BaseRunner):
             clip_model=clip_model,
             config=config,
         ).requires_grad_()
+        if not debug.CPU:
+            model = model.cuda()
         if todd.get_world_size() > 1:
             model = torch.nn.parallel.DistributedDataParallel(
-                model.cuda(),
+                model,
                 device_ids=[torch.cuda.current_device()],
             )
-        elif not debug.CPU:
-            model = model.cuda()
         return model
 
     def _before_run(self, *args, **kwargs) -> Dict[str, Any]:
@@ -436,12 +419,7 @@ class Trainer(TrainerMixin, Runner):
         if not debug.CPU:
             batch = Batch(*[x.cuda() for x in batch])
         outputs = self._model(batch)
-        loss: torch.Tensor = self._criterion(
-            # outputs.sigmoid(),
-            # batch.labels,
-            outputs,
-            batch.labels.argmax(-1),
-        )
+        loss: torch.Tensor = self._criterion(outputs.sigmoid(), batch.labels)
         self._model.zero_grad()
         loss.backward()
         self._optimizer.step()
