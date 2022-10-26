@@ -35,6 +35,8 @@ model = dict(
         bbox_head=dict(
             norm_cfg=dict(type='SyncBN', requires_grad=True),
             # norm_cfg=None,
+            loss_cls=dict(loss_weight=0.1),
+            loss_bbox=dict(loss_weight=0.1),
         ),
     ),
     distiller=dict(
@@ -52,12 +54,12 @@ model = dict(
 load_from = 'data/ckpts/soco_star_mask_rcnn_r50_fpn_400e.pth'
 optimizer = dict(
     weight_decay=2.5e-5,
-    paramwise_cfg=dict(
-        custom_keys={
-            'neck': dict(lr_mult=0.1),
-            'roi_head.bbox_head': dict(lr_mult=0.5),
-        },
-    ),
+    # paramwise_cfg=dict(
+    #     custom_keys={
+    #         'neck': dict(lr_mult=0.1),
+    #         'roi_head.bbox_head': dict(lr_mult=0.5),
+    #     },
+    # ),
 )
 
 # runner = dict(max_epochs=6)
