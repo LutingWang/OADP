@@ -19,7 +19,7 @@ _base_ = [
     'mixins/patch_48_17.py',
 
     'mixins/ext.py',
-    # 'mixins/ext_pseudo.py',
+    # 'mixins/coco_48_ext.py',
 ]
 
 model = dict(

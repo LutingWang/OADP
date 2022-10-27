@@ -7,6 +7,7 @@ _base_ = [
 
 import contextlib
 import io
+import json
 import logging
 import random
 from typing import Any, Dict, Optional, Tuple
@@ -148,6 +149,17 @@ class CocoDataset4817(CocoDataset):
         eval_results.update(self.summarize(cocoEval, logger, split_name='coco 17'))
 
         return eval_results
+
+
+@DATASETS.register_module()
+class CocoDataset48Ext(CocoDataset):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(
+            *args,
+            classes=todd.globals_.COCO_48_EXT,
+            **kwargs,
+        )
 
 
 @DATASETS.register_module(force=True)
