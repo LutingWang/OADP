@@ -126,7 +126,7 @@ def build_lvis_from_pl(pl_data_file: str, lvis_data_file: str, lvis_split: str,p
 
 
 def main() -> None:
-    build_coco_from_pl('work_dirs/gen_lvis_pl_on_coco/lvis_pl.json', 'data/coco/annotations/instances_train2017.json','COCO_48','LVIS',True)
+    build_coco_from_pl('work_dirs/gen_lvis_pl_on_coco/lvis_pl.json', 'data/coco/annotations/instances_train2017.json.COCO_48_17.48','COCO_48_17','LVIS',True)
     pass
 
 

@@ -60,7 +60,7 @@ data = dict(
         oversample_thr=1e-3,
         dataset=dict(
             type='CocoDataset48Ext',
-            ann_file=data_root + 'annotations/instances_train2017.json.COCO_48_EXT',
+            ann_file=data_root + 'annotations/instances_train2017.json.COCO_48_17.48.LVIS',
             img_prefix=data_root + 'train2017/',
             pipeline=train_pipeline,
         ),
@@ -73,7 +73,7 @@ model = dict(
                 type='ViLDExtClassifier',
                 pretrained='data/prompts/vild.pth',
                 split=dict(
-                    train='data/coco/annotations/instances_train2017.json.COCO_48_EXT',
+                    train='data/coco/annotations/instances_train2017.json.COCO_48_17.48.LVIS',
                     val='COCO_48_17',
                 ),
                 num_base_classes=None
