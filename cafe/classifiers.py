@@ -42,7 +42,7 @@ class Classifier(todd.base.Module):
         embedding_dim = embeddings.shape[1]
         self._linear = nn.Linear(in_features, embedding_dim)
         if embeddings.shape[0] == out_features - 1:
-            self._bg_embedding = nn.Parameter(torch.randn(1, embedding_dim))
+            self._bg_embedding = nn.Parameter(torch.randn(1, embedding_dim) * 0.1)
             nn.init.xavier_uniform_(self._bg_embedding)
         elif embeddings.shape[0] == out_features:
             self._bg_embedding = None
@@ -107,7 +107,7 @@ class ViLDClassifier(todd.base.Module):
         embedding_dim = embeddings.shape[1]
         self._linear = nn.Linear(in_features, embedding_dim)
         if embeddings.shape[0] == out_features - 1:
-            self._bg_embedding = nn.Parameter(torch.randn(1, embedding_dim))
+            self._bg_embedding = nn.Parameter(torch.randn(1, embedding_dim) * 0.1)
             nn.init.xavier_uniform_(self._bg_embedding)
         elif embeddings.shape[0] == out_features:
             self._bg_embedding = None
@@ -179,7 +179,7 @@ class ViLDExtClassifier(todd.Module):
         embedding_dim = embeddings.shape[1]
         self._linear = nn.Linear(in_features, embedding_dim)
         if val_embeddings.shape[0] == out_features - 1:
-            self._bg_embedding = nn.Parameter(torch.randn(1, embedding_dim))
+            self._bg_embedding = nn.Parameter(torch.randn(1, embedding_dim) * 0.1)
             nn.init.xavier_uniform_(self._bg_embedding)
         elif val_embeddings.shape[0] == out_features:
             self._bg_embedding = None
