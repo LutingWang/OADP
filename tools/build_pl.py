@@ -29,8 +29,11 @@ def build_coco_from_pl(pl_data_file: str, coco_data_file: str, coco_split: str,p
         annotation for annotation in coco_data['annotations']
         if annotation['category_id'] in coco_category_ids
     ]
+    coco_anno_id = 0
     for annotation in coco_annotations:
         annotation['category_id'] = coco_category_ids.index(annotation['category_id'])
+        annotation['id'] = coco_anno_id + 1
+        coco_anno_id += 1
 
     for i, category in enumerate(coco_categories):
         category['id'] = i
@@ -56,6 +59,8 @@ def build_coco_from_pl(pl_data_file: str, coco_data_file: str, coco_split: str,p
                 coco_annotations.append(anno)
         else:
             anno['category_id'] = anno['category_id']+80
+            anno['id'] = coco_anno_id + 1
+            coco_anno_id += 1
             exist_cat_ids.add(anno['category_id'])
             # anno['category_id'] = coco_category_ids.index(anno['category_id'])
             coco_annotations.append(anno)
@@ -121,7 +126,7 @@ def build_lvis_from_pl(pl_data_file: str, lvis_data_file: str, lvis_split: str,p
 
 
 def main() -> None:
-    build_coco_from_pl('work_dirs/gen_lvis_pl_on_coco/lvis_pl.json', 'data/coco/annotations/instances_train2017.json','COCO_48_17','LVIS',True)
+    build_coco_from_pl('work_dirs/gen_lvis_pl_on_coco/lvis_pl.json', 'data/coco/annotations/instances_train2017.json','COCO_48','LVIS',True)
     pass
 
 
