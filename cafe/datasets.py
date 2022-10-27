@@ -228,9 +228,10 @@ class LoadCLIPFeatures:
             if 'gt_bboxes' in results:
                 gt_bboxes = todd.base.BBoxesXYXY(results['gt_bboxes'])
                 patch_ids, bbox_ids = torch.where(clip_patches.intersections(gt_bboxes) > 0)
-                labels = np.zeros((len(clip_patches), todd.globals_.num_classes), dtype=bool)
-                labels[patch_ids, results['gt_labels'][bbox_ids]] = True
-                results['clip_patch_labels'] = labels
+                labels = results['gt_labels'][bbox_ids]
+                valid_inds = labels < todd.globals_.num_classes
+                results['clip_patch_labels'] = np.zeros((len(clip_patches), todd.globals_.num_classes), dtype=bool)
+                results['clip_patch_labels'][patch_ids[valid_inds], labels[valid_inds]] = True
 
             results['clip_patch_feats'] = image['patches']
             results['clip_patches'] = todd.base.BBoxesXYXY(clip_patches).to_tensor().float().numpy()
