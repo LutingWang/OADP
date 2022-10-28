@@ -141,7 +141,7 @@ class ViLDClassifier(todd.base.Module):
                 embeddings,
                 F.normalize(self._bg_embedding),
             ])
-        scaler = 0.01 if todd.globals_.training else 0.007  # TODO: check this
+        scaler = 0.007 if todd.globals_.training else 0.01  # TODO: check this
         y = (x @ embeddings.T) / scaler
         if self._num_base_classes is not None and todd.globals_.training:
             y[:, self._num_base_classes:self.num_classes] = float('-inf')

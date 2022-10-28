@@ -13,7 +13,7 @@ model = dict(
                 type='AsymmetricLoss',
                 weight=dict(
                     type='WarmupScheduler',
-                    value=32,
+                    value=16,
                     iter_=1000,
                 ),
                 gamma_neg=4,
@@ -37,16 +37,16 @@ model = dict(
                 # reduction='mean',
             ),
 
-            # loss_clip_patches_relation=dict(
-            #     type='RKDLoss',
-            #     fields=['patch_feats', 'clip_patch_feats'],
-            #     weight=dict(
-            #         type='WarmupScheduler',
-            #         value=8,
-            #         iter_=200,
-            #     ),
-            #     # reduction='mean',
-            # ),
+            loss_clip_patches_relation=dict(
+                type='RKDLoss',
+                fields=['patch_feats', 'clip_patch_feats'],
+                weight=dict(
+                    type='WarmupScheduler',
+                    value=8,
+                    iter_=200,
+                ),
+                # reduction='mean',
+            ),
 
         ),
     ),
