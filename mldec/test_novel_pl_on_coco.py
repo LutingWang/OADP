@@ -133,7 +133,6 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         return [anno for anno in target if anno['category_id'] in self._cat2label]
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor,torch.Tensor]:
-        # import ipdb;ipdb.set_trace()
         image_id = torch.tensor(self.ids[index])
         proposal_pth = f'{image_id.item():012d}.pth'
         data_path = os.path.join(self.proposal_root,'val',proposal_pth)
@@ -212,11 +211,11 @@ class Model(todd.base.Module):
         final_labels = []
         final_image = []
         for i,(result,logit) in enumerate(zip(batch.proposal_bboxes,final_logit_k)):
-            
+
             final_bbox_c, final_label = multiclass_nms(result[...,:4].float(),logit.float(),score_thr=self.nms_score_thres,nms_cfg=dict(type='nms', iou_threshold=self.nms_iou_thres))
 
             image_ids = batch.image_ids[i].repeat(final_bbox_c.shape[0])
-            
+
             final_bboxes.append(final_bbox_c)
             final_labels.append(final_label)
             final_image.append(image_ids)
@@ -350,14 +349,12 @@ class Runner(BaseRunner):
             new_annotations.append(data)
             imageId_list.append(image_id)
         self._logger.info( 'Total image num: %d' % (len(set(imageId_list))))
-        # import ipdb;ipdb.set_trace()
         self._logger.info( 'Total PL boxes num: %d, avg num: %.2f' % (len(new_annotations), len(new_annotations)/len(set(imageId_list))) )
-        
+
         cocoDt = cocoGt.loadRes(new_annotations)
         cocoEval = COCOeval(cocoGt, cocoDt, iouType='bbox')
         cocoEval.evaluate()
         cocoEval.accumulate()
-        # import ipdb;ipdb.set_trace()
         cocoEval.summarize()
         results = cocoEval.stats
         nni.report_final_result(results[1])

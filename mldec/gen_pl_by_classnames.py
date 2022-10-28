@@ -43,7 +43,6 @@ Batch = namedtuple(
 )
 
 def all_gather(tensors_: Tuple[torch.Tensor],shape:torch.Tensor) -> List[torch.Tensor]:
-    # import ipdb;ipdb.set_trace()
     tensor = torch.cat(tensors_)
     tensors = []
     for _ in range(todd.base.get_world_size()):
@@ -61,7 +60,6 @@ def all_gather(tensors_: Tuple[torch.Tensor],shape:torch.Tensor) -> List[torch.T
     return tensors
 
 def all_gather_shape(tensors_: Tuple[torch.Tensor]) -> List[torch.Tensor]:
-    # import ipdb;ipdb.set_trace()
     tensor = torch.cat(tensors_)
     tensors = [torch.zeros(1,device = tensor.device)[0] for _ in range(todd.base.get_world_size())]
     # print(todd.get_rank(),tensors,torch.tensor(tensor.shape[0],device = tensor.device))
@@ -117,7 +115,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         for in_ in inds:
             new_names.append(ckpt['names'][in_])
         assert new_names == self._classnames
-        
+
         if 'scaler' in ckpt.keys():
             self._scaler = ckpt['scaler'].item()
         else:
@@ -142,14 +140,14 @@ class CocoClassification(torchvision.datasets.CocoDetection):
         return [anno for anno in target if anno['category_id'] in self._cat2label]
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor,torch.Tensor]:
-        
+
         image_id = torch.tensor(self.ids[index])
         proposal_pth = f'{image_id.item():012d}.pth'
         data_path = os.path.join(self.proposal_root,'val',proposal_pth)
         if os.path.exists(data_path) == False:
             data_path = os.path.join(self.proposal_root,'train',proposal_pth)
         data_ckpt = torch.load(data_path, 'cpu')
-        
+
         if 'proposal_embeddings' in data_ckpt.keys():# my generate version
             proposal_embeddings = data_ckpt['proposal_embeddings']
             proposal_objectness = data_ckpt['proposal_objectness']
@@ -163,13 +161,13 @@ class CocoClassification(torchvision.datasets.CocoDetection):
             proposal_embeddings = data_ckpt['patches']
             proposal_objectness= torch.ones_like(proposal_bboxes[:,-1])
         else:
-            raise RuntimeError("No such data format")    
-        
+            raise RuntimeError("No such data format")
+
         inds = torch.arange(self.top_KP)
         return proposal_embeddings[inds],proposal_objectness[inds],proposal_bboxes[inds],image_id
 
     def collate(self, batch: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]) -> Batch:
-        
+
         proposal_embeddings, proposal_objectness, proposal_bboxes,image_ids = map(torch.stack, zip(*batch))
         return Batch(proposal_embeddings, proposal_objectness, proposal_bboxes,image_ids,self._class_embeddings, self._scaler, self._bias,self._mask)
 
@@ -204,8 +202,8 @@ class Model(todd.base.Module):
         clip_logit = torch.softmax(clip_logit,dim = 2)
         clip_logit_v,clip_logit_i = torch.topk(clip_logit,self.topK_clip_scores,dim = 2)
 
-        clip_logit_k = clip_logit * (clip_logit>=clip_logit_v[...,-1:])   
-        
+        clip_logit_k = clip_logit * (clip_logit>=clip_logit_v[...,-1:])
+
         # fusion
         if self.score_fusion_cfg['_name'] == 'add':
             final_logit_k = (clip_logit_k*self.score_fusion_cfg['clip_score_ratio']) + ((clip_logit_k>0)*batch.proposal_objectness[...,None]*self.score_fusion_cfg['obj_score_ratio'])
@@ -213,7 +211,7 @@ class Model(todd.base.Module):
             final_logit_k = (clip_logit_k**self.score_fusion_cfg['clip_score_ratio']) * (batch.proposal_objectness[...,None]**self.score_fusion_cfg['obj_score_ratio'])
         else:
             raise ValueError(self.score_fusion_cfg['_name'])
-        
+
         # split batch to each image to nms/thresh
         final_bboxes = []
         final_labels = []
@@ -223,11 +221,11 @@ class Model(todd.base.Module):
 
             image_ids = batch.image_ids[i].repeat(final_bbox_c.shape[0])
             final_bboxes.append(final_bbox_c)
-            final_labels.append(final_label) 
-            final_image.append(image_ids) 
-        final_bboxes = torch.cat(final_bboxes)  
-        final_labels= torch.cat(final_labels)  
-        final_image = torch.cat(final_image)  
+            final_labels.append(final_label)
+            final_image.append(image_ids)
+        final_bboxes = torch.cat(final_bboxes)
+        final_labels= torch.cat(final_labels)
+        final_image = torch.cat(final_image)
         return final_bboxes,final_labels,final_image
 
 
@@ -310,7 +308,7 @@ class Runner(BaseRunner):
             self._logger.info(str(rank)+" Gather Done")
             if rank != 0:
                 return None
-        
+
             bboxes_, labels_, images_ = results
             bboxes = []
             labels = []
@@ -322,7 +320,7 @@ class Runner(BaseRunner):
                 images.append(image[ind])
         else:
             bboxes, labels, images = results
-            
+
         bboxes = torch.cat(bboxes).tolist()
         labels = torch.cat(labels).tolist()
         images = torch.cat(images).tolist()
@@ -334,7 +332,7 @@ class Runner(BaseRunner):
             box = [x0, y0, x1 - x0, y1 - y0]    # xywh
             if (x1-x0 <= 0) or (y1-y0 <= 0):
                 continue
-            
+
             curConf = currbox[-1]
             catId_top1 = label
 
@@ -343,12 +341,12 @@ class Runner(BaseRunner):
                     'bbox': box,
                     'score': curConf,
                     }
-                
+
             new_annotations.append(data)
             imageId_list.append(image_id)
         self._logger.info( 'Total image num: %d' % (len(imageId_list)))
         self._logger.info( 'Total PL boxes num: %d, avg num: %.2f' % (len(new_annotations), len(new_annotations)/len(set(imageId_list))) )
-       
+
         lvis_data = lvisGt.dataset
         coco_data = self._dataset.coco.dataset
         lvis_categories = lvisGt.dataset['categories']
@@ -398,11 +396,9 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == '__main__':
     args = parse_args()
-    # import ipdb;ipdb.set_trace = lambda:0
     config = todd.base.Config.load(args.config)
     # config.val[0].dataloader.sample = not args.hotwater
     # config.model[0].dis = not args.hotwater
-    import ipdb; ipdb.set_trace()
     if args.odps is not None:
         odps_init(args.odps)
     debug.init(config=config)

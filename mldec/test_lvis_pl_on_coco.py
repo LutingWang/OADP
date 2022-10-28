@@ -96,7 +96,7 @@ class CocoClassification(torchvision.datasets.CocoDetection):
             classnames = getattr(datasets, lvis_split)
             self._lvis = LVIS(lvis_ann_file)
             self._classnames =[]
-            
+
             self._novelids = []
             self._cat2label = dict()
             for cat in self._lvis.cats.values():
@@ -219,7 +219,6 @@ class Model(todd.base.Module):
         final_bboxes = []
         final_labels = []
         final_image = []
-        # import ipdb;ipdb.set_trace()
         for i,(result,logit) in enumerate(zip(batch.proposal_bboxes,final_logit_k)):
             # assert (result[:,3]<result[:,1]).any()
             final_bbox_c, final_label = multiclass_nms(result[...,:4].float(),logit.float(),score_thr=self.nms_score_thres,nms_cfg=dict(type='nms', iou_threshold=self.nms_iou_thres))
@@ -361,10 +360,9 @@ class Runner(BaseRunner):
             imageId_list.append(image_id)
         self._logger.info( 'Total image num: %d' % (len(set(imageId_list))))
         self._logger.info( 'Total PL boxes num: %d, avg num: %.2f' % (len(new_annotations), len(new_annotations)/len(set(imageId_list))) )
-        
+
         lvisDt = LVISResults(lvisGt,new_annotations)
         self._logger.info("Begin Evaluation")
-        # import ipdb;ipdb.set_trace()
         # img_ids = list(set(images))
         # lvisVis = LVISVis(lvisGt,lvisDt,img_dir="/mnt/data2/wlt/open_set_new/git_edition/OpenSet-dev/data/coco/val2017")
         # for i in range(len(img_ids)//100):
@@ -381,9 +379,8 @@ class Runner(BaseRunner):
         results = lvisEval.get_results()
         lvisEval.print_results()
         nni.report_final_result(results['APr'])
-        # import ipdb;ipdb.set_trace()
-        
-        
+
+
         self._logger.info("Evaluation END")
 
 
