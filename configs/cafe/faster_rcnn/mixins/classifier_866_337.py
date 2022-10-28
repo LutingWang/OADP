@@ -11,6 +11,10 @@ model = dict(
                 pretrained='data/lvis_v1/prompt/detpro_lvis_1.pth',
                 split='LVIS',
                 num_base_classes=866,
+                scaler=dict(  # this is same with detpro
+                    train=0.01,
+                    val=0.007,
+                ),
             ),
         ),
     ),
