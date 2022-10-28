@@ -93,6 +93,7 @@ class ViLDClassifier(todd.base.Module):
         out_features: int,
         split: str,
         num_base_classes: Optional[int] = None,
+        scaler: Optional[Dict[Literal['train', 'val'], float]] = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -115,6 +116,10 @@ class ViLDClassifier(todd.base.Module):
             assert False, (embeddings.shape[0], out_features)
 
         self._num_base_classes = num_base_classes
+
+        if scaler is None:
+            scaler = dict(train=0.007, val=0.01)  # this is inverse of detpro
+        self._scaler = scaler
 
     @property
     def embeddings(self) -> torch.Tensor:
@@ -141,7 +146,7 @@ class ViLDClassifier(todd.base.Module):
                 embeddings,
                 F.normalize(self._bg_embedding),
             ])
-        scaler = 0.01 if todd.globals_.training else 0.007  # TODO: check this
+        scaler = self._scaler['train' if todd.globals_.training else 'val']
         y = (x @ embeddings.T) / scaler
         if self._num_base_classes is not None and todd.globals_.training:
             y[:, self._num_base_classes:self.num_classes] = float('-inf')
@@ -159,6 +164,7 @@ class ViLDExtClassifier(todd.Module):
         out_features: int,
         split: Dict[Literal['train', 'val'], str],
         num_base_classes: None = None,
+        scaler: Optional[Dict[Literal['train', 'val'], float]] = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -188,6 +194,10 @@ class ViLDExtClassifier(todd.Module):
 
         assert num_base_classes is None
 
+        if scaler is None:
+            scaler = dict(train=0.007, val=0.01)  # this is inverse of detpro
+        self._scaler = scaler
+
     @property
     def embeddings(self) -> torch.Tensor:
         embeddings = (
@@ -213,6 +223,6 @@ class ViLDExtClassifier(todd.Module):
                 embeddings,
                 F.normalize(self._bg_embedding),
             ])
-        scaler = 0.007 if todd.globals_.training else 0.01  # TODO: check this
+        scaler = self._scaler['train' if todd.globals_.training else 'val']
         y = (x @ embeddings.T) / scaler
         return y

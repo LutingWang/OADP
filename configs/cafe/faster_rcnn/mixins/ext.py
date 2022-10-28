@@ -8,6 +8,10 @@ model = dict(
         bbox_head=dict(
             cls_predictor_cfg=dict(
                 num_base_classes=None,
+                scaler=dict(  # this is same with detpro
+                    train=0.01,
+                    val=0.007,
+                ),
             ),
         ),
     ),
