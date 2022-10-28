@@ -136,6 +136,9 @@ def main():
     debug.init()
     if debug.CPU:
         cfg.fp16 = None
+    if debug.ODPS:
+        cfg.data.samples_per_gpu = 2
+        cfg.data.workers_per_gpu = 2
     if debug.TRAIN_WITH_VAL_DATASET:
         if 'dataset' in cfg.data.train:
             train_dataset = cfg.data.train.dataset

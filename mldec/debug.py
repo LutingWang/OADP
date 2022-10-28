@@ -8,10 +8,11 @@ import mmcv.cnn
 import todd
 
 
-class Debug(todd.base.BaseDebug):
-    TRAIN_WITH_VAL_DATASET = todd.base.DebugMode()
-    DRY_RUN = todd.base.DebugMode()
+class Debug(todd.BaseDebug):
+    TRAIN_WITH_VAL_DATASET = todd.DebugMode()
+    DRY_RUN = todd.DebugMode()
     DUMP = todd.DebugMode()
+    ODPS = todd.DebugMode()
 
     def init_cpu(self, **kwargs) -> None:
         super().init_cpu(**kwargs)

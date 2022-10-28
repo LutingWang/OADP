@@ -207,6 +207,8 @@ class LoadCLIPFeatures:
             self._images = None
 
         if regions is not None:
+            if debug.ODPS:
+                regions['data_root'] = regions['data_root'].replace('vild_embeddings', 'proposal_embeddings8')
             self._regions_as_proposals = regions.pop('as_proposals', False)
             self._regions = todd.datasets.ACCESS_LAYERS.build(
                 regions,

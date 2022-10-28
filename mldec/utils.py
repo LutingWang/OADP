@@ -12,8 +12,12 @@ import torch.distributed
 
 import todd
 
+from .debug import debug
+
 
 def odps_init(kwargs: todd.base.Config) -> None:
+    debug.ODPS = True
+
     logger = todd.base.get_logger()
     logger.debug("ODPS initializing.")
     kwargs.setdefault('LOCAL_RANK', '0')
