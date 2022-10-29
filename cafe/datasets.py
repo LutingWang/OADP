@@ -257,6 +257,51 @@ class LoadCLIPFeatures:
 
 
 @PIPELINES.register_module()
+class LoadCLIPFeatures4LVIS(LoadCLIPFeatures):
+
+    def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
+        key = results['img_info']['filename']\
+            .replace('.jpg', '')\
+            .replace('train2017/', 'train/')\
+            .replace('val2017/', 'val/')
+        if debug.CPU:
+            key = 'val/000000000139'
+
+        if self._images is not None:
+            image = self._images[key]
+            results['clip_image'] = image['image'].squeeze(0)
+
+            clip_patches = todd.base.BBoxesXYWH(image['bboxes'])
+            if 'gt_bboxes' in results:
+                gt_bboxes = todd.base.BBoxesXYXY(results['gt_bboxes'])
+                gt_labels = results['gt_labels']
+                valid_inds = gt_labels < todd.globals_.num_classes
+                gt_bboxes = gt_bboxes[valid_inds]
+                gt_labels = gt_labels[valid_inds]
+                patch_ids, bbox_ids = torch.where(clip_patches.intersections(gt_bboxes) > 0)
+                results['clip_patch_labels'] = np.zeros((len(clip_patches), todd.globals_.num_classes), dtype=bool)
+                results['clip_patch_labels'][patch_ids, gt_labels[bbox_ids]] = True
+
+            results['clip_patch_feats'] = image['patches']
+            results['clip_patches'] = todd.base.BBoxesXYXY(clip_patches).to_tensor().float().numpy()
+            results['bbox_fields'].append('clip_patches')
+
+        if self._regions is not None:
+            regions = self._regions[key]
+            clip_bbox_feats = regions['patches']
+            clip_bboxes = regions['bboxes']
+            inds = (clip_bboxes[:, 2] > clip_bboxes[:, 0] + 4) & (clip_bboxes[:, 3] > clip_bboxes[:, 1] + 4)  # TODO: update with todd
+            results['clip_bbox_feats'] = clip_bbox_feats[inds]
+            results['clip_bboxes'] = clip_bboxes[inds].float().numpy()
+            results['bbox_fields'].append('clip_bboxes')
+            if self._regions_as_proposals:
+                results['proposals'] = results['clip_bboxes']
+                results['bbox_fields'].append('proposals')
+
+        return results
+
+
+@PIPELINES.register_module()
 class LoadDetproFeatures:
 
     def __init__(

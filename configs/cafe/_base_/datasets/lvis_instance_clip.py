@@ -8,19 +8,31 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
-    dict(type='LoadProposals'),
+    # dict(type='LoadProposals'),
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
+    # dict(
+    #     type='LoadDetproFeatures',
+    #     images=dict(
+    #         type='PthAccessLayer',
+    #         data_root='data/coco/embeddings',
+    #         task_name='',
+    #     ),
+    #     regions=dict(
+    #         type='PthAccessLayer',
+    #         data_root='data/lvis_v1/data/lvis_clip_image_embedding/',
+    #         task_name='train2017',
+    #     ),
+    # ),
     dict(
-        type='LoadDetproFeatures',
+        type='LoadCLIPFeatures4LVIS',
+        task_name='',
         images=dict(
             type='PthAccessLayer',
             data_root='data/coco/embeddings',
-            task_name='',
         ),
         regions=dict(
             type='PthAccessLayer',
-            data_root='data/lvis_v1/data/lvis_clip_image_embedding/',
-            task_name='train2017',
+            data_root='data/coco/vild_embeddings',
         ),
     ),
     dict(
@@ -53,7 +65,7 @@ data = dict(
             type=dataset_type,
             ann_file=data_root + 'annotations/lvis_v1_train.json',
             img_prefix='data/coco/',
-            proposal_file=data_root + 'proposals/rpn_r101_fpn_lvis_v1_train.pkl',
+            # proposal_file=data_root + 'proposals/rpn_r101_fpn_lvis_v1_train.pkl',
             pipeline=train_pipeline,
         ),
     ),
