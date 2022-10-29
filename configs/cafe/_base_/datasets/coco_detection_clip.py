@@ -82,6 +82,9 @@ test_pipeline = [
             dict(type='Normalize', **img_norm_cfg),
             dict(type='Pad', size_divisor=32),
             dict(type='ImageToTensor', keys=['img']),
+            # dict(type='ToTensor', keys=['clip_patches', 'proposals']),
+            # dict(type='ToDataContainer', fields=[dict(key='proposals', stack=False)]),
+            # dict(type='Collect', keys=['img', 'clip_patches', 'proposals']),
             dict(type='ToTensor', keys=['clip_patches']),
             dict(type='Collect', keys=['img', 'clip_patches']),
         ])
