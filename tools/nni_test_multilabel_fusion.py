@@ -4,61 +4,49 @@ from nni.experiment import Experiment
 
 experiment = Experiment('local')
 
-experiment.config.experiment_name = 'multilabel_post'
+experiment.config.experiment_name = 'dcp_256_8_patch_16_128_0007_001'
 
 experiment.config.trial_command = '''
-python -m cafe.test_multilabel_fusion debug work_dirs/patch_fixed_32_128/cafe_48_17.py work_dirs/patch_fixed_32_128/debug1
+python -m cafe.test_multilabel_fusion debug work_dirs/dcp_256_8_patch_16_128_0007_001/cafe_48_17.py work_dirs/dcp_256_8_patch_16_128_0007_001/debug1
 '''
 experiment.config.trial_code_directory = pathlib.Path(__file__).parent.parent
 
 experiment.config.search_space = dict(
-    base_ensemble_mask=dict(
-        _type='uniform',
-        _value=[0.2, 0.8],
-    ),
-    novel_ensemble_mask=dict(
-        _type='uniform',
-        _value=[0.2, 0.8],
-    ),
-    bbox_score_scaler=dict(
+    bbox_base_scaler=dict(
         _type='uniform',
         _value=[0.2, 1.5],
     ),
-    bbox_patch_scaler=dict(
+    bbox_novel_scaler=dict(
         _type='uniform',
-        _value=[0.5, 2.0],
+        _value=[0.2, 1.5],
     ),
-    bbox_score_gamma=dict(
+    bbox_base_gamma=dict(
         _type='uniform',
         _value=[0.2, 0.8],
     ),
-    bbox_patch_gamma=dict(
-        _type='uniform',
-        _value=[0, 1],
-    ),
-    bbox_objectness_gamma=dict(
+    bbox_novel_gamma=dict(
         _type='uniform',
         _value=[0.2, 0.8],
     ),
-    image_score_scaler=dict(
+    image_base_scaler=dict(
         _type='uniform',
-        _value=[0.2, 1.0],
+        _value=[0.2, 1.5],
     ),
-    image_patch_scaler=dict(
+    image_novel_scaler=dict(
         _type='uniform',
-        _value=[0.5, 2.0],
+        _value=[0.2, 1.5],
     ),
-    image_score_gamma=dict(
+    image_base_gamma=dict(
         _type='uniform',
         _value=[0.2, 0.8],
     ),
-    image_patch_gamma=dict(
-        _type='uniform',
-        _value=[0, 1],
-    ),
-    image_objectness_gamma=dict(
+    image_novel_gamma=dict(
         _type='uniform',
         _value=[0.2, 0.8],
+    ),
+    objectness_gamma=dict(
+        _type='uniform',
+        _value=[0, 1.0],
     ),
 )
 

@@ -30,8 +30,6 @@ class Batch(NamedTuple):
     image_scores: torch.Tensor
     objectness: torch.Tensor
     multilabel_logits: Optional[torch.Tensor]
-    patch_logits: Optional[torch.Tensor]
-    patch_bboxes: Optional[torch.Tensor]
 
 
 class Dataset(todd.datasets.PthDataset):
@@ -43,16 +41,12 @@ class Dataset(todd.datasets.PthDataset):
                 data_root=root,
             ),
         )
-        self._patch_access_layer = todd.datasets.PthAccessLayer(
-            data_root='data/coco/embeddings',
-            task_name='val',
-        )
 
     def __getitem__(self, index: int) -> Batch:
         key = self._keys[index]
         item: Dict[str, Any] = self._access_layer[key]
+        item.pop('patch_logits', None)
         item.update(
-            patch_bboxes=self._patch_access_layer[key]['bboxes'],
             image_ids=key,
         )
         return Batch(**item)
@@ -68,54 +62,54 @@ class Model(todd.Module):
     def __init__(
         self,
         *args,
-        classifier: str,
-        base_ensemble_mask: float,
-        novel_ensemble_mask: float,
+        num_classes: int,
+        num_base_classes: int,
         nms_cfg: Dict[str, Any],
         bbox_cfg: Dict[str, Any],
         image_cfg: Dict[str, Any],
+        objectness_cfg: Dict[str, Any],
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self._ensemble_mask = torch.empty(66, device='cuda')
-        self._ensemble_mask[:48] = base_ensemble_mask
-        self._ensemble_mask[48:-1] = novel_ensemble_mask
+        self._num_classes = num_classes
+        self._num_base_classes = num_base_classes
         self._nms_cfg = nms_cfg
         self._bbox_cfg = bbox_cfg
         self._image_cfg = image_cfg
+        self._objectness_cfg = objectness_cfg
 
     def _classify(
         self,
         scores: torch.Tensor,
-        batch: Batch,
         cfg: Dict[str, Any],
     ) -> torch.Tensor:
-        scores *= cfg['score_scaler']
+        scores[:, :self._num_base_classes] *= cfg['base_scaler']
+        scores[:, self._num_base_classes:self._num_classes] *= cfg['novel_scaler']
         scores = scores.softmax(-1)
-        scores = scores ** cfg['score_gamma']
-
-        objectness = einops.rearrange(batch.objectness, 'n -> n 1')
-        objectness = objectness ** cfg['objectness_gamma']
-        scores *= objectness
+        scores[:, :self._num_base_classes] = scores[:, :self._num_base_classes] ** cfg['base_gamma']
+        scores[:, self._num_base_classes:self._num_classes] = (
+            scores[:, self._num_base_classes:self._num_classes] ** cfg['novel_gamma']
+        )
         return scores
 
     def forward(self, batch: Batch) -> Dict[int, Any]:
-        bbox_scores = self._classify(batch.bbox_scores, batch, self._bbox_cfg)
-        image_scores = self._classify(batch.image_scores, batch, self._image_cfg)
+        bbox_scores = self._classify(batch.bbox_scores, self._bbox_cfg)
+        image_scores = self._classify(batch.image_scores, self._image_cfg)
+
+        objectness = einops.rearrange(batch.objectness, 'n -> n 1')
+        objectness = objectness ** self._objectness_cfg['gamma']
 
         ensemble_score = (
-            bbox_scores ** self._ensemble_mask
-            * image_scores ** (1 - self._ensemble_mask)
-        )
+            bbox_scores * image_scores * objectness
+        ).float()
 
-        ensemble_score = ensemble_score.float()
         return {
             batch.image_ids: bbox2result(
                 *multiclass_nms(
                     batch.bboxes, ensemble_score,
                     **self._nms_cfg,
                 ),
-                65,
+                self._num_classes,
             )
         }
 
@@ -236,16 +230,15 @@ if __name__ == '__main__':
     params = nni.get_next_parameter()
     if len(params) == 0:
         params = dict(
-            base_ensemble_mask=2 / 3,
-            novel_ensemble_mask=1 / 3,
-            bbox_score_scaler=1,
-            bbox_patch_scaler=0,
-            bbox_score_gamma=1,
-            bbox_objectness_gamma=0,
-            image_score_scaler=1,
-            image_patch_scaler=0,
-            image_score_gamma=1,
-            image_objectness_gamma=0,
+            bbox_base_scaler=1,
+            bbox_novel_scaler=1,
+            bbox_base_gamma=2 / 3,
+            bbox_novel_gamma=1 / 3,
+            image_base_scaler=1,
+            image_novel_scaler=1,
+            image_base_gamma=1 / 3,
+            image_novel_gamma=2 / 3,
+            objectness_gamma=0,
         )
     print(params)
 
@@ -263,25 +256,27 @@ if __name__ == '__main__':
             )
         ),
         model=dict(
-            classifier=args.root / 'classifier',
-            base_ensemble_mask=params['base_ensemble_mask'],
-            novel_ensemble_mask=params['novel_ensemble_mask'],
+            num_classes=65,
+            num_base_classes=48,
             nms_cfg=dict(
                 score_thr=config.model.test_cfg.rcnn.score_thr,
                 nms_cfg=config.model.test_cfg.rcnn.nms,
                 max_num=config.model.test_cfg.rcnn.max_per_img,
             ),
             bbox_cfg=dict(
-                score_scaler=params['bbox_score_scaler'],
-                patch_scaler=params['bbox_patch_scaler'],
-                score_gamma=params['bbox_score_gamma'],
-                objectness_gamma=params['bbox_objectness_gamma'],
+                base_scaler=params['bbox_base_scaler'],
+                novel_scaler=params['bbox_novel_scaler'],
+                base_gamma=params['bbox_base_gamma'],
+                novel_gamma=params['bbox_novel_gamma'],
             ),
             image_cfg=dict(
-                score_scaler=params['image_score_scaler'],
-                patch_scaler=params['image_patch_scaler'],
-                score_gamma=params['image_score_gamma'],
-                objectness_gamma=params['image_objectness_gamma'],
+                base_scaler=params['image_base_scaler'],
+                novel_scaler=params['image_novel_scaler'],
+                base_gamma=params['image_base_gamma'],
+                novel_gamma=params['image_novel_gamma'],
+            ),
+            objectness_cfg=dict(
+                gamma=params['objectness_gamma'],
             ),
         ),
         evaluator=config.data.test,
