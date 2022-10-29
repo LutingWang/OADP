@@ -21,16 +21,16 @@ model = dict(
                 # reduction='mean',
             ),
 
-#             loss_clip_bboxes_relation=dict(
-#                 type='RKDLoss',
-#                 fields=['bbox_feats', 'clip_bbox_feats'],
-#                 weight=dict(
-#                     type='WarmupScheduler',
-#                     value=8,
-#                     iter_=200,
-#                 ),
-#                 # reduction='mean',
-#             ),
+            loss_clip_bboxes_relation=dict(
+                type='RKDLoss',
+                fields=['bbox_feats', 'clip_bbox_feats'],
+                weight=dict(
+                    type='WarmupScheduler',
+                    value=8,
+                    iter_=200,
+                ),
+                # reduction='mean',
+            ),
 
         ),
     ),
