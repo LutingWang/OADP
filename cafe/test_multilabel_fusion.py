@@ -94,15 +94,6 @@ class Model(todd.Module):
         scores = scores.softmax(-1)
         scores = scores ** cfg['score_gamma']
 
-        patch_relevance = todd.BBoxesXYXY(batch.bboxes).intersections(
-            todd.BBoxesXYWH(batch.patch_bboxes),
-        )
-        patch_logits = batch.patch_logits[patch_relevance.argmax(-1)]
-        patch_logits *= cfg['patch_scaler']
-        patch_scores = patch_logits.softmax(-1)
-        patch_scores = patch_scores ** cfg['patch_gamma']
-        scores[:, :65] *= patch_scores
-
         objectness = einops.rearrange(batch.objectness, 'n -> n 1')
         objectness = objectness ** cfg['objectness_gamma']
         scores *= objectness
@@ -250,12 +241,10 @@ if __name__ == '__main__':
             bbox_score_scaler=1,
             bbox_patch_scaler=0,
             bbox_score_gamma=1,
-            bbox_patch_gamma=0,
             bbox_objectness_gamma=0,
             image_score_scaler=1,
             image_patch_scaler=0,
             image_score_gamma=1,
-            image_patch_gamma=0,
             image_objectness_gamma=0,
         )
     print(params)
@@ -286,14 +275,12 @@ if __name__ == '__main__':
                 score_scaler=params['bbox_score_scaler'],
                 patch_scaler=params['bbox_patch_scaler'],
                 score_gamma=params['bbox_score_gamma'],
-                patch_gamma=params['bbox_patch_gamma'],
                 objectness_gamma=params['bbox_objectness_gamma'],
             ),
             image_cfg=dict(
                 score_scaler=params['image_score_scaler'],
                 patch_scaler=params['image_patch_scaler'],
                 score_gamma=params['image_score_gamma'],
-                patch_gamma=params['image_patch_gamma'],
                 objectness_gamma=params['image_objectness_gamma'],
             ),
         ),

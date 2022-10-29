@@ -181,62 +181,62 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
             self._image_head(bbox_feats)
         return hook_status.value
 
-    # def _bbox_forward_patch(
-    #     self,
-    #     x: Sequence[torch.Tensor],
-    #     rois: torch.Tensor,
-    #     labels: torch.Tensor,
-    # ) -> torch.Tensor:
-    #     bbox_feats = self.bbox_roi_extractor(
-    #         x[:self.bbox_roi_extractor.num_inputs], rois,
-    #     )
-    #     if self.with_shared_head:
-    #         bbox_feats = self.shared_head(bbox_feats)
-    #     with todd.hooks.hook(
-    #         dict(
-    #             type='StandardHook',
-    #             path='.fc_cls._linear',
-    #         ),
-    #         self._patch_head,
-    #     ) as hook_status:
-    #         logits, _ = self._patch_head(bbox_feats)
-    #     logits = logits[:, :-1]
-    #     patch_loss = self._patch_loss(logits.sigmoid(), labels)
-    #     _, topK_inds = logits.detach().topk(5)
-    #     inds = einops.repeat(torch.arange(labels.shape[0]), 'n -> n k', k=5)
-    #     patch_topK_recall = labels[inds, topK_inds].sum() / labels.sum()
-    #     return hook_status.value, patch_loss, patch_topK_recall
-
     def _bbox_forward_patch(
         self,
         x: Sequence[torch.Tensor],
         rois: torch.Tensor,
         labels: torch.Tensor,
     ) -> torch.Tensor:
-        num_levels = self.bbox_roi_extractor.num_inputs
-        feats = loss = topK_recall = 0
-        for i in range(num_levels):
-            bbox_feats = self.bbox_roi_extractor.roi_layers[i](x[i], rois)
-            assert not self.with_shared_head
-            with todd.hooks.hook(
-                dict(
-                    type='StandardHook',
-                    path='.fc_cls._linear',
-                ),
-                self._patch_head,
-            ) as hook_status:
-                logits, _ = self._patch_head(bbox_feats)
+        bbox_feats = self.bbox_roi_extractor(
+            x[:self.bbox_roi_extractor.num_inputs], rois,
+        )
+        if self.with_shared_head:
+            bbox_feats = self.shared_head(bbox_feats)
+        with todd.hooks.hook(
+            dict(
+                type='StandardHook',
+                path='.fc_cls._linear',
+            ),
+            self._patch_head,
+        ) as hook_status:
+            logits, _ = self._patch_head(bbox_feats)
+        logits = logits[:, :-1]
+        patch_loss = self._patch_loss(logits.sigmoid(), labels)
+        _, topK_inds = logits.detach().topk(5)
+        inds = einops.repeat(torch.arange(labels.shape[0]), 'n -> n k', k=5)
+        patch_topK_recall = labels[inds, topK_inds].sum() / labels.sum()
+        return hook_status.value, patch_loss, patch_topK_recall
 
-            feats = feats + hook_status.value
+    # def _bbox_forward_patch(
+    #     self,
+    #     x: Sequence[torch.Tensor],
+    #     rois: torch.Tensor,
+    #     labels: torch.Tensor,
+    # ) -> torch.Tensor:
+    #     num_levels = self.bbox_roi_extractor.num_inputs
+    #     feats = loss = topK_recall = 0
+    #     for i in range(num_levels):
+    #         bbox_feats = self.bbox_roi_extractor.roi_layers[i](x[i], rois)
+    #         assert not self.with_shared_head
+    #         with todd.hooks.hook(
+    #             dict(
+    #                 type='StandardHook',
+    #                 path='.fc_cls._linear',
+    #             ),
+    #             self._patch_head,
+    #         ) as hook_status:
+    #             logits, _ = self._patch_head(bbox_feats)
 
-            logits = logits[:, :-1]
-            loss = loss + self._patch_loss(logits.sigmoid(), labels)
+    #         feats = feats + hook_status.value
 
-            _, topK_inds = logits.detach().topk(5)
-            inds = einops.repeat(torch.arange(labels.shape[0]), 'n -> n k', k=5)
-            topK_recall = topK_recall + labels[inds, topK_inds].sum() / labels.sum()
+    #         logits = logits[:, :-1]
+    #         loss = loss + self._patch_loss(logits.sigmoid(), labels)
 
-        return feats / num_levels, loss / num_levels, topK_recall / num_levels
+    #         _, topK_inds = logits.detach().topk(5)
+    #         inds = einops.repeat(torch.arange(labels.shape[0]), 'n -> n k', k=5)
+    #         topK_recall = topK_recall + labels[inds, topK_inds].sum() / labels.sum()
+
+    #     return feats / num_levels, loss / num_levels, topK_recall / num_levels
 
     if debug.DUMP:
         if not os.path.exists(os.getenv('DUMP')):
