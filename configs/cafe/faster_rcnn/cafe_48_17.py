@@ -13,7 +13,7 @@ _base_ = [
     '../_base_/datasets/coco_detection_clip.py',
     '../_base_/datasets/coco_48_17.py',
     'mixins/dcp.py',
-    # 'mixins/multilabel_48_17.py',
+    'mixins/multilabel_48_17.py',
     # 'mixins/post.py',
 
     'mixins/patch_48_17.py',
@@ -59,7 +59,7 @@ model = dict(
 )
 load_from = 'data/ckpts/soco_star_mask_rcnn_r50_fpn_400e.pth'
 optimizer = dict(
-    lr=0.01,
+    # lr=0.01,
     weight_decay=2.5e-5,
     paramwise_cfg=dict(
         custom_keys={
