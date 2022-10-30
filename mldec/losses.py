@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 
 import todd
+from mmcv.runner import force_fp32
 
 
 @todd.losses.LOSSES.register_module()
@@ -18,7 +19,9 @@ class AsymmetricLoss(todd.losses.BaseLoss):
         self.clip = clip
         self.disable_torch_grad_focal_loss = disable_torch_grad_focal_loss
         self.eps = eps
+        self.fp16_enabled = False
 
+    @force_fp32(apply_to=('x',))
     def forward(self, x: torch.Tensor, y: torch.Tensor, **kwargs) -> torch.Tensor:
         """"
         Args:

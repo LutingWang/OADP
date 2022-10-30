@@ -119,33 +119,6 @@ class Cafe(
 
         losses = dict()
 
-        # RPN forward and loss
-        if self.with_rpn:
-            proposal_cfg = self.train_cfg.get(
-                'rpn_proposal',
-                self.test_cfg.rpn,
-            )
-            rpn_losses, proposal_list = self.rpn_head.forward_train(
-                feats,
-                img_metas,
-                gt_bboxes,
-                gt_labels=None,
-                gt_bboxes_ignore=gt_bboxes_ignore,
-                proposal_cfg=proposal_cfg,
-                **kwargs,
-            )
-            losses.update(rpn_losses)
-        else:
-            proposal_list = proposals
-
-        roi_losses = self.roi_head.forward_train(
-            feats, img_metas, proposal_list,
-            gt_bboxes, gt_labels,
-            gt_bboxes_ignore, gt_masks,
-            **kwargs,
-        )
-        losses.update(roi_losses)
-
         if self._multilabel_classifier is not None:
             multilabel_logits = self._multilabel_classify(feats)
             img_labels = one_hot(gt_labels, self.num_classes)
@@ -176,6 +149,33 @@ class Cafe(
 
         if self._post_fpn is not None:
             feats = self._post_fpn(feats, ce)
+
+        # RPN forward and loss
+        if self.with_rpn:
+            proposal_cfg = self.train_cfg.get(
+                'rpn_proposal',
+                self.test_cfg.rpn,
+            )
+            rpn_losses, proposal_list = self.rpn_head.forward_train(
+                feats,
+                img_metas,
+                gt_bboxes,
+                gt_labels=None,
+                gt_bboxes_ignore=gt_bboxes_ignore,
+                proposal_cfg=proposal_cfg,
+                **kwargs,
+            )
+            losses.update(rpn_losses)
+        else:
+            proposal_list = proposals
+
+        roi_losses = self.roi_head.forward_train(
+            feats, img_metas, proposal_list,
+            gt_bboxes, gt_labels,
+            gt_bboxes_ignore, gt_masks,
+            **kwargs,
+        )
+        losses.update(roi_losses)
 
         if self.roi_head.with_patch:
             assert clip_patches is not None

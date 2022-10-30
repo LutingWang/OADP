@@ -13,7 +13,7 @@ model = dict(
                 fields=['image', 'clip_image'],
                 weight=dict(
                     type='WarmupScheduler',
-                    value=2,
+                    value=0.5,
                     iter_=200,
                 ),
                 reduction='sum',
@@ -32,7 +32,7 @@ model = dict(
         type='AsymmetricLoss',
         weight=dict(
             type='WarmupScheduler',
-            value=16,
+            value=8,
             iter_=1000,
         ),
         gamma_neg=4,
