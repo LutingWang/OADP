@@ -279,3 +279,154 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
                 save_path,
             )
             return [torch.tensor([[0, 0, 1, 1]])], [torch.empty([0])]
+
+
+@mmdet.models.HEADS.register_module()
+class ViLDRoIHead(mmdet.models.StandardRoIHead):
+    bbox_roi_extractor: mmdet.models.BaseRoIExtractor
+
+    def __init__(
+        self,
+        *args,
+        bbox_head: Dict[str, Any],
+        patch_head: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, bbox_head=bbox_head, **kwargs)
+        self._image_head: mmdet.models.BBoxHead = self.bbox_head
+
+        if patch_head is not None:
+            self._patch_loss = todd.losses.LOSSES.build(
+                patch_head.pop('loss'),
+            )
+            self._patch_head: mmdet.models.BBoxHead = mmdet.models.HEADS.build(
+                patch_head,
+                default_args=bbox_head,
+            )
+
+    @property
+    def ensemble_mask(self) -> torch.Tensor:
+        return self._ensemble_mask
+
+    @property
+    def with_mask(self) -> bool:
+        return todd.globals_.training and super().with_mask
+
+    @property
+    def with_patch(self) -> bool:
+        return hasattr(self, '_patch_head')
+
+    def _bbox_forward_distill(
+        self,
+        x: Sequence[torch.Tensor],
+        rois: torch.Tensor,
+    ) -> torch.Tensor:
+        bbox_feats = self.bbox_roi_extractor(
+            x[:self.bbox_roi_extractor.num_inputs], rois,
+        )
+        if self.with_shared_head:
+            bbox_feats = self.shared_head(bbox_feats)
+        with todd.hooks.hook(
+            dict(
+                type='StandardHook',
+                path='.fc_cls._linear',
+            ),
+            self.bbox_head,
+        ) as hook_status:
+            self.bbox_head(bbox_feats)
+        return hook_status.value
+
+    def _bbox_forward_patch(
+        self,
+        x: Sequence[torch.Tensor],
+        rois: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> torch.Tensor:
+        bbox_feats = self.bbox_roi_extractor(
+            x[:self.bbox_roi_extractor.num_inputs], rois,
+        )
+        if self.with_shared_head:
+            bbox_feats = self.shared_head(bbox_feats)
+        with todd.hooks.hook(
+            dict(
+                type='StandardHook',
+                path='.fc_cls._linear',
+            ),
+            self._patch_head,
+        ) as hook_status:
+            logits, _ = self._patch_head(bbox_feats)
+        logits = logits[:, :-1]
+        patch_loss = self._patch_loss(logits.sigmoid(), labels)
+        _, topK_inds = logits.detach().topk(5)
+        inds = einops.repeat(torch.arange(labels.shape[0]), 'n -> n k', k=5)
+        patch_topK_recall = labels[inds, topK_inds].sum() / labels.sum()
+        return hook_status.value, patch_loss, patch_topK_recall
+
+    # def _bbox_forward_patch(
+    #     self,
+    #     x: Sequence[torch.Tensor],
+    #     rois: torch.Tensor,
+    #     labels: torch.Tensor,
+    # ) -> torch.Tensor:
+    #     num_levels = self.bbox_roi_extractor.num_inputs
+    #     feats = loss = topK_recall = 0
+    #     for i in range(num_levels):
+    #         bbox_feats = self.bbox_roi_extractor.roi_layers[i](x[i], rois)
+    #         assert not self.with_shared_head
+    #         with todd.hooks.hook(
+    #             dict(
+    #                 type='StandardHook',
+    #                 path='.fc_cls._linear',
+    #             ),
+    #             self._patch_head,
+    #         ) as hook_status:
+    #             logits, _ = self._patch_head(bbox_feats)
+
+    #         feats = feats + hook_status.value
+
+    #         logits = logits[:, :-1]
+    #         loss = loss + self._patch_loss(logits.sigmoid(), labels)
+
+    #         _, topK_inds = logits.detach().topk(5)
+    #         inds = einops.repeat(torch.arange(labels.shape[0]), 'n -> n k', k=5)
+    #         topK_recall = topK_recall + labels[inds, topK_inds].sum() / labels.sum()
+
+    #     return feats / num_levels, loss / num_levels, topK_recall / num_levels
+
+    if debug.DUMP:
+        if not os.path.exists(os.getenv('DUMP')):
+            os.makedirs(os.getenv('DUMP'))
+
+        def simple_test_bboxes(self, x, img_metas, proposals, rcnn_test_cfg, rescale=False):
+            assert len(img_metas) == 1
+            with todd.hooks.hook(
+                dict(type='StandardHook', path='fc_cls'),
+                self.bbox_head,
+            ) as hook_status:
+                det_bboxes, _ = super().simple_test_bboxes(x, img_metas, proposals, None, rescale)
+
+            if self.with_patch:
+                patch_feats = self.bbox_roi_extractor(
+                    x[:self.bbox_roi_extractor.num_inputs],
+                    todd.globals_.pop('clip_rois'),
+                )
+                if self.with_shared_head:
+                    patch_feats = self.shared_head(patch_feats)
+                patch_logits, _ = self._patch_head(patch_feats)
+                patch_logits = patch_logits[:, :-1].half()
+            else:
+                patch_logits = None
+
+            image_id = img_metas[0]['ori_filename'][:-4]
+            save_path = os.path.join(os.getenv('DUMP'), f'{image_id}.pth')
+            torch.save(
+                dict(
+                    bboxes=det_bboxes[0].half(),
+                    objectness=proposals[0][:, -1].half(),
+                    bbox_scores=hook_status.value.half(),
+                    multilabel_logits=todd.globals_.pop('multilabel_logits', None),
+                    patch_logits=patch_logits,
+                ),
+                save_path,
+            )
+            return [torch.tensor([[0, 0, 1, 1]])], [torch.empty([0])]
