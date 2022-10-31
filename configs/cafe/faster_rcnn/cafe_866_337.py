@@ -30,7 +30,6 @@ model = dict(
         bbox_head=dict(
             norm_cfg=dict(type='SyncBN', requires_grad=True),
             # norm_cfg=None,
-            num_classes=1203,
         ),
     ),
     distiller=dict(

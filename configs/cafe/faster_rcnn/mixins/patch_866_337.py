@@ -1,12 +1,6 @@
-_base_ = [
-    'classifier.py',
-]
-
 model = dict(
     roi_head=dict(
-        bbox_head=dict(
-            num_classes=1203,
-            reg_class_agnostic=True,
+        patch_head=dict(
             cls_predictor_cfg=dict(
                 type='ViLDClassifier',
                 pretrained='data/lvis_v1/prompt/detpro_lvis_1.pth',
