@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import einops
 import einops.layers.torch
-import todd.reproduction
+import todd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -23,7 +23,8 @@ class CrossAttn(BaseModule):
     def __init__(
         self,
         *args,
-        channels: int,
+        v_channels: int,
+        l_channels: int,
         num_heads: int,
         head_dims: int,
         avg_factor: int,
@@ -51,26 +52,26 @@ class CrossAttn(BaseModule):
         )
         self._q_proj = nn.Sequential(
             einops.layers.torch.Rearrange('b c h w -> b (h w) c'),
-            nn.LayerNorm(channels),
-            nn.Linear(channels, hidden_dims),
+            nn.LayerNorm(v_channels),
+            nn.Linear(v_channels, hidden_dims),
             rearrange,
         )
-        # self._k_proj = nn.Sequential(
-        #     nn.Linear(channels, hidden_dims),
-        #     rearrange,
-        # )
-        self._k_proj = rearrange
-        # self._v_proj = nn.Sequential(
-        #     nn.Linear(channels, hidden_dims),
-        #     rearrange,
-        # )
-        self._v_proj = rearrange
+        self._k_proj = nn.Sequential(
+            nn.Linear(l_channels, hidden_dims),
+            rearrange,
+        )
+        # self._k_proj = rearrange
+        self._v_proj = nn.Sequential(
+            nn.Linear(l_channels, hidden_dims),
+            rearrange,
+        )
+        # self._v_proj = rearrange
         self._o_proj = nn.Sequential(
             einops.layers.torch.Rearrange('b h n d -> b n (h d)'),
-            nn.Linear(hidden_dims, channels),
+            nn.Linear(hidden_dims, v_channels),
         )
 
-        self._gamma = nn.Parameter(torch.ones(channels) / avg_factor, requires_grad=True)
+        self._gamma = nn.Parameter(torch.ones(v_channels) / avg_factor, requires_grad=True)
         self._dropout = nn.Dropout(dropout)
         self._drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
@@ -105,7 +106,6 @@ class PostBlock(BaseModule):
     def __init__(
         self,
         *args,
-        channels: int,
         spatial_conv: Optional[Dict[str, Any]] = None,
         task_attn: Optional[Dict[str, Any]] = None,
         cross_attn: Optional[Dict[str, Any]] = None,
@@ -115,24 +115,35 @@ class PostBlock(BaseModule):
         super().__init__(*args, **kwargs)
 
         if spatial_conv is not None:
+            spatial_conv = spatial_conv.copy()
+            channels = spatial_conv.pop('channels')
             # (offset_x, offset_y, mask) * kernel_size_y * kernel_size_x
             self._offset_and_mask_dim = 3 * 3 * 3
             self._offset_dim = 2 * 3 * 3
             self._spatial_conv_offset = nn.Conv2d(
-                channels, self._offset_and_mask_dim, 3, padding=1,
+                channels,
+                self._offset_and_mask_dim,
+                3,
+                padding=1,
             )
-            self._spatial_conv = DyDCNv2(channels, channels, **spatial_conv)
+            self._spatial_conv = DyDCNv2(
+                channels,
+                channels,
+                **spatial_conv,
+            )
         else:
             self._spatial_conv_offset = None
             self._spatial_conv = None
 
         if task_attn is not None:
-            self._task_attn = DyReLU(channels, **task_attn)
+            self._task_attn = DyReLU(**task_attn)
         else:
             self._task_attn = None
 
         if cross_attn is not None:
-            self._cross_attn = CrossAttn(channels=channels, **cross_attn)
+            self._cross_attn = CrossAttn(
+                **cross_attn,
+            )
         else:
             self._cross_attn = None
 
@@ -173,6 +184,7 @@ class PostFPN(BaseModule):
         refine_level: int,
         num_blocks: int,
         block: Dict[str, Any],
+        warmup: int = 0,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -181,6 +193,7 @@ class PostFPN(BaseModule):
             PostBlock(**block)
             for _ in range(num_blocks)
         )
+        self._warmup = todd.schedulers.WarmupScheduler(iter_=warmup)
 
     @todd.reproduction.set_seed_temp('PostFPN')
     def init_weights(self):
@@ -199,10 +212,10 @@ class PostFPN(BaseModule):
     def _scatter(self, feats: Tuple[torch.Tensor, ...], bsf: torch.Tensor) -> Tuple[torch.Tensor, ...]:
         feats = list(feats)
         for i in range(self._refine_level):
-            feats[i] = feats[i] + F.interpolate(bsf, feats[i].shape[-2:], mode='nearest')
-        feats[self._refine_level] = feats[self._refine_level] + bsf
+            feats[i] = feats[i] + F.interpolate(bsf, feats[i].shape[-2:], mode='nearest') * self._warmup
+        feats[self._refine_level] = feats[self._refine_level] + bsf * self._warmup
         for i in range(self._refine_level + 1, len(feats)):
-            feats[i] = feats[i] + F.adaptive_max_pool2d(bsf, feats[i].shape[-2:])
+            feats[i] = feats[i] + F.adaptive_max_pool2d(bsf, feats[i].shape[-2:]) * self._warmup
         return tuple(feats)
 
     def forward(
