@@ -1,3 +1,7 @@
+_base_ = [
+    'patch.py',
+]
+
 model = dict(
     roi_head=dict(
         patch_head=dict(
