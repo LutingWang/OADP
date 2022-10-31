@@ -45,15 +45,21 @@ model = dict(
         ),
     ),
 )
-load_from = 'data/ckpts/soco_star_mask_rcnn_r50_fpn_400e.pth'
-optimizer = dict(
-    weight_decay=2.5e-5,
-    # paramwise_cfg=dict(
-    #     custom_keys={
-    #         'neck': dict(lr_mult=0.1),
-    #         'roi_head.bbox_head': dict(lr_mult=0.5),
-    #     },
-    # ),
-)
-evaluation = dict(interval=4)
 fp16 = dict(loss_scale=dict(init_scale=64.0))
+
+# load_from = 'data/ckpts/soco_star_mask_rcnn_r50_fpn_400e.pth'
+# evaluation = dict(interval=4)
+# optimizer = dict(
+#     weight_decay=2.5e-5,
+# )
+
+load_from = 'work_dirs/lvis_debug_2/epoch_20.pth'
+evaluation = dict(interval=1)
+optimizer = dict(
+    lr=0.002,
+    weight_decay=2.5e-5,
+)
+lr_config = dict(
+    step=[6],
+)
+runner = dict(max_epochs=8)

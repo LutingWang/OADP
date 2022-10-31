@@ -8,15 +8,15 @@ model = dict(
         ),
         losses=dict(
             loss_clip_image=dict(
-                type='MSELoss',
+                type='L1Loss',
                 norm=True,
                 fields=['image', 'clip_image'],
                 weight=dict(
                     type='WarmupScheduler',
-                    value=0.5,
-                    iter_=200,
+                    value=128,
+                    iter_=2000,
                 ),
-                reduction='sum',
+                # reduction='mean',
             ),
         ),
     ),
@@ -32,8 +32,8 @@ model = dict(
         type='AsymmetricLoss',
         weight=dict(
             type='WarmupScheduler',
-            value=8,
-            iter_=1000,
+            value=4,
+            iter_=2000,
         ),
         gamma_neg=4,
         gamma_pos=0,
