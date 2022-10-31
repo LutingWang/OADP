@@ -3,14 +3,20 @@ model = dict(
         refine_level=2,
         num_blocks=3,
         block=dict(
-            channels=256,
-            spatial_conv=dict(),
-            task_attn=dict(),
+            spatial_conv=dict(
+                channels=256,
+            ),
+            task_attn=dict(
+                channels=256,
+            ),
             cross_attn=dict(
+                v_channels=256,
+                l_channels=512,
                 num_heads=16,
                 head_dims=32,
                 avg_factor=3,
             ),
         ),
+        warmup=2000,
     ),
 )
