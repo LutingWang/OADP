@@ -155,6 +155,22 @@ class CocoClassification(torchvision.datasets.CocoDetection):
 
         return torch.stack(patches), torch.stack(masks)
 
+    def _load_image(self, id: int) -> PIL.Image.Image:
+        if "file_name" in self.coco.loadImgs(id)[0]:
+            path = self.coco.loadImgs(id)[0]["file_name"]
+            final_path=os.path.join(self.root, path)
+        else:
+            path = f'%012d.jpg'%self.coco.loadImgs(id)[0]['id']
+            final_path = os.path.join(self.root, path)
+            if os.path.exists(final_path)==False:
+                if 'val' in final_path:
+                    final_path = final_path.replace('val','train')
+                elif 'train' in final_path:
+                    final_path = final_path.replace('train','val')
+                assert os.path.exists(final_path),final_path+" not exist "
+                
+        return PIL.Image.open(final_path).convert("RGB")
+        
     def __getitem__(self, index: int) -> Optional[Batch]:
         image_id = self.ids[index]
         embedding_file = self._embeddings_root / f'{image_id:012d}.pth'
