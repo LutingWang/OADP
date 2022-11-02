@@ -26,6 +26,8 @@ from .debug import debug
 from .utils import all_gather, odps_init
 from .todd import BaseRunner, TrainerMixin
 
+DATASETS = todd.Registry('datasets', base=torchvision.datasets.VisionDataset)
+
 
 class Batch(NamedTuple):
     images: torch.Tensor
@@ -34,6 +36,7 @@ class Batch(NamedTuple):
     class_lengths: torch.Tensor
 
 
+@DATASETS.register_module()
 class CocoClassification(torchvision.datasets.CocoDetection):
     _classnames: List[str]
     _cat2label: Dict[int, int]
@@ -101,6 +104,112 @@ class CocoClassification(torchvision.datasets.CocoDetection):
 
         embedding: Dict[str, torch.Tensor] = torch.load(self._embeddings_root / f'{id_:012d}.pth', 'cpu')
         embedding = {k: v.float() for k, v in embedding.items()}
+
+        if self._mode == "patches":
+            images = embedding['patches']
+            labels = torch.zeros((images.shape[0], self.num_classes), dtype=torch.bool)
+            patch_bboxes = todd.BBoxesXYWH(embedding['bboxes'])
+            bboxes = todd.BBoxesXYWH([anno['bbox'] for anno in target])
+            patch_ids, bbox_ids = torch.where(patch_bboxes.intersections(bboxes) > 0)
+            labels[patch_ids, torch.tensor(bbox_labels, dtype=torch.long)[bbox_ids]] = True
+        elif self._mode == "image":
+            images = embedding['image']
+            labels = torch.zeros((1, self.num_classes), dtype=torch.bool)
+            labels[0, bbox_labels] = True
+        elif self._mode == "patch":
+            images = embedding['patches'][[0]]
+            labels = torch.zeros((1, self.num_classes), dtype=torch.bool)
+            labels[0, bbox_labels] = True
+        else:
+            raise ValueError(f"Unexpected mode {self._mode}.")
+
+        return images, labels
+
+    def collate(self, batch: List[Tuple[torch.Tensor, torch.Tensor]]) -> Batch:
+        tensors = map(torch.cat, zip(*batch))
+        return Batch(*tensors, self._class_embeddings, self._class_lengths)
+
+
+@DATASETS.register_module()
+class LVISClassification(torchvision.datasets.VisionDataset):
+    _classnames: List[str]
+    _cat2label: Dict[int, int]
+
+    def __init__(
+        self,
+        root: str,
+        ann_file: str,
+        embeddings_root: str,
+        clip_model: clip.model.CLIP,
+        mode: str = "image",
+        split: Optional[str] = None,
+        filter_empty: bool = False,
+    ) -> None:
+        super().__init__(root=root)
+        from lvis import LVIS
+
+        self.coco = LVIS(ann_file)
+        self.ids = list(sorted(self.coco.imgs.keys()))
+
+        self._embeddings_root = pathlib.Path(embeddings_root)
+        self._mode = mode
+
+        if split is None:
+            self._classnames = [cat['name'] for cat in self.coco.cats.values()]
+            self._cat2label = {cat: i for i, cat in enumerate(self.coco.cats)}
+        elif debug.DUMP:
+            self._classnames = getattr(datasets, split)
+            self._cat2label = {cat: i for i, cat in enumerate(self.coco.cats)}
+        else:
+            self._classnames = []
+            self._cat2label = dict()
+            classnames = getattr(datasets, split)
+            for cat in self.coco.cats.values():
+                if cat['name'] in classnames:
+                    self._classnames.append(cat['name'])
+                    self._cat2label[cat['id']] = len(self._cat2label)
+
+        if filter_empty:
+            self.ids = list(filter(self._load_target, self.ids))
+
+        class_tokens = clip.tokenize([
+            name.replace('_', ' ') + '.'
+            for name in self._classnames
+        ])
+        with torch.no_grad():
+            self._class_embeddings = clip_model.token_embedding(class_tokens)
+            self._class_lengths = class_tokens.argmax(dim=-1)
+
+    @property
+    def classnames(self) -> Tuple[str]:
+        return tuple(self._classnames)
+
+    @property
+    def num_classes(self) -> int:
+        return len(self._classnames)
+
+    def __len__(self) -> int:
+        return len(self.ids)
+
+    def _load_image(self, id_: int) -> Dict[str, torch.Tensor]:
+        path = self.coco.load_imgs([id_])[0]['coco_url']\
+            .replace('http://images.cocodataset.org/', '')\
+            .replace('train2017', 'train')\
+            .replace('val2017', 'val')\
+            .replace('.jpg', '.pth')
+        embedding: Dict[str, torch.Tensor] = torch.load(self._embeddings_root / path, 'cpu')
+        embedding = {k: v.float() for k, v in embedding.items()}
+        return embedding
+
+    def _load_target(self, id_: int) -> List[Any]:
+        target = self.coco.load_anns(self.coco.get_ann_ids([id_]))
+        return [anno for anno in target if anno['category_id'] in self._cat2label]
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        id_ = self.ids[index]
+        embedding = self._load_image(id_)
+        target = self._load_target(id_)
+        bbox_labels = [self._cat2label[anno['category_id']] for anno in target]
 
         if self._mode == "patches":
             images = embedding['patches']
@@ -283,7 +392,7 @@ class Runner(BaseRunner):
         torch.utils.data.DataLoader,
     ]:
         assert config is not None
-        dataset = CocoClassification(clip_model=clip_model, **config.dataset)
+        dataset = DATASETS.build(config.dataset, default_args=dict(clip_model=clip_model))
         sampler = (
             None if debug.CPU or todd.get_world_size() == 1 else
             torch.utils.data.distributed.DistributedSampler(
@@ -383,7 +492,7 @@ class Trainer(TrainerMixin, Runner):
         torch.utils.data.DataLoader,
     ]:
         assert config is not None
-        dataset = CocoClassification(clip_model=clip_model, **config.dataset)
+        dataset = DATASETS.build(config.dataset, default_args=dict(clip_model=clip_model))
         sampler = (
             None if debug.CPU or todd.get_world_size() == 1 else
             torch.utils.data.distributed.DistributedSampler(
@@ -490,4 +599,3 @@ if __name__ == '__main__':
     else:
         runner = Runner(**init_dict)
         runner.run()
-
