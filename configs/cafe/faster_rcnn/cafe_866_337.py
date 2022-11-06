@@ -5,14 +5,14 @@ _base_ = [
     '../_base_/default_runtime.py',
     'mixins/classifier_866_337.py',
 
-    '../_base_/datasets/lvis_instance_clip.py',
+    '../_base_/datasets/lvis_instance_clip_lsj.py',
     '../_base_/datasets/lvis_866_337.py',
 
     'mixins/dcp.py',
     'mixins/mask_866_337.py',
 
     'mixins/multilabel_866_337.py',
-    'mixins/post.py',
+    # 'mixins/post.py',
 
     'mixins/patch_866_337.py',
 ]

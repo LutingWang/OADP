@@ -16,7 +16,7 @@ from mmcv.parallel import DataContainer as DC
 from mmcv.utils import print_log
 from mmdet.core import BitmapMasks
 from mmdet.datasets import PIPELINES, DATASETS, CocoDataset as _CocoDataset, LVISV1Dataset as _LVISV1Dataset, CustomDataset
-from mmdet.datasets.pipelines import LoadAnnotations as _LoadAnnotations
+from mmdet.datasets.pipelines import LoadAnnotations as _LoadAnnotations, RandomCrop as _RandomCrop
 from mmdet.datasets.api_wrappers import COCOeval
 import numpy as np
 import torch
@@ -353,4 +353,27 @@ class LoadDetproFeatures:
             results['clip_bbox_feats'] = clip_patches[inds]
             results['clip_bboxes'] = clip_bboxes[inds]
 
+        return results
+
+
+@PIPELINES.register_module(force=True)
+class RandomCrop(_RandomCrop):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.bbox2label.update(
+            clip_bboxes='clip_bbox_feats',
+            clip_patches='clip_patch_ids',
+        )
+
+    def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
+        if 'clip_patches' in results:
+            assert 'clip_patch_ids' not in results
+            results['clip_patch_ids'] = torch.arange(results['clip_patches'].shape[0])
+        results = super().__call__(results)
+        clip_patch_ids = results.pop('clip_patch_ids')
+        if 'clip_patch_labels' in results:
+            results['clip_patch_labels'] = results['clip_patch_labels'][clip_patch_ids]
+        if 'clip_patch_feats' in results:
+            results['clip_patch_feats'] = results['clip_patch_feats'][clip_patch_ids]
         return results
