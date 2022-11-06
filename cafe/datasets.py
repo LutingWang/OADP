@@ -372,8 +372,11 @@ class RandomCrop(_RandomCrop):
             results['clip_patch_ids'] = torch.arange(results['clip_patches'].shape[0])
         results = super().__call__(results)
         clip_patch_ids = results.pop('clip_patch_ids')
-        if 'clip_patch_labels' in results:
-            results['clip_patch_labels'] = results['clip_patch_labels'][clip_patch_ids]
-        if 'clip_patch_feats' in results:
-            results['clip_patch_feats'] = results['clip_patch_feats'][clip_patch_ids]
+        for key in ['clip_patch_labels', 'clip_patch_feats']:
+            if key not in results:
+                continue
+            results[key] = results[key][clip_patch_ids]
+            if results[key].ndim == 1:
+                results[key] = results[key][None, :]  # compat torch.Tensor and np.ndarray
+
         return results
