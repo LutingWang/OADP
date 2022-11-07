@@ -1,5 +1,6 @@
 data = dict(
     train=dict(
+        # ann_file='data/coco/annotations/instances_train2017.json.COCO_48_17.VL_PLM',
         ann_file='data/coco/annotations/instances_train2017.json.COCO_48_17.ext',
     ),
 )

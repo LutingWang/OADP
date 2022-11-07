@@ -63,7 +63,7 @@ optimizer = dict(
     weight_decay=2.5e-5,
     paramwise_cfg=dict(
         custom_keys={
-            'neck': dict(lr_mult=0.1),
+            # 'neck': dict(lr_mult=0.1),
             'roi_head.bbox_head': dict(lr_mult=0.5),
         },
     ),

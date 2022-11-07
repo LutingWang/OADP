@@ -33,7 +33,7 @@ train_pipeline = [
         regions=dict(
             type='PthAccessLayer',
             # data_root='data/coco/vild_embeddings',
-            data_root='data/coco/mask_embeddings',
+            data_root='data/lvis_v1/mask_embeddings',
         ),
     ),
     dict(

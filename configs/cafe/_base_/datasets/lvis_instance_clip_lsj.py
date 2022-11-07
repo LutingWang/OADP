@@ -2,7 +2,7 @@ _base_ = [
     'coco_instance.py',
 ]
 
-image_size = (512, 512)
+image_size = (1024, 1024)
 
 dataset_type = 'LVISV1Dataset'
 data_root = 'data/lvis_v1/'
@@ -81,6 +81,7 @@ train_pipeline = [
     ]),
 ]
 data = dict(
+    samples_per_gpu=1,
     train=dict(
         _delete_=True,
         type='ClassBalancedDataset',
