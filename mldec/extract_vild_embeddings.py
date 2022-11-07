@@ -84,6 +84,22 @@ class CocoClassification(torchvision.datasets.CocoDetection):
             for bbox in bboxes.round().to_tensor().int().tolist()
         ])
 
+    def _load_image(self, id: int) -> PIL.Image.Image:
+        if "file_name" in self.coco.loadImgs(id)[0]:
+            path = self.coco.loadImgs(id)[0]["file_name"]
+            final_path=os.path.join(self.root, path)
+        else:
+            path = f'%012d.jpg'%self.coco.loadImgs(id)[0]['id']
+            final_path = os.path.join(self.root, path)
+            if os.path.exists(final_path)==False:
+                if 'val' in final_path:
+                    final_path = final_path.replace('val','train')
+                elif 'train' in final_path:
+                    final_path = final_path.replace('train','val')
+                assert os.path.exists(final_path),final_path+" not exist "
+                
+        return PIL.Image.open(final_path).convert("RGB")
+        
     def __getitem__(self, index: int) -> Optional[Tuple[int, torch.Tensor, torch.Tensor]]:
         image_id = self.ids[index]
         embedding_file = self._embeddings_root / f'{image_id:012d}.pth'
@@ -95,12 +111,12 @@ class CocoClassification(torchvision.datasets.CocoDetection):
                 pass
         image = self._load_image(image_id)
         proposals = todd.BBoxesXYXY(self.proposals[index][:, :4])
-        indices = proposals.indices(min_area=16*16)
+        indices = proposals.indices(min_wh=(4, 4))
         proposals = proposals[indices]
         objectness = torch.tensor(self.proposals[index][indices, -1])
         patches = torch.stack([
             self._crop(image, proposals),
-            self._crop(image, proposals.expand(1.5, image_wh=image.size)),
+            self._crop(image, proposals.expand(1.5).clamp(image.size)),
         ])
         return (
             image_id,
@@ -312,5 +328,5 @@ if __name__ == '__main__':
     todd.reproduction.init_seed(args.seed)
 
     trainer = Trainer(name=args.name, config=config)
-    trainer.train()
     trainer.run()
+    trainer.train()
