@@ -32,6 +32,11 @@ train_pipeline = [
         ),
         regions=dict(
             type='PthAccessLayer',
+            data_root='data/coco/vild_embeddings',
+            # data_root='data/lvis_v1/mask_embeddings',
+        ),
+        aux_regions=dict(
+            type='PthAccessLayer',
             # data_root='data/coco/vild_embeddings',
             data_root='data/lvis_v1/mask_embeddings',
         ),
@@ -49,6 +54,7 @@ train_pipeline = [
         'clip_patches',
         'clip_patch_labels',
         'clip_bboxes',
+        'aux_clip_bboxes',
     ]),
     dict(type='ToDataContainer', fields=[
         dict(key='clip_patch_feats'),
@@ -56,6 +62,8 @@ train_pipeline = [
         dict(key='clip_patch_labels'),
         dict(key='clip_bbox_feats'),
         dict(key='clip_bboxes'),
+        dict(key='aux_clip_bbox_feats'),
+        dict(key='aux_clip_bboxes'),
     ]),
     dict(type='Collect', keys=[
         'img', 
@@ -68,6 +76,8 @@ train_pipeline = [
         'clip_patch_labels',
         'clip_bbox_feats',
         'clip_bboxes',
+        'aux_clip_bbox_feats',
+        'aux_clip_bboxes',
     ]),
 ]
 data = dict(

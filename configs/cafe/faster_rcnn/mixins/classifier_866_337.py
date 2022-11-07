@@ -19,5 +19,10 @@ model = dict(
                 ),
             ),
         ),
+        aux_image_head=dict(
+            cls_predictor_cfg=dict(
+                pretrained='data/prompts/vild.pth',
+            ),
+        ),
     ),
 )

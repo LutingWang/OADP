@@ -109,6 +109,8 @@ class Cafe(
         clip_patch_labels: Optional[List[torch.Tensor]] = None,
         clip_bbox_feats: Optional[List[torch.Tensor]] = None,
         clip_bboxes: Optional[List[torch.Tensor]] = None,
+        aux_clip_bbox_feats: Optional[List[torch.Tensor]] = None,
+        aux_clip_bboxes: Optional[List[torch.Tensor]] = None,
         # clip_captions: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Dict[str, torch.Tensor]:
@@ -215,6 +217,17 @@ class Cafe(
                     feats, clip_rois,
                 ),
             )
+        if 'aux_clip_bbox_feats' in distiller_spec.inputs:
+            assert aux_clip_bbox_feats is not None
+            custom_tensors.update(aux_clip_bbox_feats=torch.cat(aux_clip_bbox_feats).float())
+        if 'aux_bbox_feats' in distiller_spec.inputs:
+            assert aux_clip_bboxes is not None
+            clip_rois = bbox2roi(aux_clip_bboxes)
+            custom_tensors.update(
+                aux_bbox_feats=self.roi_head._bbox_forward_aux(
+                    feats, clip_rois,
+                ),
+            )
         # if 'clip_captions' in distiller_spec.inputs:
         #     assert clip_captions is not None
         #     custom_tensors.update(clip_captions=clip_captions.float())
@@ -257,7 +270,7 @@ class Cafe(
             todd.globals_.extra_feats = self._post_fpn(feats, ce)
 
         if debug.DUMP:
-            clip_rois = bbox2roi(clip_patches[0])
+            clip_rois = None if clip_patches is None else bbox2roi(clip_patches[0])
             todd.globals_.clip_rois = clip_rois
 
         return self.roi_head.simple_test(

@@ -96,6 +96,7 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
         bbox_head: Dict[str, Any],
         image_head: Dict[str, Any],
         patch_head: Optional[Dict[str, Any]] = None,
+        aux_image_head: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, bbox_head=bbox_head, **kwargs)
@@ -108,6 +109,17 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
         ensemble_mask = torch.ones(classifier.num_classes + 1) / 3
         ensemble_mask[:classifier.num_base_classes] *= 2
         self.register_buffer('_ensemble_mask', ensemble_mask, persistent=False)
+
+        if aux_image_head is not None:
+            tmp = bbox_head.copy()
+            tmp.update(image_head)
+            tmp.update(aux_image_head)
+            aux_image_head = tmp
+            self._aux_image_head: mmdet.models.BBoxHead = mmdet.models.HEADS.build(
+                aux_image_head,
+            )
+            classifier: Classifier = self._aux_image_head.fc_cls
+            classifier._bg_embedding.requires_grad_(False)
 
         if patch_head is not None:
             self._patch_loss = todd.losses.LOSSES.build(
@@ -179,6 +191,26 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
             self._image_head,
         ) as hook_status:
             self._image_head(bbox_feats)
+        return hook_status.value
+
+    def _bbox_forward_aux(
+        self,
+        x: Sequence[torch.Tensor],
+        rois: torch.Tensor,
+    ) -> torch.Tensor:
+        bbox_feats = self.bbox_roi_extractor(
+            x[:self.bbox_roi_extractor.num_inputs], rois,
+        )
+        if self.with_shared_head:
+            bbox_feats = self.shared_head(bbox_feats)
+        with todd.hooks.hook(
+            dict(
+                type='StandardHook',
+                path='.fc_cls._linear',
+            ),
+            self._aux_image_head,
+        ) as hook_status:
+            self._aux_image_head(bbox_feats)
         return hook_status.value
 
     def _bbox_forward_patch(
@@ -265,8 +297,8 @@ class ViLDEnsembleRoIHead(mmdet.models.StandardRoIHead):
             else:
                 patch_logits = None
 
-            image_id = img_metas[0]['ori_filename'][:-4]
-            save_path = os.path.join(os.getenv('DUMP'), f'{image_id}.pth')
+            image_id = img_metas[0]['ori_filename'].replace('.jpg', '.pth').replace('train2017/', '').replace('val2017/', '')
+            save_path = os.path.join(os.getenv('DUMP'), image_id)
             torch.save(
                 dict(
                     bboxes=det_bboxes[0].half(),

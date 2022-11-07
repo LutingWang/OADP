@@ -262,6 +262,25 @@ class LoadCLIPFeatures:
 @PIPELINES.register_module()
 class LoadCLIPFeatures4LVIS(LoadCLIPFeatures):
 
+    def __init__(
+        self,
+        *args,
+        aux_regions: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+
+        if aux_regions is not None:
+            if debug.ODPS:
+                aux_regions['data_root'] = aux_regions['data_root'].replace('vild_embeddings', 'proposal_embeddings8')
+            assert not aux_regions.pop('as_proposals', False)
+            self._aux_regions = todd.datasets.ACCESS_LAYERS.build(
+                aux_regions,
+                default_args=dict(task_name=self._task_name),
+            )
+        else:
+            self._aux_regions = None
+
     def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
         key = results['img_info']['filename']\
             .replace('.jpg', '')\
@@ -300,6 +319,15 @@ class LoadCLIPFeatures4LVIS(LoadCLIPFeatures):
             if self._regions_as_proposals:
                 results['proposals'] = results['clip_bboxes']
                 results['bbox_fields'].append('proposals')
+
+        if self._aux_regions is not None:
+            aux_regions = self._aux_regions[key]
+            clip_bbox_feats = aux_regions['patches']
+            clip_bboxes = aux_regions['bboxes']
+            inds = (clip_bboxes[:, 2] > clip_bboxes[:, 0] + 4) & (clip_bboxes[:, 3] > clip_bboxes[:, 1] + 4)  # TODO: update with todd
+            results['aux_clip_bbox_feats'] = clip_bbox_feats[inds]
+            results['aux_clip_bboxes'] = clip_bboxes[inds].float().numpy()
+            results['bbox_fields'].append('aux_clip_bboxes')
 
         return results
 
