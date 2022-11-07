@@ -8,6 +8,7 @@ model = dict(
             cls_predictor_cfg=dict(
                 type='ViLDClassifier',
                 pretrained='data/lvis_v1/prompt/detpro_lvis_1.pth',
+                # pretrained='data/prompts/vild.pth',
                 split='LVIS',
                 num_base_classes=866,
                 scaler=dict(  # this is same with detpro
