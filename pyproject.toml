@@ -47,7 +47,7 @@ addopts = '--doctest-modules'
 branch = true
 command_line = '-m pytest'
 source = [
-    'todd',
+    'oadp',
 ]
 
 [tool.coverage.report]

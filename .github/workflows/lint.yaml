@@ -1,0 +1,20 @@
+name: lint
+
+on: push
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8"]
+    steps:
+    - uses: actions/checkout@master
+    - uses: actions/setup-python@master
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Lint
+      run: |
+        pip install -U pre-commit
+        pre-commit install
+        pre-commit run --all-files
