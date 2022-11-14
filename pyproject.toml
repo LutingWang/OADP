@@ -1,0 +1,71 @@
+[project]
+name = 'OADP'
+description = 'Object-Aware Distillation Pyramid for Open-Vocabulary Detection'
+readme = 'README.md'
+
+[project.license]
+file = 'LICENSE'
+
+[[project.authors]]
+name = 'Luting Wang'
+email = 'wangluting@buaa.edu.cn'
+
+[project.urls]
+Homepage = 'https://github.com/LutingWang/OADP'
+
+[tool.yapf]
+allow_split_before_dict_value = false
+coalesce_brackets = true
+dedent_closing_brackets = true
+split_arguments_when_comma_terminated = true
+split_complex_comprehension = true
+split_before_arithmetic_operator = true
+
+[tool.isort]
+profile = 'hug'
+src_paths = [
+    'oadp',
+    'tests',
+]
+line_length = 79
+multi_line_output = 3
+
+[tool.pydocstyle]
+convention = 'google'
+
+[tool.mypy]
+files = [
+    'oadp',
+    'tests',
+]
+
+[tool.pytest.ini_options]
+testpaths = 'oadp tests'
+addopts = '--doctest-modules'
+
+[tool.coverage.run]
+branch = true
+command_line = '-m pytest'
+source = [
+    'todd',
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    'pragma: no cover',
+
+    'def __repr__',
+    'def \w+_cli\(\)',
+
+    'raise AssertionError',
+    'raise NotImplementedError',
+
+    'if __name__ == .__main__.:',
+
+    'class .*\(.*\bProtocol\b.*\):',
+    '@(abc\.)?abstractmethod',
+    '@overload',
+]
+
+[tool.commitizen]
+name = 'cz_conventional_commits'
