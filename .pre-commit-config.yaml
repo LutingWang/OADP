@@ -1,3 +1,5 @@
+default_language_version:
+  python: python3.10
 repos:
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v4.3.0
@@ -46,12 +48,13 @@ repos:
   hooks:
   - id: mypy
 - repo: https://github.com/codespell-project/codespell
-  rev: v2.2.1
+  rev: v2.2.2
   hooks:
   - id: codespell
     args:
+    - configs
     - oadp
-    - tests
+    - tools
 - repo: https://github.com/commitizen-tools/commitizen
   rev: v2.35.0
   hooks:

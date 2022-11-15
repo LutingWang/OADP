@@ -8,6 +8,38 @@ _/    _/  _/    _/  _/    _/  _/
  _/_/    _/    _/  _/_/_/    _/
 ```
 
+[![lint](https://github.com/LutingWang/OADP/actions/workflows/lint.yaml/badge.svg)](https://github.com/LutingWang/OADP/actions/workflows/lint.yaml)
+
+## Preparation
+
+The directory tree should be like this
+
+```text
+OADP
+├── data
+│   ├── coco -> ~/Developer/datasets/coco
+│   │   ├── annotations
+│   │   │   ├── instances_val2017.json.COCO_48_17.filtered
+│   │   │   └── ...
+│   │   ├── train2017
+│   │   │   └── ...
+│   │   └── val2017
+│   │       └── ...
+│   └── prompts
+│       ├── ml_coco.pth
+│       ├── vild.pth
+│       └── ...
+└── ...
+```
+
+### Datasets
+
+Download the [MS-COCO](https://cocodataset.org/#download) dataset to `data/coco`.
+
+### Annotations
+
+### Prompt
+
 ## Installation
 
 Create a conda environment and activate it.
@@ -27,13 +59,27 @@ mim install mmcv_full==1.4.6
 pip install mmdet==2.25.2
 ```
 
-Install `todd`.
+Install other dependencies.
 
 ```bash
-pip install todd_ai==0.2.4a3 -i https://pypi.org/simple
+pip install todd_ai==0.2.4a5 -i https://pypi.org/simple
+pip install scikit-learn==1.1.3
 ```
 
 > Note that the `requirements.txt` is not intended for users. Please follow the above instructions.
+
+## Inference
+
+```bash
+# CPU
+python tools/test.py configs/dp/object_block_global_coco_48_17.py work_dirs/object_block_global_coco_48_17/iter_32000.pth
+
+# GPU
+torchrun --nproc_per_node=${GPUS} tools/test.py configs/dp/object_block_global_coco_48_17.py work_dirs/object_block_global_coco_48_17/iter_32000.pth --launch pytorch
+
+# ODPS
+odpsrun
+```
 
 ## Developer Guides
 
@@ -47,12 +93,11 @@ pip install mmdet==2.20
 ```
 
 ```bash
-pip install commitizen
-pip install -U pre-commit
-pre-commit install
-pre-commit install -t commit-msg
+conda install grpcio -c conda-forge
+pip install -U todd_ai\[dev,doc,pre-commit,test\]
 ```
 
 ```bash
-pip install coverage pytest
+pre-commit install
+pre-commit install -t commit-msg
 ```
