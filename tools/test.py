@@ -4,7 +4,7 @@ import sys
 
 import todd
 import torch
-from mmcv import Config, DictAction
+from mmcv import Config
 from mmcv.runner import (
     get_dist_info,
     init_dist,
@@ -18,13 +18,7 @@ from mmdet.datasets import (
     replace_ImageToTensor,
 )
 from mmdet.models import build_detector
-from mmdet.utils import (
-    build_ddp,
-    build_dp,
-    compat_cfg,
-    get_device,
-    setup_multi_processes,
-)
+from mmdet.utils import build_ddp, build_dp, get_device, setup_multi_processes
 
 sys.path.insert(0, '')
 import oadp  # noqa: E402
@@ -36,7 +30,7 @@ def parse_args():
     )
     parser.add_argument('config', help='test config file path')
     parser.add_argument('checkpoint', help='checkpoint file')
-    parser.add_argument('--odps', action=todd.base.DictAction)
+    parser.add_argument('--odps', action=todd.DictAction)
     parser.add_argument(
         '--gpu-id',
         type=int,
@@ -54,17 +48,7 @@ def parse_args():
         help='tmp directory used for collecting results from multiple '
         'workers, available when gpu-collect is not specified',
     )
-    parser.add_argument(
-        '--cfg-options',
-        nargs='+',
-        action=DictAction,
-        help='override some settings in the used config, the key-value pair '
-        'in xxx=yyy format will be merged into config file. If the value to '
-        'be overwritten is a list, it should be like key="[a,b]" or key=a,b '
-        'It also allows nested list/tuple values, e.g. key="[(a,b),(c,d)]" '
-        'Note that the quotation marks are necessary and that no white space '
-        'is allowed.',
-    )
+    parser.add_argument('--override', action=todd.DictAction)
     parser.add_argument(
         '--launcher',
         choices=['none', 'pytorch', 'slurm', 'mpi'],
@@ -85,20 +69,19 @@ def main():
     if args.odps is not None:
         oadp.odps_init(args.odps)
 
-    cfg = todd.base.Config.load(args.config)
-    cfg = Config(cfg, filename=args.config)
-
-    if args.cfg_options is not None:
-        cfg.merge_from_dict(args.cfg_options)
-    cfg = compat_cfg(cfg)
+    config = todd.Config.load(args.config)
+    if args.override is not None:
+        for k, v in args.override.items():
+            todd.setattr_recur(config, k, v)
 
     oadp.debug.init()
     if oadp.debug.CPU:
-        cfg.fp16 = None
+        config.fp16 = None
     if oadp.debug.DRY_RUN:
-        cfg.data.workers_per_gpu = 0
-        cfg.log_config.interval = 1
+        config.data.workers_per_gpu = 0
+        config.log_config.interval = 1
 
+    cfg = Config(config, filename=args.config)
     # set multi-process settings
     setup_multi_processes(cfg)
 
