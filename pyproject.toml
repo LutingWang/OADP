@@ -38,6 +38,7 @@ files = [
     'oadp',
     'tools',
 ]
+plugins = 'numpy.typing.mypy_plugin'
 
 [tool.codespell]
 write-changes = true
@@ -57,7 +58,6 @@ worker_count = 1
 user_defined_parameters = [
     'configs/dp/object_block_global_coco_48_17.py',
     'work_dirs/object_block_global_coco_48_17/iter_32000.pth',
-    '--launcher pytorch',
 ]
 
 [odps.pai.buckets]

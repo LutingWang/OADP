@@ -1,177 +1,112 @@
 import argparse
-import os
 import sys
 
 import todd
 import torch
-from mmcv import Config
-from mmcv.runner import (
-    get_dist_info,
-    init_dist,
-    load_checkpoint,
-    wrap_fp16_model,
-)
+import torch.distributed
+import torch.utils.data
+from mmcv.runner import load_checkpoint, wrap_fp16_model
 from mmdet.apis import multi_gpu_test, single_gpu_test
-from mmdet.datasets import (
-    build_dataloader,
-    build_dataset,
-    replace_ImageToTensor,
-)
+from mmdet.datasets import CustomDataset, build_dataloader, build_dataset
 from mmdet.models import build_detector
-from mmdet.utils import build_ddp, build_dp, get_device, setup_multi_processes
+from mmdet.utils import build_ddp, build_dp
 
 sys.path.insert(0, '')
 import oadp  # noqa: E402
+
+
+class Validator(todd.utils.Validator):
+
+    def _build_dataloader(
+        self,
+        config: todd.Config,
+    ) -> torch.utils.data.DataLoader:
+        if todd.utils.BaseRunner.Store.DRY_RUN:
+            config.workers_per_gpu = 0
+        config.dataset = build_dataset(config.dataset, dict(test_mode=True))
+        dataloader = build_dataloader(
+            dist=todd.utils.BaseRunner.Store.CUDA,
+            shuffle=False,
+            **config,
+        )
+        return dataloader
+
+    def _run_iter(self, i: int, batch, memo: todd.utils.Memo) -> torch.Tensor:
+        pass
+
+    def _run(self, memo: todd.utils.Memo) -> None:
+        if todd.utils.BaseRunner.Store.CPU:
+            test = single_gpu_test
+        elif todd.utils.BaseRunner.Store.CUDA:
+            test = multi_gpu_test
+        else:
+            raise NotImplementedError
+        memo['outputs'] = test(self._model, self._dataloader)
+
+    def _after_run(self, memo: todd.utils.Memo) -> None:
+        super()._after_run(memo)
+        if todd.get_rank() == 0:
+            dataset: CustomDataset = self._dataloader.dataset
+            metric = dataset.evaluate(memo['outputs'])
+            self._logger.info(metric)
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
         description='MMDet test (and eval) a model',
     )
-    parser.add_argument('config', help='test config file path')
+    parser.add_argument('name')
+    parser.add_argument('config', type=todd.Config.load)
     parser.add_argument('checkpoint', help='checkpoint file')
-    parser.add_argument('--odps', action=todd.DictAction)
-    parser.add_argument(
-        '--gpu-id',
-        type=int,
-        default=0,
-        help='id of gpu to use '
-        '(only applicable to non-distributed testing)',
-    )
-    parser.add_argument(
-        '--gpu-collect',
-        action='store_true',
-        help='whether to use gpu to collect results.',
-    )
-    parser.add_argument(
-        '--tmpdir',
-        help='tmp directory used for collecting results from multiple '
-        'workers, available when gpu-collect is not specified',
-    )
     parser.add_argument('--override', action=todd.DictAction)
-    parser.add_argument(
-        '--launcher',
-        choices=['none', 'pytorch', 'slurm', 'mpi'],
-        default='none',
-        help='job launcher',
-    )
-    parser.add_argument('--local_rank', type=int, default=0)
+    parser.add_argument('--odps', action=todd.DictAction)
     args = parser.parse_args()
-    if 'LOCAL_RANK' not in os.environ:
-        os.environ['LOCAL_RANK'] = str(args.local_rank)
-
     return args
 
 
 def main():
+    if todd.utils.BaseRunner.Store.CUDA:
+        torch.distributed.init_process_group('nccl')
+        torch.cuda.set_device(todd.get_local_rank())
+
     args = parse_args()
 
     if args.odps is not None:
         oadp.odps_init(args.odps)
 
-    config = todd.Config.load(args.config)
+    config: todd.Config = args.config
+
     if args.override is not None:
-        for k, v in args.override.items():
-            todd.setattr_recur(config, k, v)
+        config.override(args.override)
 
-    oadp.debug.init()
-    if oadp.debug.CPU:
-        config.fp16 = None
-    if oadp.debug.DRY_RUN:
-        config.data.workers_per_gpu = 0
-        config.log_config.interval = 1
-
-    cfg = Config(config, filename=args.config)
-    # set multi-process settings
-    setup_multi_processes(cfg)
-
-    # set cudnn_benchmark
-    if cfg.get('cudnn_benchmark', False):
-        torch.backends.cudnn.benchmark = True
-
-    if 'pretrained' in cfg.model:
-        cfg.model.pretrained = None
-    elif 'init_cfg' in cfg.model.backbone:
-        cfg.model.backbone.init_cfg = None
-
-    if cfg.model.get('neck'):
-        if isinstance(cfg.model.neck, list):
-            for neck_cfg in cfg.model.neck:
-                if neck_cfg.get('rfp_backbone'):
-                    if neck_cfg.rfp_backbone.get('pretrained'):
-                        neck_cfg.rfp_backbone.pretrained = None
-        elif cfg.model.neck.get('rfp_backbone'):
-            if cfg.model.neck.rfp_backbone.get('pretrained'):
-                cfg.model.neck.rfp_backbone.pretrained = None
-
-    cfg.gpu_ids = [args.gpu_id]
-    cfg.device = get_device()
-    # init distributed env first, since logger depends on the dist info.
-    if args.launcher == 'none':
-        distributed = False
-    else:
-        distributed = True
-        init_dist(args.launcher, **cfg.dist_params)
-
-    test_dataloader_default_args = dict(
-        samples_per_gpu=1,
-        workers_per_gpu=2,
-        dist=distributed,
-        shuffle=False,
-    )
-
-    # in case the test dataset is concatenated
-    if isinstance(cfg.data.test, dict):
-        cfg.data.test.test_mode = True
-        if cfg.data.test_dataloader.get('samples_per_gpu', 1) > 1:
-            # Replace 'ImageToTensor' to 'DefaultFormatBundle'
-            cfg.data.test.pipeline = replace_ImageToTensor(
-                cfg.data.test.pipeline,
-            )
-    elif isinstance(cfg.data.test, list):
-        for ds_cfg in cfg.data.test:
-            ds_cfg.test_mode = True
-        if cfg.data.test_dataloader.get('samples_per_gpu', 1) > 1:
-            for ds_cfg in cfg.data.test:
-                ds_cfg.pipeline = replace_ImageToTensor(ds_cfg.pipeline)
-
-    test_loader_cfg = {
-        **test_dataloader_default_args,
-        **cfg.data.get('test_dataloader', {})
-    }
-
-    rank, _ = get_dist_info()
-    # build the dataloader
-    dataset = build_dataset(cfg.data.test)
-    data_loader = build_dataloader(dataset, **test_loader_cfg)
-
-    # build the model and load checkpoint
-    cfg.model.train_cfg = None
-    model = build_detector(cfg.model, test_cfg=cfg.get('test_cfg'))
-    fp16_cfg = cfg.get('fp16', None)
-    if fp16_cfg is not None:
+    model_config: todd.Config = config.model
+    model_config.pop('train_cfg', None)
+    model_config.pop('pretrained', None)
+    backbone: todd.Config = model_config.backbone
+    backbone.pop('init_cfg', None)
+    model = build_detector(model_config)
+    if 'fp16' in config and todd.utils.BaseRunner.Store.CUDA:
         wrap_fp16_model(model)
     load_checkpoint(model, args.checkpoint, map_location='cpu')
-    model.CLASSES = dataset.CLASSES
-
-    if not distributed:
-        model = build_dp(model, cfg.device, device_ids=cfg.gpu_ids)
-        outputs = single_gpu_test(model, data_loader)
-    else:
+    if todd.utils.BaseRunner.Store.CPU:
+        model = build_dp(model, 'cpu', device_ids=[0])
+    if todd.utils.BaseRunner.Store.CUDA:
         model = build_ddp(
             model,
-            cfg.device,
-            device_ids=[int(os.environ['LOCAL_RANK'])],
+            'cuda',
+            device_ids=[todd.get_local_rank()],
             broadcast_buffers=False,
         )
-        outputs = multi_gpu_test(model, data_loader, args.tmpdir)
 
-    rank, _ = get_dist_info()
-    if rank == 0:
-        eval_kwargs = cfg.get('evaluation', {}).copy()
-        eval_kwargs.pop('interval', None)
-        metric = dataset.evaluate(outputs, **eval_kwargs)
-        print(metric)
+    validator = Validator(
+        name=args.name,
+        model=model,
+        log=todd.Config(),
+        load_state_dict=todd.Config(),
+        state_dict=todd.Config(),
+        **config.validator,
+    )
+    validator.run()
 
 
 if __name__ == '__main__':

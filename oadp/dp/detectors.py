@@ -7,6 +7,8 @@ from typing import NoReturn
 import todd
 from mmdet.models import DETECTORS, TwoStageDetector
 
+from ..base import Store
+
 
 @DETECTORS.register_module()
 class OADP(TwoStageDetector):
@@ -18,20 +20,19 @@ class OADP(TwoStageDetector):
         num_base_classes: int,
         **kwargs,
     ) -> None:
-        todd.init_iter()
-        todd.globals_.num_classes = num_classes
-        todd.globals_.num_base_classes = num_base_classes
+        Store.NUM_CLASSES = num_classes
+        Store.NUM_BASE_CLASSES = num_base_classes
         super().__init__(*args, **kwargs)
 
     @property
     def num_classes(self) -> int:
-        return todd.globals_.num_classes
+        return Store.NUM_CLASSES
 
     def forward_train(self, *args, **kwargs) -> NoReturn:
-        todd.inc_iter()
-        todd.globals_.training = True
+        todd.Store.ITER += 1
+        Store.TRAINING = True
         raise NotImplementedError
 
     def simple_test(self, *args, **kwargs):
-        todd.globals_.training = False
+        Store.TRAINING = False
         return super().simple_test(*args, **kwargs)

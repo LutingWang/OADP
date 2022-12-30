@@ -14,7 +14,7 @@ from mmdet.datasets import CocoDataset as _CocoDataset
 from mmdet.datasets import CustomDataset
 from mmdet.datasets.api_wrappers import COCOeval
 
-from ..base import COCO_48_17, debug
+from ..base import Categories
 
 
 class DebugMixin(CustomDataset):
@@ -24,19 +24,19 @@ class DebugMixin(CustomDataset):
         self._logger = todd.get_logger()
 
     def __len__(self) -> int:
-        if debug.DRY_RUN:
+        if todd.utils.BaseRunner.Store.DRY_RUN:
             return 3
         return super().__len__()
 
     def load_annotations(self, *args, **kwargs):
         data_infos = super().load_annotations(*args, **kwargs)
-        if debug.DRY_RUN:
+        if todd.utils.BaseRunner.Store.DRY_RUN:
             data_infos = data_infos[:len(self)]
         return data_infos
 
     def load_proposals(self, *args, **kwargs):
         proposals = super().load_proposals(*args, **kwargs)
-        if debug.DRY_RUN:
+        if todd.utils.BaseRunner.Store.DRY_RUN:
             proposals = proposals[:len(self)]
         return proposals
 
@@ -48,11 +48,11 @@ class DebugMixin(CustomDataset):
 
 @DATASETS.register_module()
 class CocoDataset4817(DebugMixin, _CocoDataset):
-    CLASSES = COCO_48_17
+    CLASSES = Categories.COCO_48_17
 
     def load_annotations(self, *args, **kwargs):
         data_infos = super().load_annotations(*args, **kwargs)
-        if not debug.DRY_RUN:
+        if not todd.utils.BaseRunner.Store.DRY_RUN:
             return data_infos
 
         images = self.coco.dataset['images'][:len(self)]

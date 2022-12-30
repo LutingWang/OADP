@@ -4,10 +4,10 @@ __all__ = [
 
 from typing import Any, Dict, List, cast
 
-import todd
 import torch
 from mmdet.models import HEADS, BaseRoIExtractor, BBoxHead, StandardRoIHead
 
+from ..base import Store
 from .classifiers import Classifier
 
 
@@ -22,7 +22,7 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         image_head: Dict[str, Any],
         **kwargs,
     ) -> None:
-        bbox_head.update(num_classes=todd.globals_.num_classes)
+        bbox_head.update(num_classes=Store.NUM_CLASSES)
         super().__init__(*args, bbox_head=bbox_head, **kwargs)
         self._object_head: BBoxHead = HEADS.build(
             image_head,
@@ -30,8 +30,8 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         )
         classifier: Classifier = self._object_head.fc_cls
         classifier._bg_embedding.requires_grad_(False)
-        cal_lambda = torch.ones(todd.globals_.num_classes + 1) / 3
-        cal_lambda[:todd.globals_.num_base_classes] *= 2
+        cal_lambda = torch.ones(Store.NUM_CLASSES + 1) / 3
+        cal_lambda[:Store.NUM_BASE_CLASSES] *= 2
         self.register_buffer('_cal_lambda', cal_lambda, persistent=False)
 
     @property
@@ -44,7 +44,7 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         rois: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
         bbox_results: Dict[str, torch.Tensor] = super()._bbox_forward(x, rois)
-        if todd.globals_.training:
+        if Store.TRAINING:
             return bbox_results
 
         assert not self.with_shared_head

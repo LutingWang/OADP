@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mmdet.models.utils.builder import LINEAR_LAYERS
 
-from .. import base
+from ..base import Categories, Store
 
 
 @LINEAR_LAYERS.register_module()
@@ -33,11 +33,11 @@ class BaseClassifier(todd.base.Module):
         names: List[str] = ckpt['names']
 
         name2ind = {name: i for i, name in enumerate(names)}
-        inds = [name2ind[name] for name in getattr(base, split)]
+        inds = [name2ind[name] for name in getattr(Categories, split)]
         embeddings = embeddings[inds]
 
         num_embeddings, embedding_dim = embeddings.shape
-        assert todd.globals_.num_classes == num_embeddings
+        assert Store.NUM_CLASSES == num_embeddings
 
         if num_embeddings == out_features - 1:
             bg_embedding = nn.Parameter(torch.randn(1, embedding_dim) * 0.1)
@@ -68,11 +68,8 @@ class BaseClassifier(todd.base.Module):
                 F.normalize(self._bg_embedding),
             ])
         y = x @ embeddings.T
-        if todd.globals_.training:
-            novel_classes = slice(
-                todd.globals_._num_base_classes,
-                todd.globals_._num_classes,
-            )
+        if Store.TRAINING:
+            novel_classes = slice(Store.NUM_BASE_CLASSES, Store.NUM_CLASSES)
             y[:, novel_classes] = float('-inf')
         return y
 
@@ -105,7 +102,7 @@ class ViLDClassifier(BaseClassifier):
 
     @property
     def scaler(self) -> float:
-        return self._scaler['train' if todd.globals_.training else 'val']
+        return self._scaler['train' if Store.TRAINING else 'val']
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return super().forward(x) / self.scaler

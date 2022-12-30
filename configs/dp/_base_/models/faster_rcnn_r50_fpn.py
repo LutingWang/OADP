@@ -70,7 +70,7 @@ model = dict(
                 loss_weight=1.0,
             ),
             loss_bbox=dict(type='L1Loss', loss_weight=1.0),
-        )
+        ),
     ),
     train_cfg=dict(
         rpn=dict(
