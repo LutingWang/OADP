@@ -1,27 +1,21 @@
 __all__ = [
     'DebugMixin',
-    'CocoDataset4817',
+    'OV_COCO',
 ]
 
 import contextlib
 import io
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import todd
-from mmdet.datasets import DATASETS
-from mmdet.datasets import CocoDataset as _CocoDataset
-from mmdet.datasets import CustomDataset
+from mmdet.datasets import DATASETS, CocoDataset, CustomDataset
 from mmdet.datasets.api_wrappers import COCOeval
 
-from ..base import Categories
+from ..base import Globals, coco
 
 
 class DebugMixin(CustomDataset):
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._logger = todd.get_logger()
 
     def __len__(self) -> int:
         if todd.utils.BaseRunner.Store.DRY_RUN:
@@ -40,15 +34,10 @@ class DebugMixin(CustomDataset):
             proposals = proposals[:len(self)]
         return proposals
 
-    def evaluate(self, *args, **kwargs):  # TODO: delete this
-        kwargs.pop('gpu_collect', None)
-        kwargs.pop('tmpdir', None)
-        return super().evaluate(*args, **kwargs)
-
 
 @DATASETS.register_module()
-class CocoDataset4817(DebugMixin, _CocoDataset):
-    CLASSES = Categories.COCO_48_17
+class OV_COCO(DebugMixin, CocoDataset):
+    CLASSES = coco.all_
 
     def load_annotations(self, *args, **kwargs):
         data_infos = super().load_annotations(*args, **kwargs)
@@ -71,79 +60,53 @@ class CocoDataset4817(DebugMixin, _CocoDataset):
         )
         return data_infos
 
-    def summarize(
-        self,
-        cocoEval: COCOeval,
-        split: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        redirect_string = io.StringIO()
-        with contextlib.redirect_stdout(redirect_string):
+    def summarize(self, cocoEval: COCOeval, prefix: str) -> dict[str, Any]:
+        string_io = io.StringIO()
+        with contextlib.redirect_stdout(string_io):
             cocoEval.summarize()
+        Globals.logger.info(f'Evaluate *{prefix}*\n{string_io.getvalue()}')
 
-        message = '\n' + redirect_string.getvalue()
-        if split is not None:
-            message = f'Evaluate split *{split}*' + message
-        self._logger.info(message)
-
-        eval_results = dict(
-            zip(
-                ['mAP', 'mAP_50', 'mAP_75', 'mAP_s', 'mAP_m', 'mAP_l'],
-                cocoEval.stats,
-            ),
-        )
-        eval_results = {
-            f'bbox_{k}': round(v, 4)
-            for k, v in eval_results.items()
+        stats = {
+            s: f'{cocoEval.stats[i]:.04f}'
+            for i, s in enumerate(['', '50', '75', 's', 'm', 'l'])
         }
-        eval_results['bbox_mAP_copypaste'] = ' '.join(
-            map(str, eval_results.values()),
-        )
-        if split is not None:
-            eval_results = {f'{split}_{k}': v for k, v in eval_results.items()}
-        return eval_results
+        stats['copypaste'] = ' '.join(stats.values())
+        return {f'{prefix}_bbox_mAP_{k}': v for k, v in stats.items()}
 
-    def evaluate(
-        self,
-        results,
-        iou_thrs: Optional[Tuple[float, ...]] = None,
-        max_dets: Optional[Tuple[int, ...]] = (100, 300, 1000),
-    ) -> dict:
-        predictions = self._det2json(results)
+    def evaluate(self, results, *args, **kwargs) -> dict[str, Any]:
+        results = self._det2json(results)
         try:
-            cocoDt = self.coco.loadRes(predictions)
+            results = self.coco.loadRes(results)
         except IndexError:
-            self._logger.error(
-                'The testing results of the whole dataset is empty.',
-            )
-            return {}
+            Globals.logger.error('The testing results is empty')
+            return dict()
 
-        cocoEval = COCOeval(self.coco, cocoDt, 'bbox')
-        cocoEval.params.catIds = self.cat_ids
-        cocoEval.params.imgIds = self.img_ids
-        if iou_thrs is not None:
-            cocoEval.params.iouThrs = np.array(iou_thrs)
-        if max_dets is not None:
-            cocoEval.params.maxDets = list(max_dets)
+        coco_eval = COCOeval(self.coco, results, 'bbox')
+        coco_eval.params.catIds = self.cat_ids
+        coco_eval.params.imgIds = self.img_ids
+        coco_eval.params.maxDets = [100, 300, 1000]
 
-        cocoEval.evaluate()
-        cocoEval.accumulate()
+        coco_eval.evaluate()
+        coco_eval.accumulate()
 
         # iou_thrs x recall x k x area x max_dets
-        precision: np.ndarray = cocoEval.eval['precision']
+        precision: np.ndarray = coco_eval.eval['precision']
         # iou_thrs x k x area x max_dets
-        recall: np.ndarray = cocoEval.eval['recall']
+        recall: np.ndarray = coco_eval.eval['recall']
         assert len(self.cat_ids) == precision.shape[2] == recall.shape[1], (
             f"{len(self.cat_ids)}, {precision.shape}, {recall.shape}"
         )
 
-        eval_results = self.summarize(cocoEval)
+        all_ = self.summarize(
+            coco_eval, f'COCO_{coco.num_bases}_{coco.num_novels}'
+        )
 
-        cocoEval.eval['precision'] = precision[:, :, :48, :, :]
-        cocoEval.eval['recall'] = recall[:, :48, :, :]
-        eval_results.update(self.summarize(cocoEval, split='COCO_48'))
+        coco_eval.eval['precision'] = precision[:, :, :coco.num_bases, :, :]
+        coco_eval.eval['recall'] = recall[:, :coco.num_bases, :, :]
+        bases = self.summarize(coco_eval, f'COCO_{coco.num_bases}')
 
-        cocoEval.eval['precision'] = precision[:, :, 48:, :, :]
-        cocoEval.eval['recall'] = recall[:, 48:, :, :]
-        eval_results.update(self.summarize(cocoEval, split='COCO_17'))
+        coco_eval.eval['precision'] = precision[:, :, coco.num_bases:, :, :]
+        coco_eval.eval['recall'] = recall[:, coco.num_bases:, :, :]
+        novels = self.summarize(coco_eval, f'COCO_{coco.num_novels}')
 
-        return eval_results
+        return all_ | bases | novels

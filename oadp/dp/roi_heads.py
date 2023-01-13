@@ -2,12 +2,13 @@ __all__ = [
     'ViLDEnsembleRoIHead',
 ]
 
-from typing import Any, Dict, List, cast
+from typing import Dict, List, cast
 
+import todd
 import torch
 from mmdet.models import HEADS, BaseRoIExtractor, BBoxHead, StandardRoIHead
 
-from ..base import Store
+from ..base import Globals
 from .classifiers import Classifier
 
 
@@ -18,20 +19,22 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
     def __init__(
         self,
         *args,
-        bbox_head: Dict[str, Any],
-        image_head: Dict[str, Any],
+        bbox_head: todd.Config,
+        object_head: todd.Config,
         **kwargs,
     ) -> None:
-        bbox_head.update(num_classes=Store.NUM_CLASSES)
+        assert bbox_head.num_classes is None
+        bbox_head.num_classes = Globals.categories.num_all
         super().__init__(*args, bbox_head=bbox_head, **kwargs)
         self._object_head: BBoxHead = HEADS.build(
-            image_head,
+            object_head,
             default_args=bbox_head,
         )
         classifier: Classifier = self._object_head.fc_cls
+        assert classifier._bg_embedding is not None
         classifier._bg_embedding.requires_grad_(False)
-        cal_lambda = torch.ones(Store.NUM_CLASSES + 1) / 3
-        cal_lambda[:Store.NUM_BASE_CLASSES] *= 2
+        cal_lambda = torch.ones(Globals.categories.num_all + 1) / 3
+        cal_lambda[:Globals.categories.num_bases] *= 2
         self.register_buffer('_cal_lambda', cal_lambda, persistent=False)
 
     @property
@@ -44,7 +47,7 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         rois: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
         bbox_results: Dict[str, torch.Tensor] = super()._bbox_forward(x, rois)
-        if Store.TRAINING:
+        if Globals.training:
             return bbox_results
 
         assert not self.with_shared_head

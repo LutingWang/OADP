@@ -22,14 +22,14 @@ def one_hot(
         y = labels.new_zeros(
             labels.shape[0],
             num_classes,
-            dtype=bool,
+            dtype=torch.bool,
         )
     elif _is_tensor_sequence(labels):
         assert all(label.ndim == 1 for label in labels)
         y = labels[0].new_zeros(
             len(labels),
             num_classes,
-            dtype=bool,
+            dtype=torch.bool,
         )
     else:
         raise TypeError(f"Unsupported type {type(labels)}")

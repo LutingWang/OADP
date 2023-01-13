@@ -1,4 +1,5 @@
-dataset_type = 'CocoDataset4817'
+categories = 'coco'
+dataset_type = 'OV_COCO'
 ann_file_prefix = 'data/coco/annotations/instances_'
 trainer = dict(
     dataloader=dict(

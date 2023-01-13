@@ -8,3 +8,7 @@ trainer = dict(
     auto_scale_lr=dict(enable=False, base_batch_size=16),
     fp16=dict(loss_scale=dict(init_scale=64.0)),
 )
+validator = dict(
+    # fp16=True,
+    fp16=False,
+)

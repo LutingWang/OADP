@@ -4,35 +4,22 @@ __all__ = [
 
 from typing import NoReturn
 
-import todd
 from mmdet.models import DETECTORS, TwoStageDetector
 
-from ..base import Store
+from ..base import Globals
 
 
 @DETECTORS.register_module()
 class OADP(TwoStageDetector):
 
-    def __init__(
-        self,
-        *args,
-        num_classes: int,
-        num_base_classes: int,
-        **kwargs,
-    ) -> None:
-        Store.NUM_CLASSES = num_classes
-        Store.NUM_BASE_CLASSES = num_base_classes
-        super().__init__(*args, **kwargs)
-
     @property
     def num_classes(self) -> int:
-        return Store.NUM_CLASSES
+        return Globals.categories.num_all
 
     def forward_train(self, *args, **kwargs) -> NoReturn:
-        todd.Store.ITER += 1
-        Store.TRAINING = True
+        Globals.training = True
         raise NotImplementedError
 
     def simple_test(self, *args, **kwargs):
-        Store.TRAINING = False
+        Globals.training = False
         return super().simple_test(*args, **kwargs)

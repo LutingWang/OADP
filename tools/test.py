@@ -1,4 +1,5 @@
 import argparse
+import pprint
 import sys
 
 import todd
@@ -16,6 +17,27 @@ import oadp  # noqa: E402
 
 
 class Validator(todd.utils.Validator):
+    _model: torch.nn.Module
+
+    def __init__(self, *args, fp16: bool, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        if fp16 and todd.utils.BaseRunner.Store.CUDA:
+            wrap_fp16_model(self._model)
+        if todd.utils.BaseRunner.Store.CPU:
+            self._model = build_dp(self._model, 'cpu', device_ids=[0])
+            self._test = single_gpu_test
+        elif todd.utils.BaseRunner.Store.CUDA:
+            self._model = build_ddp(
+                self._model,
+                'cuda',
+                device_ids=[todd.get_local_rank()],
+                broadcast_buffers=False,
+            )
+            self._test = multi_gpu_test
+        else:
+            raise NotImplementedError
+
+        oadp.base.Globals.logger = self._logger
 
     def _build_dataloader(
         self,
@@ -35,20 +57,14 @@ class Validator(todd.utils.Validator):
         pass
 
     def _run(self, memo: todd.utils.Memo) -> None:
-        if todd.utils.BaseRunner.Store.CPU:
-            test = single_gpu_test
-        elif todd.utils.BaseRunner.Store.CUDA:
-            test = multi_gpu_test
-        else:
-            raise NotImplementedError
-        memo['outputs'] = test(self._model, self._dataloader)
+        memo['outputs'] = self._test(self._model, self._dataloader)
 
     def _after_run(self, memo: todd.utils.Memo) -> None:
         super()._after_run(memo)
         if todd.get_rank() == 0:
             dataset: CustomDataset = self._dataloader.dataset
             metric = dataset.evaluate(memo['outputs'])
-            self._logger.info(metric)
+            self._logger.info('\n' + pprint.pformat(metric))
 
 
 def parse_args():
@@ -62,6 +78,15 @@ def parse_args():
     parser.add_argument('--odps', action=todd.DictAction)
     args = parser.parse_args()
     return args
+
+
+def build_model(config: todd.Config) -> torch.nn.Module:
+    config = config.copy()
+    config.pop('train_cfg', None)
+    config.pop('pretrained', None)
+    backbone: todd.Config = config.backbone
+    backbone.pop('init_cfg', None)
+    return build_detector(config)
 
 
 def main():
@@ -79,24 +104,10 @@ def main():
     if args.override is not None:
         config.override(args.override)
 
-    model_config: todd.Config = config.model
-    model_config.pop('train_cfg', None)
-    model_config.pop('pretrained', None)
-    backbone: todd.Config = model_config.backbone
-    backbone.pop('init_cfg', None)
-    model = build_detector(model_config)
-    if 'fp16' in config and todd.utils.BaseRunner.Store.CUDA:
-        wrap_fp16_model(model)
+    oadp.base.Globals.categories = getattr(oadp.base, config.categories)
+
+    model = build_model(config.model)
     load_checkpoint(model, args.checkpoint, map_location='cpu')
-    if todd.utils.BaseRunner.Store.CPU:
-        model = build_dp(model, 'cpu', device_ids=[0])
-    if todd.utils.BaseRunner.Store.CUDA:
-        model = build_ddp(
-            model,
-            'cuda',
-            device_ids=[todd.get_local_rank()],
-            broadcast_buffers=False,
-        )
 
     validator = Validator(
         name=args.name,

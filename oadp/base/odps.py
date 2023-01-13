@@ -8,6 +8,8 @@ from typing import Mapping
 
 import todd
 
+from .globals_ import Globals
+
 ODPS_PATHS = dict(
     data='/data/oss_bucket_0',
     pretrained='/data/oss_bucket_0/ckpts',
@@ -17,9 +19,6 @@ ODPS_PATHS = dict(
 
 class Store(metaclass=todd.StoreMeta):
     ODPS: bool
-    NUM_CLASSES: int
-    NUM_BASE_CLASSES: int
-    TRAINING: bool
 
 
 def odps_init(kwargs: Mapping[str, str]) -> None:
@@ -32,4 +31,4 @@ def odps_init(kwargs: Mapping[str, str]) -> None:
         if not os.path.lexists(k):
             os.symlink(v, k)
 
-    todd.get_logger().debug(f"ODPS initialized with {os.listdir('.')}.")
+    Globals.logger.debug(f"ODPS initialized with {os.listdir('.')}.")

@@ -9,8 +9,6 @@ _base_ = [
 
 model = dict(
     type='OADP',
-    num_classes=65,
-    num_base_classes=48,
     backbone=dict(
         style='caffe',
         init_cfg=None,
