@@ -1,6 +1,6 @@
 _base_ = [
     '_base_/datasets/coco_detection.py',
-    '_base_/datasets/coco_48_17.py',
+    '_base_/datasets/ov_coco.py',
     '_base_/models/vild_ensemble_faster_rcnn_r50_fpn.py',
     '_base_/schedules/schedule_40k.py',
     '_base_/default_runtime.py',

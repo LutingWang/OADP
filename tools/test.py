@@ -67,7 +67,7 @@ class Validator(todd.utils.Validator):
             self._logger.info('\n' + pprint.pformat(metric))
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description='MMDet test (and eval) a model',
     )
@@ -89,7 +89,7 @@ def build_model(config: todd.Config) -> torch.nn.Module:
     return build_detector(config)
 
 
-def main():
+def main() -> None:
     if todd.utils.BaseRunner.Store.CUDA:
         torch.distributed.init_process_group('nccl')
         torch.cuda.set_device(todd.get_local_rank())

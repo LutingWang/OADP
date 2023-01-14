@@ -10,36 +10,6 @@ _/    _/  _/    _/  _/    _/  _/
 
 [![lint](https://github.com/LutingWang/OADP/actions/workflows/lint.yaml/badge.svg)](https://github.com/LutingWang/OADP/actions/workflows/lint.yaml)
 
-## Preparation
-
-The directory tree should be like this
-
-```text
-OADP
-├── data
-│   ├── coco -> ~/Developer/datasets/coco
-│   │   ├── annotations
-│   │   │   ├── instances_val2017.json.COCO_48_17.filtered
-│   │   │   └── ...
-│   │   ├── train2017
-│   │   │   └── ...
-│   │   └── val2017
-│   │       └── ...
-│   └── prompts
-│       ├── ml_coco.pth
-│       ├── vild.pth
-│       └── ...
-└── ...
-```
-
-### Datasets
-
-Download the [MS-COCO](https://cocodataset.org/#download) dataset to `data/coco`.
-
-### Annotations
-
-### Prompt
-
 ## Installation
 
 Create a conda environment and activate it.
@@ -63,10 +33,45 @@ Install other dependencies.
 
 ```bash
 pip install todd_ai==0.2.4 -i https://pypi.org/simple
-pip install scikit-learn==1.1.3
+pip install git+https://github.com/openai/CLIP.git
+pip install lvis scikit-learn==1.1.3
 ```
 
 > Note that the `requirements.txt` is not intended for users. Please follow the above instructions.
+
+## Preparation
+
+The directory tree should be like this
+
+```text
+OADP
+├── data
+│   ├── coco -> ~/Developer/datasets/coco
+│   │   ├── annotations
+│   │   │   ├── instances_val2017.65.min.json
+│   │   │   └── ...
+│   │   ├── train2017
+│   │   │   └── ...
+│   │   └── val2017
+│   │       └── ...
+│   └── prompts
+│       ├── ml_coco.pth
+│       ├── vild.pth
+│       └── ...
+└── ...
+```
+
+### Datasets
+
+Download the [MS-COCO](https://cocodataset.org/#download) dataset to `data/coco`.
+
+### Annotations
+
+```bash
+python -m oadp.build_annotations
+```
+
+### Prompts
 
 ## Inference
 
