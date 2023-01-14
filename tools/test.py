@@ -21,12 +21,12 @@ class Validator(todd.utils.Validator):
 
     def __init__(self, *args, fp16: bool, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        if fp16 and todd.utils.BaseRunner.Store.CUDA:
+        if fp16 and todd.Store.CUDA:
             wrap_fp16_model(self._model)
-        if todd.utils.BaseRunner.Store.CPU:
+        if todd.Store.CPU:
             self._model = build_dp(self._model, 'cpu', device_ids=[0])
             self._test = single_gpu_test
-        elif todd.utils.BaseRunner.Store.CUDA:
+        elif todd.Store.CUDA:
             self._model = build_ddp(
                 self._model,
                 'cuda',
@@ -43,11 +43,11 @@ class Validator(todd.utils.Validator):
         self,
         config: todd.Config,
     ) -> torch.utils.data.DataLoader:
-        if todd.utils.BaseRunner.Store.DRY_RUN:
+        if todd.Store.DRY_RUN:
             config.workers_per_gpu = 0
         config.dataset = build_dataset(config.dataset, dict(test_mode=True))
         dataloader = build_dataloader(
-            dist=todd.utils.BaseRunner.Store.CUDA,
+            dist=todd.Store.CUDA,
             shuffle=False,
             **config,
         )
@@ -90,7 +90,7 @@ def build_model(config: todd.Config) -> torch.nn.Module:
 
 
 def main() -> None:
-    if todd.utils.BaseRunner.Store.CUDA:
+    if todd.Store.CUDA:
         torch.distributed.init_process_group('nccl')
         torch.cuda.set_device(todd.get_local_rank())
 

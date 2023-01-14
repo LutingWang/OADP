@@ -33,7 +33,7 @@ Install other dependencies.
 
 ```bash
 pip install todd_ai==0.2.4 -i https://pypi.org/simple
-pip install git+https://github.com/openai/CLIP.git
+pip install git+https://github.com/LutingWang/CLIP.git
 pip install lvis scikit-learn==1.1.3
 ```
 
@@ -41,37 +41,65 @@ pip install lvis scikit-learn==1.1.3
 
 ## Preparation
 
-The directory tree should be like this
-
-```text
-OADP
-├── data
-│   ├── coco -> ~/Developer/datasets/coco
-│   │   ├── annotations
-│   │   │   ├── instances_val2017.65.min.json
-│   │   │   └── ...
-│   │   ├── train2017
-│   │   │   └── ...
-│   │   └── val2017
-│   │       └── ...
-│   └── prompts
-│       ├── ml_coco.pth
-│       ├── vild.pth
-│       └── ...
-└── ...
-```
-
 ### Datasets
 
 Download the [MS-COCO](https://cocodataset.org/#download) dataset to `data/coco`.
 
+```text
+OADP/data/coco
+├── annotations
+│   ├── instances_train2017.json
+│   └── instances_val2017.json
+├── train2017
+│   └── ...
+└── val2017
+    └── ...
+```
+
+Download the [LVIS v1.0](https://www.lvisdataset.org/dataset) dataset to `data/lvis_v1`.
+
+```text
+OADP/data/lvis_v1
+├── annotations
+│   ├── lvis_v1_train.json
+│   └── lvis_v1_val.json
+├── train2017 -> ../coco/train2017
+│   └── ...
+└── val2017 -> ../coco/train2017
+    └── ...
+```
+
 ### Annotations
 
 ```bash
-python -m oadp.build_annotations
+python tools/build_annotations.py
+```
+
+The following files will be generated:
+
+```text
+OADP/data
+├── coco
+│   └── annotations
+│       ├── instances_train2017.48.json
+│       ├── instances_train2017.65.json
+│       ├── instances_val2017.48.json
+│       ├── instances_val2017.65.json
+│       └── instances_val2017.65.min.json
+└── lvis_v1
+    └── annotations
+        ├── lvis_v1_train.1203.json
+        ├── lvis_v1_train.866.json
+        ├── lvis_v1_val.1203.json
+        └── lvis_v1_val.866.json
 ```
 
 ### Prompts
+
+```bash
+mkdir data/prompts
+python -m oadp.prompts.vild
+```
 
 ## Inference
 
