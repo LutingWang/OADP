@@ -94,6 +94,15 @@ OADP/data
         └── lvis_v1_val.866.json
 ```
 
+### Pretrained Models
+
+```text
+OADP/pretrained
+└── clip
+    └── ViT-B-32.pt
+
+```
+
 ### Prompts
 
 ```bash
@@ -105,10 +114,10 @@ python -m oadp.prompts.vild
 
 ```bash
 # CPU
-python tools/test.py configs/dp/object_block_global_coco_48_17.py work_dirs/object_block_global_coco_48_17/iter_32000.pth
+python -m oadp.test configs/dp/object_block_global_coco_48_17.py work_dirs/object_block_global_coco_48_17/iter_32000.pth
 
 # GPU
-torchrun --nproc_per_node=${GPUS} tools/test.py configs/dp/object_block_global_coco_48_17.py work_dirs/object_block_global_coco_48_17/iter_32000.pth
+torchrun --nproc_per_node=${GPUS} -m oadp.test configs/dp/object_block_global_coco_48_17.py work_dirs/object_block_global_coco_48_17/iter_32000.pth
 
 # ODPS
 odpsrun

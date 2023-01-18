@@ -7,7 +7,7 @@ import todd
 from lvis import LVIS
 from mmdet.datasets.api_wrappers import COCO
 
-from oadp.base import Categories, coco, lvis
+from .base import Categories, coco, lvis
 
 Data = dict[str, Any]
 

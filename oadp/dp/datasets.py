@@ -12,25 +12,25 @@ import todd
 from mmdet.datasets import DATASETS, CocoDataset, CustomDataset
 from mmdet.datasets.api_wrappers import COCOeval
 
-from ..base import Globals, coco
+from ..base import coco
 
 
 class DebugMixin(CustomDataset):
 
     def __len__(self) -> int:
-        if todd.utils.BaseRunner.Store.DRY_RUN:
+        if todd.Store.DRY_RUN:
             return 3
         return super().__len__()
 
     def load_annotations(self, *args, **kwargs):
         data_infos = super().load_annotations(*args, **kwargs)
-        if todd.utils.BaseRunner.Store.DRY_RUN:
+        if todd.Store.DRY_RUN:
             data_infos = data_infos[:len(self)]
         return data_infos
 
     def load_proposals(self, *args, **kwargs):
         proposals = super().load_proposals(*args, **kwargs)
-        if todd.utils.BaseRunner.Store.DRY_RUN:
+        if todd.Store.DRY_RUN:
             proposals = proposals[:len(self)]
         return proposals
 
@@ -41,7 +41,7 @@ class OV_COCO(DebugMixin, CocoDataset):
 
     def load_annotations(self, *args, **kwargs):
         data_infos = super().load_annotations(*args, **kwargs)
-        if not todd.utils.BaseRunner.Store.DRY_RUN:
+        if not todd.Store.DRY_RUN:
             return data_infos
 
         images = self.coco.dataset['images'][:len(self)]
@@ -64,7 +64,7 @@ class OV_COCO(DebugMixin, CocoDataset):
         string_io = io.StringIO()
         with contextlib.redirect_stdout(string_io):
             cocoEval.summarize()
-        Globals.logger.info(f'Evaluate *{prefix}*\n{string_io.getvalue()}')
+        todd.logger.info(f'Evaluate *{prefix}*\n{string_io.getvalue()}')
 
         stats = {
             s: f'{cocoEval.stats[i]:.04f}'
@@ -78,7 +78,7 @@ class OV_COCO(DebugMixin, CocoDataset):
         try:
             results = self.coco.loadRes(results)
         except IndexError:
-            Globals.logger.error('The testing results is empty')
+            todd.logger.error('The testing results is empty')
             return dict()
 
         coco_eval = COCOeval(self.coco, results, 'bbox')

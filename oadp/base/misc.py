@@ -1,18 +1,10 @@
 __all__ = [
-    'device',
     'one_hot',
 ]
 
 from typing import Sequence, TypeGuard, Union
 
-import todd
 import torch
-
-if todd.Store.CUDA:
-    device = torch.device('cuda')
-else:
-    device = torch.device('cpu')
-todd.logger.info(f'Using {device=}')
 
 
 def _is_tensor_sequence(data) -> TypeGuard[Sequence[torch.Tensor]]:

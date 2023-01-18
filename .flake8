@@ -1,5 +1,5 @@
 [flake8]
 ignore = E126,E201,E241,W503,W504
 per-file-ignores =
-    oadp/__init__.py:F401,F403
+    oadp/__init__.py:E402,F401,F403
     oadp/**/__init__.py:F401,F403

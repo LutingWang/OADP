@@ -5,7 +5,6 @@ __all__ = [
     'Globals',
 ]
 
-import logging
 from typing import Iterable
 
 import todd
@@ -45,7 +44,6 @@ class Categories:
 class Globals(metaclass=todd.NonInstantiableMeta):
     categories: Categories
     training: bool
-    logger: logging.Logger = todd.logger
 
 
 coco = Categories(
