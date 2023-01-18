@@ -110,6 +110,14 @@ mkdir data/prompts
 python -m oadp.prompts.vild
 ```
 
+## Training
+
+### OAKE
+
+```bash
+python -m oadp.oake.globals_ oake/globals_ configs/oake/globals_.py
+```
+
 ## Inference
 
 ```bash

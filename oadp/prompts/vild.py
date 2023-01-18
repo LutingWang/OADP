@@ -1,6 +1,5 @@
 import clip
 import clip.model
-import todd
 import torch
 import torch.nn.functional as F
 import tqdm
@@ -55,21 +54,14 @@ prompts = [
 
 
 def main() -> None:
-    device = torch.device('cuda' if todd.Store.CUDA else 'cpu')
-
-    model: clip.model.CLIP
-    model, _ = clip.load(
-        'ViT-B/32',
-        device=device,
-        download_root='pretrained/clip',
-    )
-
     categories = sorted(set(coco.all_ + lvis.all_))
+    model, _ = clip.load_default()
+
     embeddings = []
     with torch.no_grad():
         for prompt in tqdm.tqdm(prompts):
             texts = map(prompt.format, categories)
-            tokens = clip.adaptively_tokenize(texts, device)
+            tokens = clip.adaptively_tokenize(texts)
             embedding = model.encode_text(tokens)
             embeddings.append(F.normalize(embedding))
 

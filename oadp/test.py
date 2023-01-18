@@ -12,7 +12,7 @@ from mmdet.models import build_detector
 from mmdet.utils import build_ddp, build_dp
 
 from . import base
-from .base import Globals, odps_init
+from .base import Globals
 
 
 def parse_args() -> argparse.Namespace:
@@ -20,7 +20,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('config', type=todd.Config.load)
     parser.add_argument('checkpoint', help='checkpoint file')
     parser.add_argument('--override', action=todd.DictAction)
-    parser.add_argument('--odps', action=todd.DictAction)
     args = parser.parse_args()
     return args
 
@@ -37,26 +36,21 @@ def build_model(config: todd.Config, checkpoint: str) -> torch.nn.Module:
 
 def main() -> None:
     args = parse_args()
-
-    if args.odps is not None:
-        odps_init(args.odps)
-
     config: todd.Config = args.config
-
     if args.override is not None:
         config.override(args.override)
 
     Globals.categories = getattr(base, config.categories)
 
     dataloader_config: todd.Config = config.validator.dataloader
-    if todd.Store.DRY_RUN:
-        dataloader_config.workers_per_gpu = 0
     dataset = build_dataset(
-        dataloader_config.pop('dataset'),
+        dataloader_config.dataset,
         dict(test_mode=True),
     )
+    if todd.Store.DRY_RUN:
+        dataloader_config.workers_per_gpu = 0
+    dataloader_config.dataset = dataset
     dataloader = build_dataloader(
-        dataset,
         dist=todd.Store.CUDA,
         shuffle=False,
         **dataloader_config,
