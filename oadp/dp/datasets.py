@@ -35,8 +35,13 @@ class DebugMixin(CustomDataset):
         return proposals
 
 
+@DATASETS.register_module(name='CocoDataset', force=True)
+class CocoDataset_(DebugMixin, CocoDataset):
+    pass
+
+
 @DATASETS.register_module()
-class OV_COCO(DebugMixin, CocoDataset):
+class OV_COCO(CocoDataset_):
     CLASSES = coco.all_
 
     def load_annotations(self, *args, **kwargs):

@@ -11,8 +11,8 @@ from mmdet.datasets import build_dataloader, build_dataset
 from mmdet.models import build_detector
 from mmdet.utils import build_ddp, build_dp
 
-from . import base
-from .base import Globals
+from .. import base
+from ..base import Globals
 
 
 def parse_args() -> argparse.Namespace:
@@ -40,29 +40,24 @@ def main() -> None:
     if args.override is not None:
         config.override(args.override)
 
+    config_validator_dataloader: todd.Config = config.validator.dataloader
+    if todd.Store.DRY_RUN:
+        config_validator_dataloader.workers_per_gpu = 0
+
     Globals.categories = getattr(base, config.categories)
 
-    dataloader_config: todd.Config = config.validator.dataloader
     dataset = build_dataset(
-        dataloader_config.dataset,
+        config_validator_dataloader.dataset,
         dict(test_mode=True),
     )
-    if todd.Store.DRY_RUN:
-        dataloader_config.workers_per_gpu = 0
-    dataloader_config.dataset = dataset
+    config_validator_dataloader.dataset = dataset
     dataloader = build_dataloader(
         dist=todd.Store.CUDA,
         shuffle=False,
-        **dataloader_config,
+        **config_validator_dataloader,
     )
 
     if todd.Store.CPU:
-        from mmcv.cnn import NORM_LAYERS
-        NORM_LAYERS.register_module(
-            name='SyncBN',
-            force=True,
-            module=torch.nn.BatchNorm2d,
-        )
         model = build_model(config.model, args.checkpoint)
         model = build_dp(model, 'cpu', device_ids=[0])
         outputs = single_gpu_test(model, dataloader)

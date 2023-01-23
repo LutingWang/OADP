@@ -40,21 +40,29 @@ class Dataset(BaseDataset[Batch]):
     def __init__(
         self,
         *args,
+        grid: int,
+        expand_mode: str = 'ADAPTIVE',
         proposal_file: str,
         proposal_sorted: bool,
-        mask_size: int = 7 * 2,
-        expand_mode: str = 'adaptive',
         **kwargs,
     ) -> None:
-        super().__init__(*args, **kwargs)
-        if not proposal_sorted:
-            self.ids = list(self.coco.imgs.keys())
+        """Initialize.
 
+        Args:
+            grid: down sampled feature map size.
+            proposal_file: proposal file.
+            proposal_sorted: if ``True``, the first proposal corresponds to the
+                image with the smallest id. Otherwise, the first image in the
+                annotations file.
+            expand_mode: refer to ``ExpandMode``.
+        """
+        super().__init__(*args, **kwargs)
+        self._grid = grid
+        self._expand_mode = ExpandMode[expand_mode]
         with open(proposal_file, 'rb') as f:
             self._proposals = pickle.load(f)
-
-        self._mask_size = mask_size
-        self._expand_mode = ExpandMode[expand_mode.upper()]
+        if not proposal_sorted:
+            self.ids = list(self.coco.imgs.keys())
 
     def _expand(
         self,
@@ -70,11 +78,11 @@ class Dataset(BaseDataset[Batch]):
         Returns:
             The expanded bounding boxes.
         """
-        if self._expand_mode == ExpandMode.LONGEST_EDGE:
+        if self._expand_mode is ExpandMode.LONGEST_EDGE:
             length = torch.max(bboxes.wh, 1, True)
-        elif self._expand_mode == ExpandMode.CONSTANT:
+        elif self._expand_mode is ExpandMode.CONSTANT:
             length = torch.full((len(bboxes), 1), 224)
-        elif self._expand_mode == ExpandMode.ADAPTIVE:
+        elif self._expand_mode is ExpandMode.ADAPTIVE:
             scale_ratio = 8
             length = einops.rearrange(
                 torch.sqrt(bboxes.area * scale_ratio),
@@ -132,7 +140,7 @@ class Dataset(BaseDataset[Batch]):
         mask = einops.rearrange(mask, 'h w -> 1 1 h w')
         mask = F.interpolate(
             mask.float(),
-            size=(self._mask_size, self._mask_size),
+            size=(self._grid, self._grid),
             mode='nearest',
         )
         return mask
@@ -256,7 +264,10 @@ class Validator(BaseValidator[Batch]):
         self,
         config: todd.Config,
     ) -> torch.utils.data.DataLoader:
-        config.dataset = Dataset(**config.dataset)
+        config.dataset = Dataset(
+            **config.dataset,
+            grid=self._model.visual.grid,
+        )
         return super()._build_dataloader(config)
 
     @classmethod

@@ -8,7 +8,7 @@ trainer = dict(
         warmup_iters=500,
         warmup_ratio=0.001,
         by_epoch=False,
-        step=[3e4],
+        step=[30000],
     ),
     runner=dict(type='IterBasedRunner', max_iters=4e4),
     log_config=dict(
@@ -24,4 +24,14 @@ trainer = dict(
         save_last=True,
     ),
     evaluation=dict(interval=interval),
+    custom_hooks=[dict(type='NumClassCheckHook')],
+    fp16=dict(loss_scale=dict(init_scale=64.0)),
+    log_level='INFO',
+    resume_from=None,
+    load_from=None,
+    seed=3407,
+)
+validator = dict(
+    # fp16=True,
+    fp16=False,
 )
