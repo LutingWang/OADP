@@ -1,6 +1,7 @@
 __all__ = [
     'DebugMixin',
     'OV_COCO',
+    'OV_LVIS',
     'LoadCLIPFeatures',
 ]
 
@@ -11,11 +12,17 @@ from typing import Any, Mapping
 import numpy as np
 import todd
 import torch
-from mmdet.datasets import DATASETS, PIPELINES, CocoDataset, CustomDataset
+from mmdet.datasets import (
+    DATASETS,
+    PIPELINES,
+    CocoDataset,
+    CustomDataset,
+    LVISV1Dataset,
+)
 from mmdet.datasets.api_wrappers import COCOeval
 from todd.datasets import AccessLayerRegistry as ALR
 
-from ..base import Globals, coco
+from ..base import Globals, coco, lvis
 
 
 class DebugMixin(CustomDataset):
@@ -24,28 +31,6 @@ class DebugMixin(CustomDataset):
         if todd.Store.DRY_RUN:
             return 3
         return super().__len__()
-
-    def load_annotations(self, *args, **kwargs):
-        data_infos = super().load_annotations(*args, **kwargs)
-        if todd.Store.DRY_RUN:
-            data_infos = data_infos[:len(self)]
-        return data_infos
-
-    def load_proposals(self, *args, **kwargs):
-        proposals = super().load_proposals(*args, **kwargs)
-        if todd.Store.DRY_RUN:
-            proposals = proposals[:len(self)]
-        return proposals
-
-
-@DATASETS.register_module(name='CocoDataset', force=True)
-class CocoDataset_(DebugMixin, CocoDataset):
-    pass
-
-
-@DATASETS.register_module()
-class OV_COCO(CocoDataset_):
-    CLASSES = coco.all_
 
     def load_annotations(self, *args, **kwargs):
         data_infos = super().load_annotations(*args, **kwargs)
@@ -66,7 +51,28 @@ class OV_COCO(CocoDataset_):
             images=images,
             annotations=annotations,
         )
-        return data_infos
+        return data_infos[:len(self)]
+
+    def load_proposals(self, *args, **kwargs):
+        proposals = super().load_proposals(*args, **kwargs)
+        if todd.Store.DRY_RUN:
+            proposals = proposals[:len(self)]
+        return proposals
+
+
+@DATASETS.register_module(name='CocoDataset', force=True)
+class CocoDataset_(DebugMixin, CocoDataset):
+    pass
+
+
+@DATASETS.register_module(name='LVISV1Dataset', force=True)
+class LVISV1Dataset_(DebugMixin, LVISV1Dataset):
+    pass
+
+
+@DATASETS.register_module()
+class OV_COCO(CocoDataset_):
+    CLASSES = coco.all_
 
     def summarize(self, cocoEval: COCOeval, prefix: str) -> dict[str, Any]:
         string_io = io.StringIO()
@@ -118,6 +124,11 @@ class OV_COCO(CocoDataset_):
         novels = self.summarize(coco_eval, f'COCO_{coco.num_novels}')
 
         return all_ | bases | novels
+
+
+@DATASETS.register_module()
+class OV_LVIS(LVISV1Dataset_):
+    CLASSES = lvis.all_
 
 
 @PIPELINES.register_module()

@@ -191,7 +191,7 @@ class Hooks:
         inputs: tuple[torch.Tensor, torch.Tensor],
     ) -> tuple[torch.Tensor]:
         attn_mask = einops.rearrange(inputs[-1], 'b 1 h w -> b (h w)')
-        zeros = torch.zeros(attn_mask.shape[0], 1)
+        zeros = attn_mask.new_zeros(attn_mask.shape[0], 1)
         attn_mask = torch.cat([attn_mask, zeros], dim=-1)
         attn_mask *= -100
         self._attn_mask = attn_mask

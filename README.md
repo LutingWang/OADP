@@ -19,11 +19,17 @@ conda create -n oadp python=3.10
 conda activate oadp
 ```
 
+Install `PyTorch` following the [official documentation](https://pytorch.org/).
+For example,
+
+```bash
+pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
+```
+
 Install `MMDetection` following the [official instructions](https://github.com/open-mmlab/mmdetection/blob/master/docs/en/get_started.md/#Installation).
 For example,
 
 ```bash
-pip install torch torchvision
 pip install -U openmim
 mim install mmcv_full==1.7.0
 pip install mmdet==2.25.2
@@ -32,7 +38,7 @@ pip install mmdet==2.25.2
 Install other dependencies.
 
 ```bash
-pip install todd_ai==0.2.4 -i https://pypi.org/simple
+pip install todd_ai==0.3.0 -i https://pypi.org/simple
 pip install git+https://github.com/LutingWang/CLIP.git
 pip install lvis scikit-learn==1.1.3
 ```
@@ -72,7 +78,7 @@ OADP/data/lvis_v1
 ### Annotations
 
 ```bash
-python tools/build_annotations.py
+python -m oadp.build_annotations
 ```
 
 The following files will be generated:
@@ -100,8 +106,10 @@ OADP/data
 OADP/pretrained
 ├── clip
 │   └── ViT-B-32.pt
-└── torchvision
-    └── resnet50-0676ba61.pth
+├── torchvision
+│   └── resnet50-0676ba61.pth
+└── soco
+    └── soco_star_mask_rcnn_r50_fpn_400e.pth
 ```
 
 ### Prompts
@@ -111,26 +119,24 @@ mkdir data/prompts
 python -m oadp.prompts.vild
 ```
 
+### Proposals
+
 ## OAKE
 
 ```bash
-python -m oadp.oake.images oake/images configs/oake/images.py
-python -m oadp.oake.blocks oake/blocks configs/oake/blocks.py
-python -m oadp.oake.objects oake/objects configs/oake/objects.py
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.images oake/images configs/oake/images.py
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.blocks oake/blocks configs/oake/blocks.py
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects.py
 ```
 
 ## Train
 
 ```bash
-python -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
+(python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
 ```
 
 ## Inference
 
 ```bash
-# CPU
-python -m oadp.dp.test configs/dp/object_block_global_ov_coco.py work_dirs/object_block_global_ov_coco/iter_32000.pth
-
-# GPU
-torchrun --nproc_per_node=${GPUS} -m oadp.dp.test configs/dp/object_block_global_ov_coco.py work_dirs/object_block_global_ov_coco/iter_32000.pth
+(python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test configs/dp/object_block_global_ov_coco.py work_dirs/object_block_global_ov_coco/iter_32000.pth
 ```
