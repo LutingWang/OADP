@@ -38,12 +38,12 @@ class BaseDataset(torchvision.datasets.CocoDetection, ABC, Generic[T]):
         if output.exists():
             return None
         image = self._load_image(id_)
-        return self._preprocess(index, output, image)
+        return self._preprocess(id_, output, image)
 
     @abstractmethod
     def _preprocess(
         self,
-        index: int,
+        id_: int,
         output: pathlib.Path,
         image: PIL.Image.Image,
     ) -> T:

@@ -60,9 +60,9 @@ class Dataset(BaseDataset[Batch]):
         self._grid = grid
         self._expand_mode = ExpandMode[expand_mode]
         with open(proposal_file, 'rb') as f:
-            self._proposals = pickle.load(f)
-        if not proposal_sorted:
-            self.ids = list(self.coco.imgs.keys())
+            proposals = pickle.load(f)
+        ids = self.ids if proposal_sorted else list(self.coco.imgs.keys())
+        self._proposals = dict(zip(ids, proposals))
 
     def _expand(
         self,
@@ -147,15 +147,17 @@ class Dataset(BaseDataset[Batch]):
 
     def _preprocess(
         self,
-        index: int,
+        id_: int,
         output: pathlib.Path,
         image: PIL.Image.Image,
     ) -> Batch:
         proposals, objectness = (
-            torch.tensor(self._proposals[index]).split((4, 1), dim=-1)
+            torch.tensor(self._proposals[id_]).split((4, 1), dim=-1)
         )
-        proposals_ = todd.BBoxesXYXY(proposals[:, :4])
+        proposals_ = todd.BBoxesXYXY(proposals)
         indices = proposals_.indices(min_wh=(4, 4))
+        if todd.Store.DRY_RUN:
+            indices[5:] = False
         proposals_ = proposals_[indices]
         objectness = objectness[indices]
 
@@ -168,16 +170,10 @@ class Dataset(BaseDataset[Batch]):
             objects.append(self._object(image, bbox))
             masks.append(self._mask(foreground, bbox))
 
-        proposals = proposals_.to_tensor()
-        if todd.Store.DRY_RUN:
-            objects = objects[:6]
-            proposals = proposals[:6]
-            objectness = objectness[:6]
-            masks = masks[:6]
         return Batch(
             output,
             torch.stack(objects),
-            proposals,
+            proposals_.to_tensor(),
             objectness,
             torch.cat(masks),
         )

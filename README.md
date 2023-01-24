@@ -114,7 +114,7 @@ python -m oadp.prompts.vild
 ## OAKE
 
 ```bash
-python -m oadp.oake.globals_ oake/globals_ configs/oake/globals_.py
+python -m oadp.oake.images oake/images configs/oake/images.py
 python -m oadp.oake.blocks oake/blocks configs/oake/blocks.py
 python -m oadp.oake.objects oake/objects configs/oake/objects.py
 ```

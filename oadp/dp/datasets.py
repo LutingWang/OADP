@@ -5,14 +5,16 @@ __all__ = [
 
 import contextlib
 import io
-from typing import Any
+from typing import Any, Mapping
 
 import numpy as np
 import todd
-from mmdet.datasets import DATASETS, CocoDataset, CustomDataset
+import torch
+from mmdet.datasets import DATASETS, PIPELINES, CocoDataset, CustomDataset
 from mmdet.datasets.api_wrappers import COCOeval
+from todd.datasets import AccessLayerRegistry as ALR
 
-from ..base import coco
+from ..base import Globals, coco
 
 
 class DebugMixin(CustomDataset):
@@ -115,3 +117,73 @@ class OV_COCO(CocoDataset_):
         novels = self.summarize(coco_eval, f'COCO_{coco.num_novels}')
 
         return all_ | bases | novels
+
+
+@PIPELINES.register_module()
+class LoadCLIPFeatures:
+
+    def __init__(
+        self,
+        default: todd.Config,
+        images: todd.Config | None = None,
+        blocks: todd.Config | None = None,
+        objects: todd.Config | None = None,
+    ) -> None:
+        if todd.Store.TRAIN_WITH_VAL_DATASET:
+            task_name: str = default.task_name
+            default.task_name = task_name.replace('train', 'val')
+        self._images: Mapping[str, torch.Tensor] | None = (
+            None if images is None else ALR.build(images, default)
+        )
+        self._blocks: Mapping[str, dict[str, torch.Tensor]] | None = (
+            None if images is None else ALR.build(blocks, default)
+        )
+        self._objects: Mapping[str, dict[str, torch.Tensor]] | None = (
+            None if images is None else ALR.build(objects, default)
+        )
+
+    def __call__(self, results: dict[str, Any]) -> dict[str, Any]:
+        if todd.Store.DRY_RUN:  # TODO: delete
+            id_ = 139 if todd.Store.TRAIN_WITH_VAL_DATASET else 9
+        else:
+            id_ = results["img_info"]["id"]
+        key = f'{id_:012d}'
+        bbox_fields: list[str] = results['bbox_fields']
+
+        if self._images is not None:
+            image = self._images[key]
+            results['clip_image'] = image.squeeze(0)
+
+        if self._blocks is not None:
+            blocks = self._blocks[key]
+            block_bboxes = blocks['bboxes']
+            if 'gt_bboxes' in results:
+                num_all = Globals.categories.num_all
+                gt_bboxes = results['gt_bboxes']
+                gt_labels = results['gt_labels']
+                indices = gt_labels < num_all  # pseudo labels
+                gt_bboxes = gt_bboxes[indices]
+                gt_labels = gt_labels[indices]
+                block_ids, gt_ids = torch.where(
+                    todd.BBoxesXYXY(block_bboxes)
+                    & todd.BBoxesXYXY(torch.tensor(gt_bboxes)) > 0
+                )
+                block_labels = np.zeros(
+                    (block_bboxes.shape[0], num_all),
+                    dtype=bool,
+                )
+                block_labels[block_ids, gt_labels[gt_ids]] = True
+                results['block_labels'] = block_labels
+            results['clip_blocks'] = blocks['embeddings']
+            results['block_bboxes'] = block_bboxes.float().numpy()
+            bbox_fields.append('block_bboxes')
+
+        if self._objects is not None:
+            objects = self._objects[key]
+            object_bboxes = objects['bboxes']
+            indices = todd.BBoxesXYXY(object_bboxes).indices(min_wh=(4, 4))
+            results['clip_objects'] = objects['embeddings'][indices]
+            results['object_bboxes'] = object_bboxes[indices].float().numpy()
+            bbox_fields.append('object_bboxes')
+
+        return results

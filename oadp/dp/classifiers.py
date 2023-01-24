@@ -3,7 +3,7 @@ __all__ = [
     'ViLDClassifier',
 ]
 
-from typing import Dict, List, Literal, Optional, cast
+from typing import TypedDict, cast
 
 import todd
 import torch
@@ -15,7 +15,7 @@ from ..base import Globals
 
 
 @LINEAR_LAYERS.register_module()
-class BaseClassifier(todd.base.Module):
+class BaseClassifier(todd.Module):
 
     def __init__(
         self,
@@ -29,7 +29,7 @@ class BaseClassifier(todd.base.Module):
 
         ckpt = torch.load(pretrained, 'cpu')
         embeddings: torch.Tensor = ckpt['embeddings']
-        names: List[str] = ckpt['names']
+        names: list[str] = ckpt['names']
 
         name2ind = {name: i for i, name in enumerate(names)}
         inds = [name2ind[name] for name in Globals.categories.all_]
@@ -39,8 +39,11 @@ class BaseClassifier(todd.base.Module):
         assert Globals.categories.num_all == num_embeddings
 
         if num_embeddings == out_features - 1:
-            bg_embedding = nn.Parameter(torch.randn(1, embedding_dim) * 0.1)
-            nn.init.xavier_uniform_(bg_embedding)
+            bg_embedding = nn.Parameter(
+                torch.ones(1, embedding_dim) * 0.01
+            )  # TODO: delete
+            # bg_embedding = nn.Parameter(torch.zeros(1, embedding_dim))
+            # nn.init.xavier_uniform_(bg_embedding)
         elif num_embeddings == out_features:
             bg_embedding = None
         else:
@@ -78,6 +81,7 @@ class BaseClassifier(todd.base.Module):
 
 @LINEAR_LAYERS.register_module()
 class Classifier(BaseClassifier):
+    # named `Classifier` to monkey patch mmdet detectors
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -88,13 +92,18 @@ class Classifier(BaseClassifier):
         return super().forward(x) * self._scaler - self._bias
 
 
+class ViLDScaler(TypedDict):
+    train: float
+    val: float
+
+
 @LINEAR_LAYERS.register_module()
 class ViLDClassifier(BaseClassifier):
 
     def __init__(
         self,
         *args,
-        scaler: Optional[Dict[Literal['train', 'val'], float]] = None,
+        scaler: ViLDScaler | None = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -104,7 +113,9 @@ class ViLDClassifier(BaseClassifier):
 
     @property
     def scaler(self) -> float:
-        return self._scaler['train' if Globals.training else 'val']
+        return (
+            self._scaler['train'] if Globals.training else self._scaler['val']
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return super().forward(x) / self.scaler

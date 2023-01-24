@@ -1,3 +1,3 @@
 from .globals_ import *
-from .misc import *
+from .losses import *
 from .odps import *

@@ -81,16 +81,14 @@ class Dataset(BaseDataset[Batch]):
         return self.transforms.transform(block)
 
     def _bbox(self, scale: float, x: int, y: int) -> todd.BBox:
-        return (
-            x * scale,
-            y * scale,
-            self._r * scale,
-            self._r * scale,
-        )
+        x1 = x * scale
+        y1 = y * scale
+        r = self._r * scale
+        return (x1, y1, x1 + r, y1 + r)
 
     def _preprocess(
         self,
-        index: int,
+        id_: int,
         output: pathlib.Path,
         image: PIL.Image.Image,
     ) -> Batch:

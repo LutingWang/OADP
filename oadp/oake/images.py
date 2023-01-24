@@ -25,7 +25,7 @@ class Dataset(BaseDataset[Batch]):
 
     def _preprocess(
         self,
-        index: int,
+        id_: int,
         output: pathlib.Path,
         image: PIL.Image.Image,
     ) -> Batch:

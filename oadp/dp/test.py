@@ -45,6 +45,9 @@ def main() -> None:
         config_validator_dataloader.workers_per_gpu = 0
 
     Globals.categories = getattr(base, config.categories)
+    if todd.Store.CUDA:
+        torch.distributed.init_process_group('nccl')
+        torch.cuda.set_device(todd.get_local_rank())
 
     dataset = build_dataset(
         config_validator_dataloader.dataset,
@@ -62,8 +65,6 @@ def main() -> None:
         model = build_dp(model, 'cpu', device_ids=[0])
         outputs = single_gpu_test(model, dataloader)
     elif todd.Store.CUDA:
-        torch.distributed.init_process_group('nccl')
-        torch.cuda.set_device(todd.get_local_rank())
         model = build_model(config.model, args.checkpoint)
         if config.validator.fp16:
             wrap_fp16_model(model)

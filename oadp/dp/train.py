@@ -12,6 +12,9 @@ from mmdet.datasets import build_dataset
 from mmdet.models import BaseDetector, build_detector
 from mmdet.utils import collect_env, get_root_logger
 
+from .. import base
+from ..base import Globals
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -52,13 +55,16 @@ def main():
         config_trainer_dataloader.update(dataloader)
         config_validator_dataloader.update(dataloader)
 
+    Globals.categories = getattr(base, config.categories)
+    if todd.Store.CUDA:
+        torch.distributed.init_process_group('nccl')
+        torch.cuda.set_device(todd.get_local_rank())
+
     if todd.Store.CPU:
         config_trainer.fp16 = None
         config_trainer.gpu_ids = [None]
         config_trainer.device = 'cpu'
     elif todd.Store.CUDA:
-        torch.distributed.init_process_group('nccl')
-        torch.cuda.set_device(todd.get_local_rank())
         config_trainer.gpu_ids = range(todd.get_world_size())
         config_trainer.device = 'cuda'
     else:
