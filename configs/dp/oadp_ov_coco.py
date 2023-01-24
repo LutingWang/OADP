@@ -9,7 +9,7 @@ model = dict(
         topk=20,
         classifier=dict(
             type='Classifier',
-            pretrained='data/prompts/ml_coco.pth',
+            prompts='data/prompts/ml_coco.pth',
             in_features=256,
             out_features=65,
         ),
@@ -18,8 +18,6 @@ model = dict(
             weight=dict(type='WarmupScheduler', gain=4, end=2000),
             gamma_neg=4,
             gamma_pos=0,
-            clip=0.05,
-            disable_torch_grad_focal_loss=True,
         ),
     ),
     roi_head=dict(
@@ -28,31 +26,29 @@ model = dict(
             reg_class_agnostic=True,
             cls_predictor_cfg=dict(
                 type='ViLDClassifier',
-                pretrained='data/prompts/vild.pth',
+                prompts='data/prompts/vild.pth',
             ),
         ),
         object_head=dict(
             cls_predictor_cfg=dict(
                 # type='ViLDClassifier',
-                # pretrained='data/prompts/vild.pth',
+                # prompts='data/prompts/vild.pth',
                 type='Classifier',
-                pretrained='data/prompts/ml_coco.pth',
+                prompts='data/prompts/ml_coco.pth',
             ),
         ),
         block_head=dict(
-            type='BlockHead',
+            type='BlockBBoxHead',
             topk=5,
             cls_predictor_cfg=dict(
                 type='Classifier',
-                pretrained='data/prompts/ml_coco.pth',
+                prompts='data/prompts/ml_coco.pth',
             ),
             loss=dict(
                 type='AsymmetricLoss',
                 weight=dict(type='WarmupScheduler', gain=16, end=1000),
                 gamma_neg=4,
                 gamma_pos=0,
-                clip=0.05,
-                disable_torch_grad_focal_loss=True,
             ),
         ),
     ),
@@ -86,7 +82,6 @@ model = dict(
                 inputs=('objects', 'clip_objects'),
                 action=dict(
                     type='L1Loss',
-                    norm=True,
                     weight=dict(type='WarmupScheduler', gain=256, end=200),
                 ),
             ),
@@ -94,7 +89,6 @@ model = dict(
                 inputs=('image', 'clip_image'),
                 action=dict(
                     type='MSELoss',
-                    norm=True,
                     weight=dict(type='WarmupScheduler', gain=0.5, end=200),
                     reduction='sum',
                 ),
@@ -103,7 +97,6 @@ model = dict(
                 inputs=('blocks', 'clip_blocks'),
                 action=dict(
                     type='L1Loss',
-                    norm=True,
                     weight=dict(type='WarmupScheduler', gain=128, end=200),
                 ),
             ),

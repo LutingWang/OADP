@@ -1,5 +1,7 @@
 __all__ = [
+    'BlockBBoxHead',
     'ViLDEnsembleRoIHead',
+    'OADPRoIHead',
 ]
 
 from typing import cast
@@ -7,48 +9,11 @@ from typing import cast
 import todd
 import torch
 from mmdet.core import bbox2roi
-from mmdet.models import (
-    HEADS,
-    BaseRoIExtractor,
-    BBoxHead,
-    Shared2FCBBoxHead,
-    StandardRoIHead,
-)
-from todd.losses import LossRegistry as LR
+from mmdet.models import HEADS, BaseRoIExtractor, BBoxHead, StandardRoIHead
 
 from ..base import Globals
+from .bbox_heads import BlockBBoxHead
 from .classifiers import Classifier
-from .utils import MultilabelTopKRecall
-
-
-@HEADS.register_module()
-class BlockHead(Shared2FCBBoxHead):
-
-    def __init__(
-        self,
-        *args,
-        topk: int,
-        loss: todd.Config,
-        with_reg: bool = False,
-        **kwargs,
-    ) -> None:
-        super().__init__(
-            *args,
-            with_reg=False,  # block head does not need for regression
-            **kwargs,
-        )
-        self._multilabel_topk_recall = MultilabelTopKRecall(k=topk)
-        self._loss = LR.build(loss)
-
-    def loss(
-        self,
-        logits: torch.Tensor,
-        targets: torch.Tensor,
-    ) -> dict[str, torch.Tensor]:
-        return dict(
-            loss_block=self._loss(logits.sigmoid(), targets),
-            recall_block=self._multilabel_topk_recall(logits, targets),
-        )
 
 
 @HEADS.register_module()
@@ -137,7 +102,7 @@ class OADPRoIHead(ViLDEnsembleRoIHead):
         **kwargs,
     ) -> None:
         super().__init__(*args, bbox_head=bbox_head, **kwargs)
-        self._block_head: BlockHead = HEADS.build(
+        self._block_head: BlockBBoxHead = HEADS.build(
             block_head,
             default_args=bbox_head,
         )

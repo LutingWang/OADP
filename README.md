@@ -122,7 +122,7 @@ python -m oadp.oake.objects oake/objects configs/oake/objects.py
 ## Train
 
 ```bash
-python -m oadp.dp.train faster_rcnn_coco configs/dp/faster_rcnn_coco.py [--override .trainer.auto_resume:True]
+python -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
 ```
 
 ## Inference

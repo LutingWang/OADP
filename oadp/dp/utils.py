@@ -1,10 +1,13 @@
 __all__ = [
     'MultilabelTopKRecall',
+    'NormalizedLinear',
 ]
 
 import sklearn.metrics
 import todd
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
 class MultilabelTopKRecall(todd.Module):
@@ -39,3 +42,10 @@ class MultilabelTopKRecall(todd.Module):
             zero_division=0,
         )
         return logits.new_tensor(recall * 100)
+
+
+class NormalizedLinear(nn.Linear):
+
+    def forward(self, *args, **kwargs) -> torch.Tensor:
+        x = super().forward(*args, **kwargs)
+        return F.normalize(x)

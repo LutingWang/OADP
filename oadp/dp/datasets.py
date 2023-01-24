@@ -1,6 +1,7 @@
 __all__ = [
     'DebugMixin',
     'OV_COCO',
+    'LoadCLIPFeatures',
 ]
 
 import contextlib
@@ -161,7 +162,7 @@ class LoadCLIPFeatures:
                 num_all = Globals.categories.num_all
                 gt_bboxes = results['gt_bboxes']
                 gt_labels = results['gt_labels']
-                indices = gt_labels < num_all  # pseudo labels
+                indices = gt_labels < num_all  # filter out pseudo labels
                 gt_bboxes = gt_bboxes[indices]
                 gt_labels = gt_labels[indices]
                 block_ids, gt_ids = torch.where(
