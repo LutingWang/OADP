@@ -77,7 +77,7 @@ class RKDLoss(todd.losses.MSELoss):
         Returns:
             :math:`\\prod \\star \\times \\prod \\star`
         """
-        feats = feats.reshape(-1, feats.shape[-1])
+        feats = feats.view(-1, feats.shape[-1])
         relations = torch.einsum('m c, n c -> m n', feats, feats)
         return relations
 

@@ -11,7 +11,6 @@ from mmdet.datasets import build_dataloader, build_dataset
 from mmdet.models import build_detector
 from mmdet.utils import build_ddp, build_dp
 
-from .. import base
 from ..base import Globals
 
 
@@ -44,7 +43,9 @@ def main() -> None:
     if todd.Store.DRY_RUN:
         config_validator_dataloader.workers_per_gpu = 0
 
-    Globals.categories = getattr(base, config.categories)
+    from ..base import coco, lvis  # noqa: F401
+    Globals.categories = eval(config.categories)
+
     if todd.Store.CUDA:
         torch.distributed.init_process_group('nccl')
         torch.cuda.set_device(todd.get_local_rank())

@@ -60,6 +60,8 @@ class ImageHead(todd.Module):
 
 @DETECTORS.register_module()
 class OADP(TwoStageDetector, Student[SelfDistiller]):
+    rpn_head: RPNHead
+    roi_head: OADPRoIHead
 
     def __init__(
         self,
@@ -96,8 +98,7 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
         feats = self.extract_feat(img)
         image_losses = self._image_head.forward_train(feats, labels=gt_labels)
 
-        rpn_head: RPNHead = self.rpn_head
-        rpn_losses, proposals = rpn_head.forward_train(
+        rpn_losses, proposals = self.rpn_head.forward_train(
             feats,
             img_metas,
             gt_bboxes,
@@ -107,8 +108,7 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
             **kwargs,
         )
 
-        roi_head: OADPRoIHead = self.roi_head
-        roi_losses = roi_head.forward_train(
+        roi_losses = self.roi_head.forward_train(
             feats,
             img_metas,
             proposals,
@@ -118,12 +118,12 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
             gt_masks,
             **kwargs,
         )
-        block_losses = roi_head.block_forward_train(
+        block_losses = self.roi_head.block_forward_train(
             feats,
             block_bboxes,
             block_labels,
         )
-        roi_head.object_forward_train(feats, object_bboxes)
+        self.roi_head.object_forward_train(feats, object_bboxes)
 
         custom_tensors = dict(
             clip_image=clip_image.float(),

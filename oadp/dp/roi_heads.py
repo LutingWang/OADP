@@ -3,19 +3,25 @@ __all__ = [
     'OADPRoIHead',
 ]
 
-from typing import cast
+import os
+import pathlib
+from typing import Any, cast
 
+import mmcv
+import pandas as pd
 import todd
 import torch
 from mmdet.core import bbox2roi
-from mmdet.models import HEADS, StandardRoIHead
+from mmdet.models import HEADS, BaseRoIExtractor, StandardRoIHead
 
 from ..base import Globals
-from .bbox_heads import Shared2FCBlockBBoxHead, Shared4Conv1FCObjectBBoxHead
+from ..base.globals_ import Store
+from .bbox_heads import BlockMixin, ObjectMixin
 
 
 @HEADS.register_module()
 class ViLDEnsembleRoIHead(StandardRoIHead):
+    bbox_roi_extractor: BaseRoIExtractor
 
     def __init__(
         self,
@@ -24,16 +30,21 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         object_head: todd.Config,
         **kwargs,
     ) -> None:
+        # automatically detect `num_classes`
         assert bbox_head.num_classes is None
         bbox_head.num_classes = Globals.categories.num_all
         super().__init__(*args, bbox_head=bbox_head, **kwargs)
+
+        # `shared_head` is not supported for simplification
         assert not self.with_shared_head
 
-        self._object_head: Shared4Conv1FCObjectBBoxHead = HEADS.build(
+        self._object_head: ObjectMixin = HEADS.build(
             object_head,
             default_args=bbox_head,
         )
 
+        # :math:`lambda` for base and novel categories are :math:`2 / 3` and
+        # :math:`1 / 3`, respectively
         lambda_ = torch.ones(Globals.categories.num_all + 1) / 3
         lambda_[:Globals.categories.num_bases] *= 2
         self.register_buffer('_lambda', lambda_, persistent=False)
@@ -47,21 +58,49 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         x: list[torch.Tensor],
         rois: torch.Tensor,
     ) -> dict[str, torch.Tensor]:
+        """Monkey patching `simple_test_bboxes`.
+
+        Args:
+            x: multilevel feature maps.
+            rois: regions of interest.
+
+        Returns:
+            During training, act the same as `StandardRoIHead`.
+            During Inference, replace the classification score with the
+            calibrated version.
+
+        The method breaks the `single responsibility principle`, in order for
+        monkey patching `mmdet`.
+        During training, the method forwards the `bbox_head` and returns the
+        `bbox_results` as `StandardRoIHead` does.
+        However, during inference, the method forwards both the `bbox_head`
+        and the `object_head`.
+        The `object_head` classifies each RoI and the predicted logits are
+        used to calibrate the outputs of `bbox_head`.
+
+        For more details, refer to ViLD_.
+
+        .. _ViLD: https://readpaper.com/paper/3206072662
+        """
         bbox_results: dict[str, torch.Tensor] = super()._bbox_forward(x, rois)
         if Globals.training:
             return bbox_results
 
+        bbox_logits = bbox_results['cls_score']
+        bbox_scores = bbox_logits.softmax(-1)**self.lambda_
+
         object_logits, _ = self._object_head(bbox_results['bbox_feats'])
         object_logits = cast(torch.Tensor, object_logits)
+        object_scores = object_logits.softmax(-1)**(1 - self.lambda_)
 
-        cal_score: torch.Tensor = (
-            bbox_results['cls_score'].softmax(-1)**self.lambda_
-            * object_logits.softmax(-1)**(1 - self.lambda_)
-        )
-        cal_score[:, -1] = 1 - cal_score[:, :-1].sum(-1)
+        if Store.DUMP:
+            self._bbox_logits = bbox_logits
+            self._object_logits = object_logits
 
-        cal_logits = cal_score.log()
-        bbox_results['cls_score'] = cal_logits
+        cls_score = bbox_scores * object_scores
+        cls_score[:, -1] = 1 - cls_score[:, :-1].sum(-1)
+
+        bbox_results['cls_score'] = cls_score.log()
         return bbox_results
 
     def _object_forward(
@@ -81,6 +120,51 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         rois = bbox2roi(bboxes)
         self._object_forward(x, rois)
 
+    if Store.DUMP:
+
+        def simple_test_bboxes(
+            self,
+            x: torch.Tensor,
+            img_metas: list[dict[str, Any]],
+            proposals: list[torch.Tensor],
+            rcnn_test_cfg: mmcv.ConfigDict,
+            rescale: bool = False,
+        ) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
+            dump = pathlib.Path(Store.DUMP)
+            filenames = [
+                dump / os.path.basename(img_meta['filename'])
+                for img_meta in img_metas
+            ]
+            num_proposals = [p.shape[0] for p in proposals]
+            objectness = [p[:, -1] for p in proposals]
+
+            bboxes, _ = super().simple_test_bboxes(
+                x,
+                img_metas,
+                proposals,
+                None,
+                rescale,
+            )
+            bbox_logits: list[torch.Tensor] = \
+                self._bbox_logits.split(num_proposals)
+            object_logits: list[torch.Tensor] = \
+                self._object_logits.split(num_proposals)
+            records = dict(
+                bboxes=bboxes,
+                bbox_logits=bbox_logits,
+                object_logits=object_logits,
+                filename=filenames,
+                objectness=objectness,
+            )
+
+            for record in pd.DataFrame(records).to_dict('records'):
+                filename: pathlib.Path = record.pop('filename')
+                record = cast(dict[str, torch.Tensor], record)
+                record = {k: v.half() for k, v in record.items()}
+                torch.save(record, filename.with_suffix('.pth'))
+
+            return [torch.tensor([[0, 0, 1, 1]])], [torch.empty([0])]
+
 
 @HEADS.register_module()
 class OADPRoIHead(ViLDEnsembleRoIHead):
@@ -93,7 +177,7 @@ class OADPRoIHead(ViLDEnsembleRoIHead):
         **kwargs,
     ) -> None:
         super().__init__(*args, bbox_head=bbox_head, **kwargs)
-        self._block_head: Shared2FCBlockBBoxHead = HEADS.build(
+        self._block_head: BlockMixin = HEADS.build(
             block_head,
             default_args=bbox_head,
         )

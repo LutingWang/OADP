@@ -1,6 +1,6 @@
 __all__ = [
-    'Shared2FCBlockBBoxHead',
-    'Shared4Conv1FCObjectBBoxHead',
+    'BlockMixin',
+    'ObjectMixin',
 ]
 
 import todd
@@ -24,8 +24,7 @@ class NotWithRegMixin(BBoxHead):
         super().__init__(*args, with_reg=False, **kwargs)
 
 
-@HEADS.register_module()
-class Shared2FCBlockBBoxHead(NotWithRegMixin, Shared2FCBBoxHead):
+class BlockMixin(NotWithRegMixin):
 
     def __init__(self, *args, topk: int, loss: todd.Config, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -43,8 +42,7 @@ class Shared2FCBlockBBoxHead(NotWithRegMixin, Shared2FCBBoxHead):
         )
 
 
-@HEADS.register_module()
-class Shared4Conv1FCObjectBBoxHead(NotWithRegMixin, Shared4Conv1FCBBoxHead):
+class ObjectMixin(NotWithRegMixin):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -60,3 +58,13 @@ class Shared4Conv1FCObjectBBoxHead(NotWithRegMixin, Shared4Conv1FCBBoxHead):
         logits, _ = super().forward(*args, **kwargs)
         logits[:, -1] = float('-inf')  # disable `_bg_embedding`
         return logits, None
+
+
+@HEADS.register_module()
+class Shared2FCBlockBBoxHead(BlockMixin, Shared2FCBBoxHead):
+    pass
+
+
+@HEADS.register_module()
+class Shared4Conv1FCObjectBBoxHead(ObjectMixin, Shared4Conv1FCBBoxHead):
+    pass
