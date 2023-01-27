@@ -11,6 +11,6 @@ model = dict(
             norm_cfg=dict(type='SyncBN', requires_grad=True),
             num_classes=None,
         ),
-        object_head=dict(with_reg=False),
+        object_head=dict(type='Shared4Conv1FCObjectBBoxHead'),
     ),
 )

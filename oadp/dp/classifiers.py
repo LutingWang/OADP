@@ -60,11 +60,11 @@ class BaseClassifier(todd.Module):
         x = self._linear(x)
         y = x @ self.embeddings.T
         if Globals.training:
-            novel_classes = slice(
+            novel_categories = slice(
                 Globals.categories.num_bases,
                 Globals.categories.num_all,
             )
-            y[:, novel_classes] = float('-inf')
+            y[:, novel_categories] = float('-inf')
         return y
 
 

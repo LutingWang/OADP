@@ -1,29 +1,34 @@
 __all__ = [
-    'BlockBBoxHead',
+    'Shared2FCBlockBBoxHead',
+    'Shared4Conv1FCObjectBBoxHead',
 ]
 
 import todd
 import torch
-from mmdet.models import HEADS, Shared2FCBBoxHead
+from mmdet.models import (
+    HEADS,
+    BBoxHead,
+    Shared2FCBBoxHead,
+    Shared4Conv1FCBBoxHead,
+)
 from todd.losses import LossRegistry as LR
 
+from .classifiers import Classifier
 from .utils import MultilabelTopKRecall
 
 
-@HEADS.register_module()
-class BlockBBoxHead(Shared2FCBBoxHead):
+class NotWithRegMixin(BBoxHead):
+    """Override the `with_reg` argument to ``False``."""
 
-    def __init__(
-        self,
-        *args,
-        topk: int,
-        loss: todd.Config,
-        with_reg: bool = False,
-        **kwargs,
-    ) -> None:
-        # block head does not need for regression
+    def __init__(self, *args, with_reg: bool = False, **kwargs) -> None:
         super().__init__(*args, with_reg=False, **kwargs)
 
+
+@HEADS.register_module()
+class Shared2FCBlockBBoxHead(NotWithRegMixin, Shared2FCBBoxHead):
+
+    def __init__(self, *args, topk: int, loss: todd.Config, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         self._multilabel_topk_recall = MultilabelTopKRecall(k=topk)
         self._loss = LR.build(loss)
 
@@ -36,3 +41,22 @@ class BlockBBoxHead(Shared2FCBBoxHead):
             loss_block=self._loss(logits.sigmoid(), targets),
             recall_block=self._multilabel_topk_recall(logits, targets),
         )
+
+
+@HEADS.register_module()
+class Shared4Conv1FCObjectBBoxHead(NotWithRegMixin, Shared4Conv1FCBBoxHead):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        # `_bg_embedding` does not get trained, and will not be used during
+        # inference.
+        classifier: Classifier = self.fc_cls
+        bg_embedding = classifier._bg_embedding
+        assert bg_embedding is not None
+        bg_embedding.requires_grad_(False)
+
+    def forward(self, *args, **kwargs) -> tuple[torch.Tensor, None]:
+        logits, _ = super().forward(*args, **kwargs)
+        logits[:, -1] = float('-inf')  # disable `_bg_embedding`
+        return logits, None

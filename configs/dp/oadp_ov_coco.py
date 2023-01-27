@@ -38,7 +38,7 @@ model = dict(
             ),
         ),
         block_head=dict(
-            type='BlockBBoxHead',
+            type='Shared2FCBlockBBoxHead',
             topk=5,
             cls_predictor_cfg=dict(
                 type='Classifier',

@@ -1,5 +1,4 @@
 __all__ = [
-    'BlockBBoxHead',
     'ViLDEnsembleRoIHead',
     'OADPRoIHead',
 ]
@@ -9,16 +8,14 @@ from typing import cast
 import todd
 import torch
 from mmdet.core import bbox2roi
-from mmdet.models import HEADS, BaseRoIExtractor, BBoxHead, StandardRoIHead
+from mmdet.models import HEADS, StandardRoIHead
 
 from ..base import Globals
-from .bbox_heads import BlockBBoxHead
-from .classifiers import Classifier
+from .bbox_heads import Shared2FCBlockBBoxHead, Shared4Conv1FCObjectBBoxHead
 
 
 @HEADS.register_module()
 class ViLDEnsembleRoIHead(StandardRoIHead):
-    bbox_roi_extractor: BaseRoIExtractor
 
     def __init__(
         self,
@@ -32,15 +29,10 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         super().__init__(*args, bbox_head=bbox_head, **kwargs)
         assert not self.with_shared_head
 
-        self._object_head: BBoxHead = HEADS.build(
+        self._object_head: Shared4Conv1FCObjectBBoxHead = HEADS.build(
             object_head,
             default_args=bbox_head,
         )
-
-        # object head does not perform classification
-        classifier: Classifier = self._object_head.fc_cls
-        assert classifier._bg_embedding is not None
-        classifier._bg_embedding.requires_grad_(False)
 
         lambda_ = torch.ones(Globals.categories.num_all + 1) / 3
         lambda_[:Globals.categories.num_bases] *= 2
@@ -61,7 +53,6 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
 
         object_logits, _ = self._object_head(bbox_results['bbox_feats'])
         object_logits = cast(torch.Tensor, object_logits)
-        object_logits[:, -1] = float('-inf')
 
         cal_score: torch.Tensor = (
             bbox_results['cls_score'].softmax(-1)**self.lambda_
@@ -102,7 +93,7 @@ class OADPRoIHead(ViLDEnsembleRoIHead):
         **kwargs,
     ) -> None:
         super().__init__(*args, bbox_head=bbox_head, **kwargs)
-        self._block_head: BlockBBoxHead = HEADS.build(
+        self._block_head: Shared2FCBlockBBoxHead = HEADS.build(
             block_head,
             default_args=bbox_head,
         )

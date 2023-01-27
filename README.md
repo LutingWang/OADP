@@ -138,5 +138,5 @@ python -m oadp.prompts.vild
 ## Inference
 
 ```bash
-(python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test configs/dp/object_block_global_ov_coco.py work_dirs/object_block_global_ov_coco/iter_32000.pth
+(python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test configs/dp/oadp_ov_coco.py work_dirs/oadp_ov_coco/iter_32000.pth
 ```
