@@ -3,7 +3,6 @@ __all__ = [
     'OADPRoIHead',
 ]
 
-import os
 import pathlib
 from typing import Any, cast
 
@@ -121,6 +120,10 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         self._object_forward(x, rois)
 
     if Store.DUMP:
+        access_layer = todd.datasets.PthAccessLayer(
+            data_root=Store.DUMP,
+            readonly=False,
+        )
 
         def simple_test_bboxes(
             self,
@@ -130,9 +133,8 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
             rcnn_test_cfg: mmcv.ConfigDict,
             rescale: bool = False,
         ) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
-            dump = pathlib.Path(Store.DUMP)
             filenames = [
-                dump / os.path.basename(img_meta['filename'])
+                pathlib.Path(img_meta['filename']).stem
                 for img_meta in img_metas
             ]
             num_proposals = [p.shape[0] for p in proposals]
@@ -158,10 +160,10 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
             )
 
             for record in pd.DataFrame(records).to_dict('records'):
-                filename: pathlib.Path = record.pop('filename')
+                filename: str = record.pop('filename')
                 record = cast(dict[str, torch.Tensor], record)
                 record = {k: v.half() for k, v in record.items()}
-                torch.save(record, filename.with_suffix('.pth'))
+                self.access_layer[filename] = record
 
             return [torch.tensor([[0, 0, 1, 1]])], [torch.empty([0])]
 

@@ -6,7 +6,6 @@ __all__ = [
     'Store',
 ]
 
-import os
 from typing import Iterable
 
 import todd
@@ -15,10 +14,6 @@ import todd
 class Store(metaclass=todd.StoreMeta):
     ODPS: bool
     DUMP: str
-
-
-if Store.DUMP:
-    os.makedirs(Store.DUMP, exist_ok=todd.Store.DRY_RUN)
 
 
 class Categories:
