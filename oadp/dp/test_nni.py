@@ -2,6 +2,7 @@ import argparse
 from typing import Any, NamedTuple
 
 import einops
+import nni
 import numpy as np
 import todd
 import torch
@@ -11,9 +12,7 @@ import torch.utils.data.distributed
 from mmdet.core import bbox2result, multiclass_nms
 from mmdet.datasets import build_dataset
 
-import nni
-
-from ..base.globals_ import Globals
+from ..base import Globals
 
 
 class Batch(NamedTuple):
@@ -88,7 +87,7 @@ class Model(todd.Module):
         ensemble_score = (bbox_scores * object_scores * objectness).float()
 
         return bbox2result(
-            *multiclass_nms(bboxes, ensemble_score, **self._nms),
+            *multiclass_nms(bboxes.float(), ensemble_score, **self._nms),
             Globals.categories.num_all,
         )
 
@@ -116,7 +115,7 @@ class Validator(todd.utils.Validator):
         memo['results'] = dict()
         return memo
 
-    def _run_iter(self, batch: Batch, memo: todd.utils.Memo) -> None:
+    def _run_iter(self, batch: Batch, memo: todd.utils.Memo) -> torch.Tensor:
         bboxes = batch.bboxes
         bbox_logits = batch.bbox_logits
         object_logits = batch.object_logits
@@ -137,6 +136,7 @@ class Validator(todd.utils.Validator):
             object_logits,
             objectness,
         )
+        return torch.tensor(0.0)
 
     def _after_run(self, memo: todd.Config):
         super()._after_run(memo)

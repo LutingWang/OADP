@@ -1,12 +1,16 @@
 import pathlib
+import sys
 
 from nni.experiment import Experiment
 
+sys.path.insert(0, '')
+from oadp.base import Store  # noqa: E402
+
 experiment = Experiment('local')
 experiment.config.experiment_name = 'dp_test'
-experiment.config.trial_command = '''
-torchrun --nproc_per_node=1 -m oadp.nni.dp_test nni/dp_test \\
-    configs/dp/oadp_ov_coco.py work_dirs/dump
+experiment.config.trial_command = f'''
+torchrun --nproc_per_node=1 -m oadp.dp.test_nni nni/dp_test \\
+    configs/dp/oadp_ov_coco.py {Store.DUMP}
 '''
 experiment.config.trial_code_directory = pathlib.Path(__file__).parent.parent
 

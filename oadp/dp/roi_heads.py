@@ -7,7 +7,6 @@ import pathlib
 from typing import Any, cast
 
 import mmcv
-import pandas as pd
 import todd
 import torch
 from mmdet.core import bbox2roi
@@ -133,12 +132,9 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
             rcnn_test_cfg: mmcv.ConfigDict,
             rescale: bool = False,
         ) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
-            filenames = [
-                pathlib.Path(img_meta['filename']).stem
-                for img_meta in img_metas
-            ]
-            num_proposals = [p.shape[0] for p in proposals]
-            objectness = [p[:, -1] for p in proposals]
+            assert x.shape[0] == len(img_metas) == len(proposals) == 1
+            filename = pathlib.Path(img_metas[0]['filename']).stem
+            objectness = proposals[0][:, -1]
 
             bboxes, _ = super().simple_test_bboxes(
                 x,
@@ -147,23 +143,15 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
                 None,
                 rescale,
             )
-            bbox_logits: list[torch.Tensor] = \
-                self._bbox_logits.split(num_proposals)
-            object_logits: list[torch.Tensor] = \
-                self._object_logits.split(num_proposals)
-            records = dict(
+
+            record = dict(
                 bboxes=bboxes,
-                bbox_logits=bbox_logits,
-                object_logits=object_logits,
-                filename=filenames,
+                bbox_logits=self._bbox_logits,
+                object_logits=self._object_logits,
                 objectness=objectness,
             )
-
-            for record in pd.DataFrame(records).to_dict('records'):
-                filename: str = record.pop('filename')
-                record = cast(dict[str, torch.Tensor], record)
-                record = {k: v.half() for k, v in record.items()}
-                self.access_layer[filename] = record
+            record = {k: v.half() for k, v in record.items()}
+            self.access_layer[filename] = record
 
             return [torch.tensor([[0, 0, 1, 1]])], [torch.empty([0])]
 

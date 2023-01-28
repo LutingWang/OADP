@@ -140,3 +140,9 @@ python -m oadp.prompts.vild
 ```bash
 (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test configs/dp/oadp_ov_coco.py work_dirs/oadp_ov_coco/iter_32000.pth
 ```
+
+## NNI
+
+```bash
+DUMP=work_dirs/dump python tools/nni_dp_test.py
+```

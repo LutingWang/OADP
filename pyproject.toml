@@ -29,6 +29,9 @@ src_paths = [
 ]
 line_length = 79
 multi_line_output = 3
+known_third_party = [
+    'nni',
+]
 
 [tool.pydocstyle]
 convention = 'google'
