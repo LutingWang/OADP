@@ -124,12 +124,14 @@ python -m oadp.prompts.vild
 ## OAKE
 
 ```bash
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.images oake/images configs/oake/images.py
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.globals oake/globals configs/oake/globals.py
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.blocks oake/blocks configs/oake/blocks.py
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects.py
 ```
 
 ## Train
+
+Please assure you have completed the OAKE module above before executing this command, which is a prerequisite. 
 
 ```bash
 (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
