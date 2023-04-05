@@ -129,16 +129,21 @@ python -m oadp.prompts.vild
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects.py
 ```
 
+```bash
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.globals oake/globals configs/oake/lvis/globals.py
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.blocks oake/blocks configs/oake/lvis/blocks.py
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/lvis/objects.py
+```
 ## Train
 
-<<<<<<< a46d190ba7b4f76ec4d01b522aaaf3dad538ba46
-Please assure you have completed the OAKE module above before executing this command, which is a prerequisite. 
-=======
 Please assure you have completed the OAKE module above before executing this command, which is a prerequisite.
->>>>>>> docs(readme-and-files-involving-image_head): add description in readme and revise the naming of image_head
 
 ```bash
 (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
+```
+
+```bash
+(python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_lvis.py [--override .validator.dataloader.dataset.ann_file::data/lvis_v1/annotations/lvis_v1_val.866.json]
 ```
 
 ## Inference
