@@ -30,7 +30,7 @@ Install `MMDetection` following the [official instructions](https://github.com/o
 For example,
 
 ```bash
-pip install -U openmim
+pip install openmim
 mim install mmcv_full==1.7.0
 pip install mmdet==2.25.2
 ```
@@ -38,7 +38,7 @@ pip install mmdet==2.25.2
 Install other dependencies.
 
 ```bash
-pip install todd_ai==0.3.0 -i https://pypi.org/simple
+pip install todd_ai==0.3.0
 pip install git+https://github.com/LutingWang/CLIP.git
 pip install lvis scikit-learn==1.1.3
 ```
