@@ -102,6 +102,23 @@ OADP/data
 
 ### Pretrained Models
 
+Run the following command to download the CLIP model
+
+```shell
+python -c "import clip; clip.load_default()"
+```
+
+Run the following command to download the ResNet50 model
+
+```shell
+python -c "import torchvision; _ = torchvision.models.ResNet50_Weights.IMAGENET1K_V1.get_state_dict(True)"
+ln -s ~/.cache/torch/hub/checkpoints/ pretrained/torchvision
+```
+
+Visit [aDrive](https://www.aliyundrive.com/s/fYhFedb5aW6) to manually download `soco_star_mask_rcnn_r50_fpn_400e.pth`.
+
+Organize the pretrained models as follows
+
 ```text
 OADP/pretrained
 ├── clip
@@ -130,10 +147,11 @@ python -m oadp.prompts.vild
 ```
 
 ```bash
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.globals oake/globals configs/oake/lvis/globals.py
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.blocks oake/blocks configs/oake/lvis/blocks.py
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/lvis/objects.py
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_lvis.py
+ln -s data/coco/oake/globals data/lvis_v1/oake
+ln -s data/coco/oake/blocks data/lvis_v1/oake
 ```
+
 ## Train
 
 Please assure you have completed the OAKE module above before executing this command, which is a prerequisite.
