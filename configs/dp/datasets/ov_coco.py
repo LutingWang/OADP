@@ -26,7 +26,7 @@ trainer = dict(
                         task_name='train2017',
                         type='PthAccessLayer',
                     ),
-                    globals=dict(data_root=oake_root + 'globals'),
+                    images=dict(data_root=oake_root + 'images'),
                     blocks=dict(data_root=oake_root + 'blocks'),
                     objects=dict(data_root=oake_root + 'objects'),
                 ),
@@ -57,7 +57,7 @@ trainer = dict(
                 dict(
                     type='Collect',
                     keys=[
-                        'img', 'gt_bboxes', 'gt_labels', 'clip_globals',
+                        'img', 'gt_bboxes', 'gt_labels', 'clip_image',
                         'clip_blocks', 'block_bboxes', 'block_labels',
                         'clip_objects', 'object_bboxes'
                     ],
