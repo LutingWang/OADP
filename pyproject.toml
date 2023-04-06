@@ -7,11 +7,11 @@ readme = 'README.md'
 file = 'LICENSE'
 
 [[project.authors]]
-name = 'zhanganny'
-email = '1119521787@qq.com'
+name = 'Luting Wang'
+email = 'wangluting@buaa.edu.cn'
 
 [project.urls]
-Homepage = 'https://github.com/zhanganny/OADP'
+Homepage = 'https://github.com/LutingWang/OADP'
 
 [tool.yapf]
 allow_split_before_dict_value = false
