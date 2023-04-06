@@ -30,7 +30,7 @@ Install `MMDetection` following the [official instructions](https://github.com/o
 For example,
 
 ```bash
-pip install -U openmim
+pip install openmim
 mim install mmcv_full==1.7.0
 pip install mmdet==2.25.2
 ```
@@ -38,7 +38,7 @@ pip install mmdet==2.25.2
 Install other dependencies.
 
 ```bash
-pip install todd_ai==0.3.0 -i https://pypi.org/simple
+pip install todd_ai==0.3.0
 pip install git+https://github.com/LutingWang/CLIP.git
 pip install lvis scikit-learn==1.1.3
 ```
@@ -102,6 +102,23 @@ OADP/data
 
 ### Pretrained Models
 
+Run the following command to download the CLIP model
+
+```shell
+python -c "import clip; clip.load_default()"
+```
+
+Run the following command to download the ResNet50 model
+
+```shell
+python -c "import torchvision; _ = torchvision.models.ResNet50_Weights.IMAGENET1K_V1.get_state_dict(True)"
+ln -s ~/.cache/torch/hub/checkpoints/ pretrained/torchvision
+```
+
+Visit [aDrive](https://www.aliyundrive.com/s/fYhFedb5aW6) to manually download `soco_star_mask_rcnn_r50_fpn_400e.pth`.
+
+Organize the pretrained models as follows
+
 ```text
 OADP/pretrained
 ├── clip
@@ -124,15 +141,27 @@ python -m oadp.prompts.vild
 ## OAKE
 
 ```bash
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.images oake/images configs/oake/images.py
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.globals oake/globals configs/oake/globals.py
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.blocks oake/blocks configs/oake/blocks.py
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects.py
 ```
 
+```bash
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_lvis.py
+ln -s data/coco/oake/globals data/lvis_v1/oake
+ln -s data/coco/oake/blocks data/lvis_v1/oake
+```
+
 ## Train
+
+Please assure you have completed the OAKE module above before executing this command, which is a prerequisite.
 
 ```bash
 (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
+```
+
+```bash
+(python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_lvis.py [--override .validator.dataloader.dataset.ann_file::data/lvis_v1/annotations/lvis_v1_val.866.json]
 ```
 
 ## Inference

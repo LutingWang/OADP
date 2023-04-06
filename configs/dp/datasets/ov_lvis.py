@@ -1,12 +1,13 @@
+# TODO
 _base_ = [
     'coco_detection.py',
 ]
 
-categories = 'coco'
-dataset_type = 'OV_COCO'
-data_root = 'data/coco/'
+categories = 'lvis'
+dataset_type = 'OV_LVIS'
+data_root = 'data/lvis_v1/'
 oake_root = data_root + 'oake/'
-ann_file_prefix = data_root + 'annotations/instances_'
+ann_file_prefix = data_root + 'annotations/lvis_v1_'
 norm = dict(
     mean=[123.675, 116.28, 103.53],
     std=[58.395, 57.12, 57.375],
@@ -16,7 +17,8 @@ trainer = dict(
     dataloader=dict(
         dataset=dict(
             type=dataset_type,
-            ann_file=ann_file_prefix + 'train2017.48.json',
+            ann_file=ann_file_prefix + 'train.866.json',  # base
+            img_prefix=data_root,
             pipeline=[
                 dict(type='LoadImageFromFile'),
                 dict(type='LoadAnnotations', with_bbox=True),
@@ -70,7 +72,8 @@ validator = dict(
     dataloader=dict(
         dataset=dict(
             type=dataset_type,
-            ann_file=ann_file_prefix + 'val2017.65.min.json',
+            ann_file=ann_file_prefix + 'val.1203.json',
+            img_prefix=data_root,
         ),
     ),
 )

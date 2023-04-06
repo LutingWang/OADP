@@ -1,17 +1,18 @@
+# TODO
 _base_ = [
-    'datasets/ov_coco.py',
+    'datasets/ov_lvis.py',
     'models/oadp_faster_rcnn_r50_fpn.py',
     'schedules/schedule_40k.py',
 ]
-
+# TODO
 model = dict(
     global_head=dict(
         topk=20,
         classifier=dict(
-            type='Classifier',
-            prompts='data/prompts/ml_coco.pth',
+            type='ViLDClassifier',
+            prompts='data/prompts/vild.pth',
             in_features=256,
-            out_features=65,
+            out_features=1203,
         ),
         loss=dict(
             type='AsymmetricLoss',
@@ -33,16 +34,16 @@ model = dict(
             cls_predictor_cfg=dict(
                 # type='ViLDClassifier',
                 # prompts='data/prompts/vild.pth',
-                type='Classifier',
-                prompts='data/prompts/ml_coco.pth',
+                type='ViLDClassifier',
+                prompts='data/prompts/vild.pth',
             ),
         ),
         block_head=dict(
             type='Shared2FCBlockBBoxHead',
             topk=5,
             cls_predictor_cfg=dict(
-                type='Classifier',
-                prompts='data/prompts/ml_coco.pth',
+                type='ViLDClassifier',
+                prompts='data/prompts/vild.pth',
             ),
             loss=dict(
                 type='AsymmetricLoss',
