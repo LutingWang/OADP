@@ -8,96 +8,269 @@ _/    _/  _/    _/  _/    _/  _/
  _/_/    _/    _/  _/_/_/    _/
 ```
 
+This repository is the official implementation of "[Object-Aware Distillation Pyramid for Open-Vocabulary Object Detection](https://arxiv.org/abs/2303.05892)".
+
 [![lint](https://github.com/LutingWang/OADP/actions/workflows/lint.yaml/badge.svg)](https://github.com/LutingWang/OADP/actions/workflows/lint.yaml)
 
-## Preparation
-
-The directory tree should be like this
-
-```text
-OADP
-├── data
-│   ├── coco -> ~/Developer/datasets/coco
-│   │   ├── annotations
-│   │   │   ├── instances_val2017.json.COCO_48_17.filtered
-│   │   │   └── ...
-│   │   ├── train2017
-│   │   │   └── ...
-│   │   └── val2017
-│   │       └── ...
-│   └── prompts
-│       ├── ml_coco.pth
-│       ├── vild.pth
-│       └── ...
-└── ...
-```
-
-### Datasets
-
-Download the [MS-COCO](https://cocodataset.org/#download) dataset to `data/coco`.
-
-### Annotations
-
-### Prompt
+> Some parts of this repository (e.g. lvis_v1 support) is still under refactoring.
 
 ## Installation
 
 Create a conda environment and activate it.
 
 ```shell
-conda create -n oadp python=3.8
+conda create -n oadp python=3.10
 conda activate oadp
+```
+
+Install `PyTorch` following the [official documentation](https://pytorch.org/).
+For example,
+
+```bash
+pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
 ```
 
 Install `MMDetection` following the [official instructions](https://github.com/open-mmlab/mmdetection/blob/master/docs/en/get_started.md/#Installation).
 For example,
 
 ```bash
-pip install torch==1.9.1+cu102 torchvision==0.10.1+cu102 -f https://download.pytorch.org/whl/torch_stable.html
-pip install -U openmim
-mim install mmcv_full==1.4.6
+pip install openmim
+mim install mmcv_full==1.7.0
 pip install mmdet==2.25.2
 ```
 
 Install other dependencies.
 
 ```bash
-pip install todd_ai==0.2.4a5 -i https://pypi.org/simple
-pip install scikit-learn==1.1.3
+pip install todd_ai==0.3.0
+pip install git+https://github.com/LutingWang/CLIP.git
+pip install lvis nni scikit-learn==1.1.3
 ```
 
-> Note that the `requirements.txt` is not intended for users. Please follow the above instructions.
+## Preparation
 
-## Inference
+### Datasets
+
+Download the [MS-COCO](https://cocodataset.org/#download) dataset to `data/coco`.
+
+```text
+OADP/data/coco
+├── annotations
+│   ├── instances_train2017.json
+│   └── instances_val2017.json
+├── train2017
+│   └── ...
+└── val2017
+    └── ...
+```
+
+Download the [LVIS v1.0](https://www.lvisdataset.org/dataset) dataset to `data/lvis_v1`.
+
+```text
+OADP/data/lvis_v1
+├── annotations
+│   ├── lvis_v1_train.json
+│   └── lvis_v1_val.json
+├── train2017 -> ../coco/train2017
+│   └── ...
+└── val2017 -> ../coco/train2017
+    └── ...
+```
+
+### Annotations
 
 ```bash
-# CPU
-python tools/test.py configs/dp/object_block_global_coco_48_17.py work_dirs/object_block_global_coco_48_17/iter_32000.pth
-
-# GPU
-torchrun --nproc_per_node=${GPUS} tools/test.py configs/dp/object_block_global_coco_48_17.py work_dirs/object_block_global_coco_48_17/iter_32000.pth --launch pytorch
-
-# ODPS
-odpsrun
+python -m oadp.build_annotations
 ```
 
-## Developer Guides
+The following files will be generated
 
-### Setup
+```text
+OADP/data
+├── coco
+│   └── annotations
+│       ├── instances_train2017.48.json
+│       ├── instances_train2017.65.json
+│       ├── instances_val2017.48.json
+│       ├── instances_val2017.65.json
+│       └── instances_val2017.65.min.json
+└── lvis_v1
+    └── annotations
+        ├── lvis_v1_train.1203.json
+        ├── lvis_v1_train.866.json
+        ├── lvis_v1_val.1203.json
+        └── lvis_v1_val.866.json
+```
+
+### Pretrained Models
+
+Download the CLIP model.
+
+```shell
+python -c "import clip; clip.load_default()"
+```
+
+Download the ResNet50 model.
+
+```shell
+python -c "import torchvision; _ = torchvision.models.ResNet50_Weights.IMAGENET1K_V1.get_state_dict(True)"
+ln -s ~/.cache/torch/hub/checkpoints/ pretrained/torchvision
+```
+
+Download `soco_star_mask_rcnn_r50_fpn_400e.pth` from [aDrive][].
+
+Organize the pretrained models as follows
+
+```text
+OADP/pretrained
+├── clip
+│   └── ViT-B-32.pt
+├── torchvision
+│   └── resnet50-0676ba61.pth
+└── soco
+    └── soco_star_mask_rcnn_r50_fpn_400e.pth
+```
+
+### Prompts
+
+Generate the ViLD prompts.
 
 ```bash
-pip install https://download.pytorch.org/whl/cpu/torch-1.9.1-cp38-none-macosx_11_0_arm64.whl
-pip install https://download.pytorch.org/whl/cpu/torchvision-0.10.0-cp38-cp38-macosx_11_0_arm64.whl
-pip install -e ./../mmcv
-pip install mmdet==2.20
+python -m oadp.prompts.vild
 ```
 
-```bash
-conda install grpcio -c conda-forge
-pip install -U todd_ai\[dev,doc,pre-commit,test\]
+Download `ml_coco.pth` from [aDrive][].
+
+Organize the prompts as follows
+
+```text
+OADP/data/prompts
+├── vild.pth
+└── ml_coco.pth
 ```
 
-```bash
-pre-commit install
-pre-commit install -t commit-msg
+### Proposals
+
+Download the proposals from [aDrive][].
+
+Organize the proposals as follows
+
+```text
+OADP/data
+├── coco
+│   └── proposals
+│       ├── rpn_r101_fpn_coco_train.pkl
+│       ├── rpn_r101_fpn_coco_val.pkl
+│       ├── oln_r50_fpn_coco_train.pkl
+│       └── oln_r50_fpn_coco_val.pkl
+└── lvis_v1
+    └── proposals
+        ├── ...
+        └── ...
 ```
+
+> Note: lvis_v1 is not supported yet.
+
+## OADP
+
+Most commands listed in this section supports the `DRY_RUN` mode.
+When the `DRY_RUN` environment variable is set to `True`, the command that follows will not execute the time-consuming parts.
+This functionality is intended for quick integrity check.
+
+Most commands run on both CPU and GPU servers.
+For CPU, use the `python` command.
+For GPU, use the `torchrun` command.
+Do not use `python` on GPU servers, since the command will attempt to initialize distributed training.
+
+For all commands listed in this section, `[...]` means optional parts and `(...|...)` means choices.
+For example,
+
+```shell
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS})
+```
+
+is equivalent to the following four possible commands
+
+```shell
+DRY_RUN=True torchrun --nproc_per_node=${GPUS}  # GPU under the DRY_RUN mode
+DRY_RUN=True python                             # CPU under the DRY_RUN mode
+torchrun --nproc_per_node=${GPUS}               # GPU
+python                                          # CPU
+```
+
+### OAKE
+
+Extract features with CLIP.
+
+```bash
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.globals oake/globals configs/oake/globals.py
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.blocks oake/blocks configs/oake/blocks.py
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects.py
+```
+
+Feature extraction can be very time consuming.
+Therefore, we provide archives of the extracted features on [aDrive][].
+The extracted features are archived with the following command
+
+```bash
+cd data/coco/oake/
+
+tar -zcf globals.tar.gz globals
+tar -zcf blocks.tar.gz blocks
+tar -zcf objects_val.tar.gz objects/val2017
+
+cd objects/train2017
+ls > objects_train
+split -d -5000 - objects_train. < objects_train
+for i in objects_train.[0-9][0-9]; do
+    zip -q -9 "$i.zip" -@ < "$i"
+    mv "$i.zip" ../..
+done
+rm objects_train*
+```
+
+The final directory for OAKE should look like
+
+```text
+OADP/data
+├── coco
+│   └── oake
+│       ├── blocks
+│       │   └── train2017
+│       │   └── val2017
+│       ├── globals
+│       │   └── train2017
+│       │   └── val2017
+│       └── objects
+│           └── train2017
+│           └── val2017
+└── lvis_v1
+    └── oake
+        ├── ...
+        └── ...
+```
+
+> Note: lvis_v1 is not supported yet.
+
+### DP
+
+To conduct training
+
+```bash
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
+```
+
+To test a specific checkpoint
+
+```bash
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test configs/dp/oadp_ov_coco.py work_dirs/oadp_ov_coco/iter_32000.pth
+```
+
+NNI is supported but unnecessary.
+
+```bash
+DUMP=work_dirs/dump (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test configs/dp/oadp_ov_coco.py work_dirs/oadp_ov_coco/iter_32000.pth
+DUMP=work_dirs/dump python tools/nni_dp_test.py
+```
+
+[aDrive]: https://www.aliyundrive.com/s/fYhFedb5aW6

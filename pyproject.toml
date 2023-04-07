@@ -29,6 +29,9 @@ src_paths = [
 ]
 line_length = 79
 multi_line_output = 3
+known_third_party = [
+    'nni',
+]
 
 [tool.pydocstyle]
 convention = 'google'
@@ -38,47 +41,10 @@ files = [
     'oadp',
     'tools',
 ]
+plugins = 'numpy.typing.mypy_plugin'
 
 [tool.codespell]
 write-changes = true
 
 [tool.commitizen]
 name = 'cz_conventional_commits'
-
-[odps]
-# workbench = 'imac_dev'
-workbench = 'search_algo_quality_dev'
-
-[odps.pai]
-name = 'pytorch180'
-oversubscription = false
-entry_file = 'tools/test.py'
-worker_count = 1
-user_defined_parameters = [
-    'configs/dp/object_block_global_coco_48_17.py',
-    'work_dirs/object_block_global_coco_48_17/iter_32000.pth',
-    '--launcher pytorch',
-]
-
-[odps.pai.buckets]
-scheme = 'oss'
-netloc = 'mvap-data'
-path = '/zhax/wangluting/'
-fragment = ''
-
-[odps.pai.buckets.query]
-# role_arn = 'acs:ram::1367265699002728:role/imac4pai'
-role_arn = 'acs:ram::1367265699002728:role/searchalgo4pai'
-host = 'cn-zhangjiakou.oss.aliyuncs.com'
-
-[odps.pai.script]
-name = 'oadp'
-files = [
-    'configs',
-    'oadp',
-    'tools',
-    'requirements.txt',
-]
-filters = [
-    '__pycache__',
-]

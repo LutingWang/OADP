@@ -1,9 +1,10 @@
 __all__ = [
+    'BaseClassifier',
     'Classifier',
     'ViLDClassifier',
 ]
 
-from typing import Dict, List, Literal, Optional, cast
+from typing import TypedDict
 
 import todd
 import torch
@@ -11,82 +12,80 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mmdet.models.utils.builder import LINEAR_LAYERS
 
-from .. import base
+from ..base import Globals
+from .utils import NormalizedLinear
 
 
 @LINEAR_LAYERS.register_module()
-class BaseClassifier(todd.base.Module):
+class BaseClassifier(todd.Module):
 
     def __init__(
         self,
         *args,
-        pretrained: str,
+        prompts: str,
         in_features: int,
         out_features: int,
-        split: str,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
+        prompts_ = torch.load(prompts, 'cpu')
+        names: list[str] = prompts_['names']
+        embeddings: torch.Tensor = prompts_['embeddings']
+        indices = [names.index(name) for name in Globals.categories.all_]
+        embeddings = embeddings[indices]
 
-        ckpt = torch.load(pretrained, 'cpu')
-        embeddings: torch.Tensor = ckpt['embeddings']
-        names: List[str] = ckpt['names']
-
-        name2ind = {name: i for i, name in enumerate(names)}
-        inds = [name2ind[name] for name in getattr(base, split)]
-        embeddings = embeddings[inds]
-
-        num_embeddings, embedding_dim = embeddings.shape
-        assert todd.globals_.num_classes == num_embeddings
-
-        if num_embeddings == out_features - 1:
-            bg_embedding = nn.Parameter(torch.randn(1, embedding_dim) * 0.1)
+        if out_features == Globals.categories.num_all + 1:
+            # with background embedding
+            bg_embedding = nn.Parameter(torch.zeros(1, embeddings.shape[1]))
             nn.init.xavier_uniform_(bg_embedding)
-        elif num_embeddings == out_features:
+        elif out_features == Globals.categories.num_all:
             bg_embedding = None
         else:
-            assert False, (num_embeddings, out_features)
+            raise RuntimeError(str(out_features))
 
-        linear = nn.Linear(in_features, embedding_dim)
-
-        self._ckpt = ckpt
+        self._prompts = prompts_
         self.register_buffer('_embeddings', embeddings, persistent=False)
         self._bg_embedding = bg_embedding
-        self._linear = linear
+        self._linear = NormalizedLinear(in_features, embeddings.shape[1])
 
     @property
     def embeddings(self) -> torch.Tensor:
-        return self._embeddings
+        embeddings: torch.Tensor = self._embeddings
+        if self._bg_embedding is None:
+            return embeddings
+        bg_embedding = F.normalize(self._bg_embedding)
+        return torch.cat([embeddings, bg_embedding])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self._linear(x)
-        x = F.normalize(x)
-        embeddings = self.embeddings
-        if self._bg_embedding is not None:
-            embeddings = torch.cat([
-                embeddings,
-                F.normalize(self._bg_embedding),
-            ])
-        y = x @ embeddings.T
-        if todd.globals_.training:
-            novel_classes = slice(
-                todd.globals_._num_base_classes,
-                todd.globals_._num_classes,
+        y = x @ self.embeddings.T
+        if Globals.training:
+            novel_categories = slice(
+                Globals.categories.num_bases,
+                Globals.categories.num_all,
             )
-            y[:, novel_classes] = float('-inf')
+            y[:, novel_categories] = float('-inf')
         return y
 
 
 @LINEAR_LAYERS.register_module()
 class Classifier(BaseClassifier):
+    # named `Classifier` to monkey patch mmdet detectors
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._scaler = cast(torch.Tensor, self._ckpt['scaler']).item()
-        self._bias = cast(torch.Tensor, self._ckpt['bias']).item()
+        scaler: torch.Tensor = self._prompts['scaler']
+        bias: torch.Tensor = self._prompts['bias']
+        self._scaler = scaler.item()
+        self._bias = bias.item()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return super().forward(x) * self._scaler - self._bias
+
+
+class ViLDScaler(TypedDict):
+    train: float
+    val: float
 
 
 @LINEAR_LAYERS.register_module()
@@ -95,7 +94,7 @@ class ViLDClassifier(BaseClassifier):
     def __init__(
         self,
         *args,
-        scaler: Optional[Dict[Literal['train', 'val'], float]] = None,
+        scaler: ViLDScaler | None = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -105,7 +104,9 @@ class ViLDClassifier(BaseClassifier):
 
     @property
     def scaler(self) -> float:
-        return self._scaler['train' if todd.globals_.training else 'val']
+        return (
+            self._scaler['train'] if Globals.training else self._scaler['val']
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return super().forward(x) / self.scaler

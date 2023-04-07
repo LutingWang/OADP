@@ -1,58 +1,40 @@
 __all__ = [
     'DebugMixin',
-    'CocoDataset4817',
+    'OV_COCO',
+    'OV_LVIS',
+    'LoadCLIPFeatures',
 ]
 
 import contextlib
 import io
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Mapping
 
 import numpy as np
 import todd
-from mmdet.datasets import DATASETS
-from mmdet.datasets import CocoDataset as _CocoDataset
-from mmdet.datasets import CustomDataset
+import torch
+from mmdet.datasets import (
+    DATASETS,
+    PIPELINES,
+    CocoDataset,
+    CustomDataset,
+    LVISV1Dataset,
+)
 from mmdet.datasets.api_wrappers import COCOeval
+from todd.datasets import AccessLayerRegistry as ALR
 
-from ..base import COCO_48_17, debug
+from ..base import Globals, coco, lvis
 
 
 class DebugMixin(CustomDataset):
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._logger = todd.get_logger()
-
     def __len__(self) -> int:
-        if debug.DRY_RUN:
+        if todd.Store.DRY_RUN:
             return 3
         return super().__len__()
 
     def load_annotations(self, *args, **kwargs):
         data_infos = super().load_annotations(*args, **kwargs)
-        if debug.DRY_RUN:
-            data_infos = data_infos[:len(self)]
-        return data_infos
-
-    def load_proposals(self, *args, **kwargs):
-        proposals = super().load_proposals(*args, **kwargs)
-        if debug.DRY_RUN:
-            proposals = proposals[:len(self)]
-        return proposals
-
-    def evaluate(self, *args, **kwargs):  # TODO: delete this
-        kwargs.pop('gpu_collect', None)
-        kwargs.pop('tmpdir', None)
-        return super().evaluate(*args, **kwargs)
-
-
-@DATASETS.register_module()
-class CocoDataset4817(DebugMixin, _CocoDataset):
-    CLASSES = COCO_48_17
-
-    def load_annotations(self, *args, **kwargs):
-        data_infos = super().load_annotations(*args, **kwargs)
-        if not debug.DRY_RUN:
+        if not todd.Store.DRY_RUN:
             return data_infos
 
         images = self.coco.dataset['images'][:len(self)]
@@ -69,81 +51,151 @@ class CocoDataset4817(DebugMixin, _CocoDataset):
             images=images,
             annotations=annotations,
         )
-        return data_infos
+        return data_infos[:len(self)]
 
-    def summarize(
-        self,
-        cocoEval: COCOeval,
-        split: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        redirect_string = io.StringIO()
-        with contextlib.redirect_stdout(redirect_string):
+    def load_proposals(self, *args, **kwargs):
+        proposals = super().load_proposals(*args, **kwargs)
+        if todd.Store.DRY_RUN:
+            proposals = proposals[:len(self)]
+        return proposals
+
+
+@DATASETS.register_module(name='CocoDataset', force=True)
+class CocoDataset_(DebugMixin, CocoDataset):
+    pass
+
+
+@DATASETS.register_module(name='LVISV1Dataset', force=True)
+class LVISV1Dataset_(DebugMixin, LVISV1Dataset):
+    pass
+
+
+@DATASETS.register_module()
+class OV_COCO(CocoDataset_):
+    CLASSES = coco.all_
+
+    def summarize(self, cocoEval: COCOeval, prefix: str) -> dict[str, Any]:
+        string_io = io.StringIO()
+        with contextlib.redirect_stdout(string_io):
             cocoEval.summarize()
+        todd.logger.info(f'Evaluate *{prefix}*\n{string_io.getvalue()}')
 
-        message = '\n' + redirect_string.getvalue()
-        if split is not None:
-            message = f'Evaluate split *{split}*' + message
-        self._logger.info(message)
-
-        eval_results = dict(
-            zip(
-                ['mAP', 'mAP_50', 'mAP_75', 'mAP_s', 'mAP_m', 'mAP_l'],
-                cocoEval.stats,
-            ),
-        )
-        eval_results = {
-            f'bbox_{k}': round(v, 4)
-            for k, v in eval_results.items()
+        stats = {
+            s: f'{cocoEval.stats[i]:.04f}'
+            for i, s in enumerate(['', '50', '75', 's', 'm', 'l'])
         }
-        eval_results['bbox_mAP_copypaste'] = ' '.join(
-            map(str, eval_results.values()),
-        )
-        if split is not None:
-            eval_results = {f'{split}_{k}': v for k, v in eval_results.items()}
-        return eval_results
+        stats['copypaste'] = ' '.join(stats.values())
+        return {f'{prefix}_bbox_mAP_{k}': v for k, v in stats.items()}
 
-    def evaluate(
-        self,
-        results,
-        iou_thrs: Optional[Tuple[float, ...]] = None,
-        max_dets: Optional[Tuple[int, ...]] = (100, 300, 1000),
-    ) -> dict:
-        predictions = self._det2json(results)
+    def evaluate(self, results, *args, **kwargs) -> dict[str, Any]:
+        results = self._det2json(results)
         try:
-            cocoDt = self.coco.loadRes(predictions)
+            results = self.coco.loadRes(results)
         except IndexError:
-            self._logger.error(
-                'The testing results of the whole dataset is empty.',
-            )
-            return {}
+            todd.logger.error('The testing results is empty')
+            return dict()
 
-        cocoEval = COCOeval(self.coco, cocoDt, 'bbox')
-        cocoEval.params.catIds = self.cat_ids
-        cocoEval.params.imgIds = self.img_ids
-        if iou_thrs is not None:
-            cocoEval.params.iouThrs = np.array(iou_thrs)
-        if max_dets is not None:
-            cocoEval.params.maxDets = list(max_dets)
+        coco_eval = COCOeval(self.coco, results, 'bbox')
+        coco_eval.params.catIds = self.cat_ids
+        coco_eval.params.imgIds = self.img_ids
+        coco_eval.params.maxDets = [100, 300, 1000]
 
-        cocoEval.evaluate()
-        cocoEval.accumulate()
+        coco_eval.evaluate()
+        coco_eval.accumulate()
 
         # iou_thrs x recall x k x area x max_dets
-        precision: np.ndarray = cocoEval.eval['precision']
+        precision: np.ndarray = coco_eval.eval['precision']
         # iou_thrs x k x area x max_dets
-        recall: np.ndarray = cocoEval.eval['recall']
+        recall: np.ndarray = coco_eval.eval['recall']
         assert len(self.cat_ids) == precision.shape[2] == recall.shape[1], (
             f"{len(self.cat_ids)}, {precision.shape}, {recall.shape}"
         )
 
-        eval_results = self.summarize(cocoEval)
+        all_ = self.summarize(
+            coco_eval, f'COCO_{coco.num_bases}_{coco.num_novels}'
+        )
 
-        cocoEval.eval['precision'] = precision[:, :, :48, :, :]
-        cocoEval.eval['recall'] = recall[:, :48, :, :]
-        eval_results.update(self.summarize(cocoEval, split='COCO_48'))
+        coco_eval.eval['precision'] = precision[:, :, :coco.num_bases, :, :]
+        coco_eval.eval['recall'] = recall[:, :coco.num_bases, :, :]
+        bases = self.summarize(coco_eval, f'COCO_{coco.num_bases}')
 
-        cocoEval.eval['precision'] = precision[:, :, 48:, :, :]
-        cocoEval.eval['recall'] = recall[:, 48:, :, :]
-        eval_results.update(self.summarize(cocoEval, split='COCO_17'))
+        coco_eval.eval['precision'] = precision[:, :, coco.num_bases:, :, :]
+        coco_eval.eval['recall'] = recall[:, coco.num_bases:, :, :]
+        novels = self.summarize(coco_eval, f'COCO_{coco.num_novels}')
 
-        return eval_results
+        return all_ | bases | novels
+
+
+@DATASETS.register_module()
+class OV_LVIS(LVISV1Dataset_):
+    CLASSES = lvis.all_
+
+
+@PIPELINES.register_module()
+class LoadCLIPFeatures:
+
+    def __init__(
+        self,
+        default: todd.Config,
+        globals_: todd.Config | None = None,
+        blocks: todd.Config | None = None,
+        objects: todd.Config | None = None,
+    ) -> None:
+        if todd.Store.TRAIN_WITH_VAL_DATASET:
+            task_name: str = default.task_name
+            default.task_name = task_name.replace('train', 'val')
+        self._globals: Mapping[str, torch.Tensor] | None = (
+            None if globals_ is None else ALR.build(globals_, default)
+        )
+        self._blocks: Mapping[str, dict[str, torch.Tensor]] | None = (
+            None if blocks is None else ALR.build(blocks, default)
+        )
+        self._objects: Mapping[str, dict[str, torch.Tensor]] | None = (
+            None if objects is None else ALR.build(objects, default)
+        )
+
+    def __call__(self, results: dict[str, Any]) -> dict[str, Any]:
+        if todd.Store.DRY_RUN:  # TODO: delete
+            id_ = 139 if todd.Store.TRAIN_WITH_VAL_DATASET else 9
+        else:
+            id_ = results["img_info"]["id"]
+        key = f'{id_:012d}'
+        bbox_fields: list[str] = results['bbox_fields']
+
+        if self._globals is not None:
+            global_ = self._globals[key]
+            results['clip_global'] = global_.squeeze(0)
+
+        if self._blocks is not None:
+            blocks = self._blocks[key]
+            block_bboxes = blocks['bboxes']
+            if 'gt_bboxes' in results:
+                num_all = Globals.categories.num_all
+                gt_bboxes = results['gt_bboxes']
+                gt_labels = results['gt_labels']
+                indices = gt_labels < num_all  # filter out pseudo labels
+                gt_bboxes = gt_bboxes[indices]
+                gt_labels = gt_labels[indices]
+                block_ids, gt_ids = torch.where(
+                    todd.BBoxesXYXY(block_bboxes)
+                    & todd.BBoxesXYXY(torch.tensor(gt_bboxes)) > 0
+                )
+                block_labels = np.zeros(
+                    (block_bboxes.shape[0], num_all),
+                    dtype=bool,
+                )
+                block_labels[block_ids, gt_labels[gt_ids]] = True
+                results['block_labels'] = block_labels
+            results['clip_blocks'] = blocks['embeddings']
+            results['block_bboxes'] = block_bboxes.float().numpy()
+            bbox_fields.append('block_bboxes')
+
+        if self._objects is not None:
+            objects = self._objects[key]
+            object_bboxes = objects['bboxes']
+            indices = todd.BBoxesXYXY(object_bboxes).indices(min_wh=(4, 4))
+            results['clip_objects'] = objects['embeddings'][indices]
+            results['object_bboxes'] = object_bboxes[indices].float().numpy()
+            bbox_fields.append('object_bboxes')
+
+        return results

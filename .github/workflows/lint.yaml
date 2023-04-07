@@ -1,6 +1,6 @@
 name: lint
 
-on: push
+on: [push, pull_request]
 
 jobs:
   lint:
@@ -9,12 +9,12 @@ jobs:
       matrix:
         python-version: ["3.10"]
     steps:
-    - uses: actions/checkout@master
-    - uses: actions/setup-python@master
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Lint
-      run: |
-        pip install -U pre-commit
-        pre-commit install
-        pre-commit run --all-files
+      - uses: actions/checkout@master
+      - uses: actions/setup-python@master
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Lint
+        run: |
+          pip install -U pre-commit
+          pre-commit install
+          pre-commit run --all-files

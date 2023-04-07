@@ -3,10 +3,11 @@ __all__ = [
 ]
 
 import os
+from typing import Mapping
 
 import todd
 
-from .debug import debug
+from .globals_ import Store
 
 ODPS_PATHS = dict(
     data='/data/oss_bucket_0',
@@ -15,14 +16,14 @@ ODPS_PATHS = dict(
 )
 
 
-def odps_init(kwargs: todd.Config) -> None:
-    kwargs.setdefault('LOCAL_RANK', '0')
-    os.environ.update({k: str(v) for k, v in kwargs.items()})
+def odps_init(kwargs: Mapping[str, str]) -> None:
+    Store.ODPS = True
 
-    debug.ODPS = True
+    os.environ.setdefault('LOCAL_RANK', '0')
+    os.environ.update({k: v for k, v in kwargs.items()})
 
     for k, v in ODPS_PATHS.items():
         if not os.path.lexists(k):
             os.symlink(v, k)
 
-    todd.get_logger().debug(f"ODPS initialized with {os.listdir('.')}.")
+    todd.logger.debug(f"ODPS initialized with {os.listdir('.')}.")
