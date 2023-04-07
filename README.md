@@ -8,7 +8,11 @@ _/    _/  _/    _/  _/    _/  _/
  _/_/    _/    _/  _/_/_/    _/
 ```
 
+This repository is the official implementation of "[Object-Aware Distillation Pyramid for Open-Vocabulary Object Detection](https://arxiv.org/abs/2303.05892)".
+
 [![lint](https://github.com/LutingWang/OADP/actions/workflows/lint.yaml/badge.svg)](https://github.com/LutingWang/OADP/actions/workflows/lint.yaml)
+
+> Some parts of this repository (e.g. lvis_v1 support) is still under refactoring.
 
 ## Installation
 
@@ -30,7 +34,7 @@ Install `MMDetection` following the [official instructions](https://github.com/o
 For example,
 
 ```bash
-pip install -U openmim
+pip install openmim
 mim install mmcv_full==1.7.0
 pip install mmdet==2.25.2
 ```
@@ -38,12 +42,10 @@ pip install mmdet==2.25.2
 Install other dependencies.
 
 ```bash
-pip install todd_ai==0.3.0 -i https://pypi.org/simple
+pip install todd_ai==0.3.0
 pip install git+https://github.com/LutingWang/CLIP.git
-pip install lvis scikit-learn==1.1.3
+pip install lvis nni scikit-learn==1.1.3
 ```
-
-> Note that the `requirements.txt` is not intended for users. Please follow the above instructions.
 
 ## Preparation
 
@@ -81,7 +83,7 @@ OADP/data/lvis_v1
 python -m oadp.build_annotations
 ```
 
-The following files will be generated:
+The following files will be generated
 
 ```text
 OADP/data
@@ -102,6 +104,23 @@ OADP/data
 
 ### Pretrained Models
 
+Download the CLIP model.
+
+```shell
+python -c "import clip; clip.load_default()"
+```
+
+Download the ResNet50 model.
+
+```shell
+python -c "import torchvision; _ = torchvision.models.ResNet50_Weights.IMAGENET1K_V1.get_state_dict(True)"
+ln -s ~/.cache/torch/hub/checkpoints/ pretrained/torchvision
+```
+
+Download `soco_star_mask_rcnn_r50_fpn_400e.pth` from [aDrive][].
+
+Organize the pretrained models as follows
+
 ```text
 OADP/pretrained
 ├── clip
@@ -114,35 +133,144 @@ OADP/pretrained
 
 ### Prompts
 
+Generate the ViLD prompts.
+
 ```bash
-mkdir data/prompts
 python -m oadp.prompts.vild
+```
+
+Download `ml_coco.pth` from [aDrive][].
+
+Organize the prompts as follows
+
+```text
+OADP/data/prompts
+├── vild.pth
+└── ml_coco.pth
 ```
 
 ### Proposals
 
-## OAKE
+Download the proposals from [aDrive][].
+
+Organize the proposals as follows
+
+```text
+OADP/data
+├── coco
+│   └── proposals
+│       ├── rpn_r101_fpn_coco_train.pkl
+│       ├── rpn_r101_fpn_coco_val.pkl
+│       ├── oln_r50_fpn_coco_train.pkl
+│       └── oln_r50_fpn_coco_val.pkl
+└── lvis_v1
+    └── proposals
+        ├── ...
+        └── ...
+```
+
+> Note: lvis_v1 is not supported yet.
+
+## OADP
+
+Most commands listed in this section supports the `DRY_RUN` mode.
+When the `DRY_RUN` environment variable is set to `True`, the command that follows will not execute the time-consuming parts.
+This functionality is intended for quick integrity check.
+
+Most commands run on both CPU and GPU servers.
+For CPU, use the `python` command.
+For GPU, use the `torchrun` command.
+Do not use `python` on GPU servers, since the command will attempt to initialize distributed training.
+
+For all commands listed in this section, `[...]` means optional parts and `(...|...)` means choices.
+For example,
+
+```shell
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS})
+```
+
+is equivalent to the following four possible commands
+
+```shell
+DRY_RUN=True torchrun --nproc_per_node=${GPUS}  # GPU under the DRY_RUN mode
+DRY_RUN=True python                             # CPU under the DRY_RUN mode
+torchrun --nproc_per_node=${GPUS}               # GPU
+python                                          # CPU
+```
+
+### OAKE
+
+Extract features with CLIP.
 
 ```bash
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.images oake/images configs/oake/images.py
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.globals oake/globals configs/oake/globals.py
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.blocks oake/blocks configs/oake/blocks.py
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects.py
 ```
 
-## Train
+Feature extraction can be very time consuming.
+Therefore, we provide archives of the extracted features on [aDrive][].
+The extracted features are archived with the following command
 
 ```bash
-(python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
+cd data/coco/oake/
+
+tar -zcf globals.tar.gz globals
+tar -zcf blocks.tar.gz blocks
+tar -zcf objects_val.tar.gz objects/val2017
+
+cd objects/train2017
+ls > objects_train
+split -d -5000 - objects_train. < objects_train
+for i in objects_train.[0-9][0-9]; do
+    zip -q -9 "$i.zip" -@ < "$i"
+    mv "$i.zip" ../..
+done
+rm objects_train*
 ```
 
-## Inference
+The final directory for OAKE should look like
 
-```bash
-(python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test configs/dp/oadp_ov_coco.py work_dirs/oadp_ov_coco/iter_32000.pth
+```text
+OADP/data
+├── coco
+│   └── oake
+│       ├── blocks
+│       │   └── train2017
+│       │   └── val2017
+│       ├── globals
+│       │   └── train2017
+│       │   └── val2017
+│       └── objects
+│           └── train2017
+│           └── val2017
+└── lvis_v1
+    └── oake
+        ├── ...
+        └── ...
 ```
 
-## NNI
+> Note: lvis_v1 is not supported yet.
+
+### DP
+
+To conduct training
 
 ```bash
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
+```
+
+To test a specific checkpoint
+
+```bash
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test configs/dp/oadp_ov_coco.py work_dirs/oadp_ov_coco/iter_32000.pth
+```
+
+NNI is supported but unnecessary.
+
+```bash
+DUMP=work_dirs/dump (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test configs/dp/oadp_ov_coco.py work_dirs/oadp_ov_coco/iter_32000.pth
 DUMP=work_dirs/dump python tools/nni_dp_test.py
 ```
+
+[aDrive]: https://www.aliyundrive.com/s/fYhFedb5aW6

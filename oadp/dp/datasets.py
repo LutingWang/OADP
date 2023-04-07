@@ -137,21 +137,21 @@ class LoadCLIPFeatures:
     def __init__(
         self,
         default: todd.Config,
-        images: todd.Config | None = None,
+        globals_: todd.Config | None = None,
         blocks: todd.Config | None = None,
         objects: todd.Config | None = None,
     ) -> None:
         if todd.Store.TRAIN_WITH_VAL_DATASET:
             task_name: str = default.task_name
             default.task_name = task_name.replace('train', 'val')
-        self._images: Mapping[str, torch.Tensor] | None = (
-            None if images is None else ALR.build(images, default)
+        self._globals: Mapping[str, torch.Tensor] | None = (
+            None if globals_ is None else ALR.build(globals_, default)
         )
         self._blocks: Mapping[str, dict[str, torch.Tensor]] | None = (
-            None if images is None else ALR.build(blocks, default)
+            None if blocks is None else ALR.build(blocks, default)
         )
         self._objects: Mapping[str, dict[str, torch.Tensor]] | None = (
-            None if images is None else ALR.build(objects, default)
+            None if objects is None else ALR.build(objects, default)
         )
 
     def __call__(self, results: dict[str, Any]) -> dict[str, Any]:
@@ -162,9 +162,9 @@ class LoadCLIPFeatures:
         key = f'{id_:012d}'
         bbox_fields: list[str] = results['bbox_fields']
 
-        if self._images is not None:
-            image = self._images[key]
-            results['clip_image'] = image.squeeze(0)
+        if self._globals is not None:
+            global_ = self._globals[key]
+            results['clip_global'] = global_.squeeze(0)
 
         if self._blocks is not None:
             blocks = self._blocks[key]

@@ -5,7 +5,7 @@ _base_ = [
 ]
 
 model = dict(
-    image_head=dict(
+    global_head=dict(
         topk=20,
         classifier=dict(
             type='Classifier',
@@ -54,11 +54,11 @@ model = dict(
     ),
     distiller=dict(
         student_hooks=dict(
-            image=dict(
+            global_=dict(
                 inputs=tuple(),
                 action=dict(
                     type='StandardHook',
-                    path='._image_head._classifier._linear',
+                    path='._global_head._classifier._linear',
                 ),
             ),
             blocks=dict(
@@ -85,8 +85,8 @@ model = dict(
                     weight=dict(type='WarmupScheduler', gain=256, end=200),
                 ),
             ),
-            loss_clip_image=dict(
-                inputs=('image', 'clip_image'),
+            loss_clip_global=dict(
+                inputs=('global_', 'clip_global'),
                 action=dict(
                     type='MSELoss',
                     weight=dict(type='WarmupScheduler', gain=0.5, end=200),

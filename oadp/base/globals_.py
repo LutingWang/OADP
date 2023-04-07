@@ -48,6 +48,10 @@ class Categories:
 
 
 class Globals(metaclass=todd.NonInstantiableMeta):
+    """Entry point for global variables.
+
+    Not to be confused with the global distillation branch.
+    """
     categories: Categories
     training: bool
 

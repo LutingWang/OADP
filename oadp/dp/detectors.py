@@ -1,5 +1,5 @@
 __all__ = [
-    'ImageHead',
+    'GlobalHead',
     'OADP',
 ]
 
@@ -19,7 +19,7 @@ from .roi_heads import OADPRoIHead
 from .utils import MultilabelTopKRecall
 
 
-class ImageHead(todd.Module):
+class GlobalHead(todd.Module):
 
     def __init__(
         self,
@@ -53,8 +53,8 @@ class ImageHead(todd.Module):
         for i, label in enumerate(labels):
             targets[i, label] = True
         return dict(
-            loss_image=self._loss(logits.sigmoid(), targets),
-            recall_image=self._multilabel_topk_recall(logits, targets),
+            loss_global=self._loss(logits.sigmoid(), targets),
+            recall_global=self._multilabel_topk_recall(logits, targets),
         )
 
 
@@ -66,12 +66,12 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
     def __init__(
         self,
         *args,
-        image_head: todd.Config,
+        global_head: todd.Config,
         distiller: todd.Config,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self._image_head = ImageHead(**image_head)
+        self._global_head = GlobalHead(**global_head)
         distiller.setdefault('type', 'SelfDistiller')
         Student.__init__(self, distiller)
 
@@ -85,7 +85,7 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
         img_metas: list[dict[str, Any]],
         gt_bboxes: list[torch.Tensor],
         gt_labels: list[torch.Tensor],
-        clip_image: torch.Tensor,
+        clip_global: torch.Tensor,
         clip_blocks: list[torch.Tensor],
         block_bboxes: list[torch.Tensor],
         block_labels: list[torch.Tensor],
@@ -96,7 +96,10 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
     ) -> dict[str, torch.Tensor]:
         Globals.training = True
         feats = self.extract_feat(img)
-        image_losses = self._image_head.forward_train(feats, labels=gt_labels)
+        global_losses = self._global_head.forward_train(
+            feats,
+            labels=gt_labels,
+        )
 
         rpn_losses, proposals = self.rpn_head.forward_train(
             feats,
@@ -126,7 +129,7 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
         self.roi_head.object_forward_train(feats, object_bboxes)
 
         custom_tensors = dict(
-            clip_image=clip_image.float(),
+            clip_global=clip_global.float(),
             clip_blocks=torch.cat(clip_blocks).float(),
             clip_objects=torch.cat(clip_objects).float(),
         )
@@ -135,7 +138,7 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
         self.distiller.step()
 
         return {
-            **image_losses,
+            **global_losses,
             **rpn_losses,
             **roi_losses,
             **block_losses,
