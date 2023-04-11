@@ -217,16 +217,16 @@ cd data/coco/oake/
 
 tar -zcf globals.tar.gz globals
 tar -zcf blocks.tar.gz blocks
-tar -zcf objects_val.tar.gz objects/val2017
+tar -zcf objects.tar.gz objects/val2017
 
 cd objects/train2017
-ls > objects_train
-split -d -5000 - objects_train. < objects_train
-for i in objects_train.[0-9][0-9]; do
+ls > objects
+split -d -3000 - objects. < objects
+for i in objects.[0-9][0-9]; do
     zip -q -9 "$i.zip" -@ < "$i"
     mv "$i.zip" ../..
 done
-rm objects_train*
+rm objects*
 ```
 
 The final directory for OAKE should look like
@@ -236,13 +236,13 @@ OADP/data
 ├── coco
 │   └── oake
 │       ├── blocks
-│       │   └── train2017
+│       │   ├── train2017
 │       │   └── val2017
 │       ├── globals
-│       │   └── train2017
+│       │   ├── train2017
 │       │   └── val2017
 │       └── objects
-│           └── train2017
+│           ├── train2017
 │           └── val2017
 └── lvis_v1
     └── oake
@@ -250,7 +250,7 @@ OADP/data
         └── ...
 ```
 
-> Note: lvis_v1 is not supported yet.
+> Note: lvis_v1 is not supported yet. The object features take time to be uploaded.
 
 ### DP
 
