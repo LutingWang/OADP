@@ -62,7 +62,10 @@ class Dataset(BaseDataset[Batch]):
         with open(proposal_file, 'rb') as f:
             proposals = pickle.load(f)
         ids = self.ids if proposal_sorted else list(self.coco.imgs.keys())
-        self._proposals = dict(zip(ids, proposals))
+        self._proposals = {
+            id_: torch.tensor(proposal, dtype=torch.float32)
+            for id_, proposal in zip(ids, proposals)
+        }
 
     def _expand(
         self,

@@ -117,7 +117,7 @@ python -c "import torchvision; _ = torchvision.models.ResNet50_Weights.IMAGENET1
 ln -s ~/.cache/torch/hub/checkpoints/ pretrained/torchvision
 ```
 
-Download `soco_star_mask_rcnn_r50_fpn_400e.pth` from [aDrive][].
+Download `soco_star_mask_rcnn_r50_fpn_400e.pth` from [Baidu Netdisk][].
 
 Organize the pretrained models as follows
 
@@ -139,7 +139,7 @@ Generate the ViLD prompts.
 python -m oadp.prompts.vild
 ```
 
-Download `ml_coco.pth` from [aDrive][].
+Download `ml_coco.pth` from [Baidu Netdisk][].
 
 Organize the prompts as follows
 
@@ -151,7 +151,7 @@ OADP/data/prompts
 
 ### Proposals
 
-Download the proposals from [aDrive][].
+Download the proposals from [Baidu Netdisk][].
 
 Organize the proposals as follows
 
@@ -209,7 +209,7 @@ Extract features with CLIP.
 ```
 
 Feature extraction can be very time consuming.
-Therefore, we provide archives of the extracted features on [aDrive][].
+Therefore, we provide archives of the extracted features on [Baidu Netdisk][].
 The extracted features are archived with the following command
 
 ```bash
@@ -273,4 +273,4 @@ DUMP=work_dirs/dump (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test c
 DUMP=work_dirs/dump python tools/nni_dp_test.py
 ```
 
-[aDrive]: https://www.aliyundrive.com/s/fYhFedb5aW6
+[Baidu Netdisk]: https://pan.baidu.com/s/1HXWYSN9Vk6yDhjRI19JrfQ?pwd=OADP
