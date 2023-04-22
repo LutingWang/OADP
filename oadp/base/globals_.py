@@ -9,6 +9,7 @@ __all__ = [
 from typing import Iterable
 
 import todd
+from mmdet.datasets import CocoDataset
 
 
 class Store(metaclass=todd.StoreMeta):
@@ -319,3 +320,12 @@ lvis = Categories(
         'washbasin', 'water_heater', 'water_gun', 'wolf'
     ),
 )
+
+COCO_BASE = COCO_48 = coco.bases
+COCO_NOVEL = COCO_17 = coco.novels
+COCO_48_17 = COCO_48 + COCO_17
+LVIS_BASE = LVIS_866 = lvis.bases
+LVIS_BASE = LVIS_337 = lvis.novels
+LVIS = LVIS_866 + LVIS_337
+COCO = CocoDataset.CLASSES
+ALL_CLASS = COCO + LVIS

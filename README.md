@@ -256,9 +256,17 @@ OADP/data
 
 To conduct training
 
+For coco
 ```bash
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
 ```
+
+For Lvis
+
+```bash
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_lvis.py 
+```
+
 
 To test a specific checkpoint
 
@@ -274,3 +282,18 @@ DUMP=work_dirs/dump python tools/nni_dp_test.py
 ```
 
 [Baidu Netdisk]: https://pan.baidu.com/s/1HXWYSN9Vk6yDhjRI19JrfQ?pwd=OADP
+
+### PL
+
+To conduct PL
+
+To generate the novel pl on coco
+```bash
+(python|torchrun --nproc_per_node=${GPUS}) -m oadp.pl.gen_pl gen_pl_novel configs/pl/gen_novel_pl_on_coco.py
+```
+
+To generate the lvis pl on coco
+
+```bash
+(python|torchrun --nproc_per_node=${GPUS}) -m oadp.pl.gen_pl gen_pl_lvis configs/pl/gen_lvis_pl_on_coco.py
+```
