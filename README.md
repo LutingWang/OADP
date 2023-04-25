@@ -12,8 +12,6 @@ This repository is the official implementation of "[Object-Aware Distillation Py
 
 [![lint](https://github.com/LutingWang/OADP/actions/workflows/lint.yaml/badge.svg)](https://github.com/LutingWang/OADP/actions/workflows/lint.yaml)
 
-> Some parts of this repository (e.g. lvis_v1 support) is still under refactoring.
-
 ## Installation
 
 Create a conda environment and activate it.
@@ -261,8 +259,6 @@ OADP/data
             ├── train2017
             └── val2017
 ```
-
-> Note: lvis_v1 is not supported yet. The object features take time to be uploaded.
 
 ### DP
 
