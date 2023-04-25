@@ -32,6 +32,5 @@ trainer = dict(
     seed=3407,
 )
 validator = dict(
-    # fp16=True,
     fp16=False,
 )
