@@ -165,11 +165,9 @@ OADP/data
 │       └── oln_r50_fpn_coco_val.pkl
 └── lvis_v1
     └── proposals
-        ├── ...
-        └── ...
+        ├── oln_r50_fpn_lvis_train.pkl
+        └── oln_r50_fpn_lvis_val.pkl
 ```
-
-> Note: lvis_v1 is not supported yet.
 
 ## OADP
 
@@ -202,10 +200,21 @@ python                                          # CPU
 
 Extract features with CLIP.
 
+
+Extract globals and blocks features for both coco and lvis
 ```bash
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.globals oake/globals configs/oake/globals.py
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.blocks oake/blocks configs/oake/blocks.py
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects.py
+```
+
+Extract objects features for coco
+```bash
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_coco.py
+```
+
+Extract objects features for lvis
+```bash
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_lvis.py
 ```
 
 Feature extraction can be very time consuming.
@@ -254,10 +263,14 @@ OADP/data
 
 ### DP
 
-To conduct training
-
+To conduct training for coco
 ```bash
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
+```
+
+To conduct training for lvis
+```bash
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_lvis configs/dp/oadp_ov_lvis.py
 ```
 
 To test a specific checkpoint

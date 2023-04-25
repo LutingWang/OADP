@@ -2,7 +2,6 @@ _base_ = [
     'oadp_faster_rcnn_r50_fpn.py',
 ]
 
-
 model = dict(
     global_head=dict(
         topk=20,

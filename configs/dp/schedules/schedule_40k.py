@@ -31,6 +31,4 @@ trainer = dict(
     load_from=None,
     seed=3407,
 )
-validator = dict(
-    fp16=False,
-)
+validator = dict(fp16=False, )
