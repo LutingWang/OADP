@@ -255,8 +255,11 @@ OADP/data
 │           └── val2017
 └── lvis_v1
     └── oake
-        ├── ...
-        └── ...
+        ├── blocks -> ../coco/oake/blocks
+        ├── globals -> ../coco/oake/globals
+        └── objects
+            ├── train2017
+            └── val2017
 ```
 
 > Note: lvis_v1 is not supported yet. The object features take time to be uploaded.

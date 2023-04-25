@@ -1,8 +1,9 @@
 import enum
 import math
+import os
 import pathlib
 import pickle
-from typing import NamedTuple, cast
+from typing import Any, NamedTuple, cast
 
 import clip
 import clip.model
@@ -16,6 +17,9 @@ import torch.nn.functional as F
 import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
+from lvis import LVIS
+from mmcv.utils import Registry
+from PIL import Image
 
 from .base import BaseDataset, BaseValidator
 
@@ -35,7 +39,11 @@ class ExpandMode(enum.Enum):
     ADAPTIVE = enum.auto()
 
 
-class Dataset(BaseDataset[Batch]):
+ObjectDataset = Registry('ObjectDataset')
+
+
+@ObjectDataset.register_module("COCODataset")
+class COCODataset(BaseDataset[Batch]):
 
     def __init__(
         self,
@@ -182,6 +190,26 @@ class Dataset(BaseDataset[Batch]):
         )
 
 
+@ObjectDataset.register_module("LVISDataset")
+class LVISDataset(COCODataset):
+
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.coco = LVIS(self._annFile)
+
+    def _load_image(self, id: int) -> Image:
+        info = self.coco.load_imgs([id])[0]
+        path = info['coco_url'].replace('http://images.cocodataset.org/', '')
+        return Image.open(os.path.join(self.root, path)).convert("RGB")
+
+    def _load_target(self, id: int) -> list[Any]:
+        return self.coco.load_anns(self.coco.get_ann_ids(id))
+
+
 class Hooks:
 
     def __init__(self) -> None:
@@ -263,10 +291,10 @@ class Validator(BaseValidator[Batch]):
         self,
         config: todd.Config,
     ) -> torch.utils.data.DataLoader:
-        config.dataset = Dataset(
-            **config.dataset,
-            grid=self._model.visual.grid,
-        )
+        dataset_cfg = config.dataset
+        dataset_cfg['grid'] = self._model.visual.grid
+        print(dataset_cfg)
+        config.dataset = ObjectDataset.build(dataset_cfg)
         return super()._build_dataloader(config)
 
     @classmethod

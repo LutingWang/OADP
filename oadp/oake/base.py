@@ -27,8 +27,11 @@ T = TypeVar('T', bound=Batch)
 
 class BaseDataset(torchvision.datasets.CocoDetection, ABC, Generic[T]):
 
-    def __init__(self, *args, output_dir: str, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self, *args, root, annFile, output_dir: str, **kwargs
+    ) -> None:
+        super().__init__(*args, root, annFile, **kwargs)
+        self._annFile = annFile
         self._output_dir = pathlib.Path(output_dir)
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
