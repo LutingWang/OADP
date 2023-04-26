@@ -198,19 +198,21 @@ python                                          # CPU
 
 Extract features with CLIP.
 
-
 Extract globals and blocks features for both coco and lvis
+
 ```bash
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.globals oake/globals configs/oake/globals.py
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.blocks oake/blocks configs/oake/blocks.py
 ```
 
 Extract objects features for coco
+
 ```bash
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_coco.py
 ```
 
 Extract objects features for lvis
+
 ```bash
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_lvis.py
 ```
@@ -263,11 +265,13 @@ OADP/data
 ### DP
 
 To conduct training for coco
+
 ```bash
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
 ```
 
 To conduct training for lvis
+
 ```bash
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_lvis configs/dp/oadp_ov_lvis.py
 ```

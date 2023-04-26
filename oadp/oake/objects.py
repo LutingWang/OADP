@@ -3,7 +3,7 @@ import math
 import os
 import pathlib
 import pickle
-from typing import Any, NamedTuple, cast
+from typing import NamedTuple, cast
 
 import clip
 import clip.model
@@ -17,9 +17,8 @@ import torch.nn.functional as F
 import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
-from lvis import LVIS
-from mmcv.utils import Registry
 from PIL import Image
+from todd.base import Registry
 
 from .base import BaseDataset, BaseValidator
 
@@ -39,10 +38,11 @@ class ExpandMode(enum.Enum):
     ADAPTIVE = enum.auto()
 
 
-ObjectDataset = Registry('ObjectDataset')
+class ObjectDataset(Registry):
+    pass
 
 
-@ObjectDataset.register_module("COCODataset")
+@ObjectDataset.register()
 class COCODataset(BaseDataset[Batch]):
 
     def __init__(
@@ -190,24 +190,13 @@ class COCODataset(BaseDataset[Batch]):
         )
 
 
-@ObjectDataset.register_module("LVISDataset")
+@ObjectDataset.register()
 class LVISDataset(COCODataset):
 
-    def __init__(
-        self,
-        *args,
-        **kwargs,
-    ) -> None:
-        super().__init__(*args, **kwargs)
-        self.coco = LVIS(self._annFile)
-
     def _load_image(self, id: int) -> Image:
-        info = self.coco.load_imgs([id])[0]
+        info = self.coco.loadImgs([id])[0]
         path = info['coco_url'].replace('http://images.cocodataset.org/', '')
         return Image.open(os.path.join(self.root, path)).convert("RGB")
-
-    def _load_target(self, id: int) -> list[Any]:
-        return self.coco.load_anns(self.coco.get_ann_ids(id))
 
 
 class Hooks:
@@ -291,10 +280,10 @@ class Validator(BaseValidator[Batch]):
         self,
         config: todd.Config,
     ) -> torch.utils.data.DataLoader:
-        dataset_cfg = config.dataset
-        dataset_cfg['grid'] = self._model.visual.grid
-        print(dataset_cfg)
-        config.dataset = ObjectDataset.build(dataset_cfg)
+        config.dataset = ObjectDataset.build(
+            config.dataset,
+            default_config=dict(grid=self._model.visual.grid),
+        )
         return super()._build_dataloader(config)
 
     @classmethod

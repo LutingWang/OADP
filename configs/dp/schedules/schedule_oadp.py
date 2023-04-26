@@ -1,7 +1,3 @@
-_base_ = [
-    'schedule_40k.py',
-]
-
 trainer = dict(
     load_from='pretrained/soco/soco_star_mask_rcnn_r50_fpn_400e.pth',
     optimizer=dict(
