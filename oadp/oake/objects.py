@@ -280,7 +280,7 @@ class Validator(BaseValidator[Batch]):
         self,
         config: todd.Config,
     ) -> torch.utils.data.DataLoader:
-        config.dataset = ObjectDataset.build(
+        config.dataset = DatasetRegistry.build(
             config.dataset,
             default_config=dict(grid=self._model.visual.grid),
         )
