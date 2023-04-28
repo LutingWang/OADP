@@ -111,6 +111,7 @@ python -c "import clip; clip.load_default()"
 Download the ResNet50 model.
 
 ```shell
+mkdir pretrained
 python -c "import torchvision; _ = torchvision.models.ResNet50_Weights.IMAGENET1K_V1.get_state_dict(True)"
 ln -s ~/.cache/torch/hub/checkpoints/ pretrained/torchvision
 ```

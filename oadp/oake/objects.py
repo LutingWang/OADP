@@ -18,7 +18,7 @@ import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
 from PIL import Image
-from todd.base import Registry
+from todd import Registry
 
 from .base import BaseDataset, BaseValidator
 
@@ -38,11 +38,11 @@ class ExpandMode(enum.Enum):
     ADAPTIVE = enum.auto()
 
 
-class ObjectDataset(Registry):
+class DatasetRegistry(Registry):
     pass
 
 
-@ObjectDataset.register()
+@DatasetRegistry.register()
 class COCODataset(BaseDataset[Batch]):
 
     def __init__(
@@ -190,10 +190,10 @@ class COCODataset(BaseDataset[Batch]):
         )
 
 
-@ObjectDataset.register()
+@DatasetRegistry.register()
 class LVISDataset(COCODataset):
 
-    def _load_image(self, id: int) -> Image:
+    def _load_image(self, id: int) -> Image.Image:
         info = self.coco.loadImgs([id])[0]
         path = info['coco_url'].replace('http://images.cocodataset.org/', '')
         return Image.open(os.path.join(self.root, path)).convert("RGB")
