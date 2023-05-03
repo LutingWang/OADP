@@ -12,8 +12,6 @@ This repository is the official implementation of "[Object-Aware Distillation Py
 
 [![lint](https://github.com/LutingWang/OADP/actions/workflows/lint.yaml/badge.svg)](https://github.com/LutingWang/OADP/actions/workflows/lint.yaml)
 
-> Some parts of this repository (e.g. lvis_v1 support) is still under refactoring.
-
 ## Installation
 
 Create a conda environment and activate it.
@@ -113,6 +111,7 @@ python -c "import clip; clip.load_default()"
 Download the ResNet50 model.
 
 ```shell
+mkdir pretrained
 python -c "import torchvision; _ = torchvision.models.ResNet50_Weights.IMAGENET1K_V1.get_state_dict(True)"
 ln -s ~/.cache/torch/hub/checkpoints/ pretrained/torchvision
 ```
@@ -165,11 +164,9 @@ OADP/data
 │       └── oln_r50_fpn_coco_val.pkl
 └── lvis_v1
     └── proposals
-        ├── ...
-        └── ...
+        ├── oln_r50_fpn_lvis_train.pkl
+        └── oln_r50_fpn_lvis_val.pkl
 ```
-
-> Note: lvis_v1 is not supported yet.
 
 ## OADP
 
@@ -202,10 +199,23 @@ python                                          # CPU
 
 Extract features with CLIP.
 
+Extract globals and blocks features for both coco and lvis
+
 ```bash
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.globals oake/globals configs/oake/globals.py
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.blocks oake/blocks configs/oake/blocks.py
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects.py
+```
+
+Extract objects features for coco
+
+```bash
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_coco.py
+```
+
+Extract objects features for lvis
+
+```bash
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_lvis.py
 ```
 
 Feature extraction can be very time consuming.
@@ -246,18 +256,25 @@ OADP/data
 │           └── val2017
 └── lvis_v1
     └── oake
-        ├── ...
-        └── ...
+        ├── blocks -> ../coco/oake/blocks
+        ├── globals -> ../coco/oake/globals
+        └── objects
+            ├── train2017
+            └── val2017
 ```
-
-> Note: lvis_v1 is not supported yet. The object features take time to be uploaded.
 
 ### DP
 
-To conduct training
+To conduct training for coco
 
 ```bash
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
+```
+
+To conduct training for lvis
+
+```bash
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_lvis configs/dp/oadp_ov_lvis.py
 ```
 
 To test a specific checkpoint

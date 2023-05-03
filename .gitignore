@@ -161,11 +161,5 @@ cython_debug/
 
 .DS_STORE
 data/*
-!data/.gitkeep
-!data/prompts
-data/prompts/*
-!data/prompts/.gitkeep
 pretrained/*
-!pretrained/.gitkeep
 work_dirs/*
-!work_dirs/.gitkeep

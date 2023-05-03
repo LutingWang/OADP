@@ -1,5 +1,6 @@
 import enum
 import math
+import os
 import pathlib
 import pickle
 from typing import NamedTuple, cast
@@ -16,6 +17,8 @@ import torch.nn.functional as F
 import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
+from PIL import Image
+from todd import Registry
 
 from .base import BaseDataset, BaseValidator
 
@@ -35,7 +38,12 @@ class ExpandMode(enum.Enum):
     ADAPTIVE = enum.auto()
 
 
-class Dataset(BaseDataset[Batch]):
+class DatasetRegistry(Registry):
+    pass
+
+
+@DatasetRegistry.register()
+class COCODataset(BaseDataset[Batch]):
 
     def __init__(
         self,
@@ -182,6 +190,15 @@ class Dataset(BaseDataset[Batch]):
         )
 
 
+@DatasetRegistry.register()
+class LVISDataset(COCODataset):
+
+    def _load_image(self, id: int) -> Image.Image:
+        info = self.coco.loadImgs([id])[0]
+        path = info['coco_url'].replace('http://images.cocodataset.org/', '')
+        return Image.open(os.path.join(self.root, path)).convert("RGB")
+
+
 class Hooks:
 
     def __init__(self) -> None:
@@ -263,9 +280,9 @@ class Validator(BaseValidator[Batch]):
         self,
         config: todd.Config,
     ) -> torch.utils.data.DataLoader:
-        config.dataset = Dataset(
-            **config.dataset,
-            grid=self._model.visual.grid,
+        config.dataset = DatasetRegistry.build(
+            config.dataset,
+            default_config=dict(grid=self._model.visual.grid),
         )
         return super()._build_dataloader(config)
 
