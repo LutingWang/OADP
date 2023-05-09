@@ -197,25 +197,25 @@ python                                          # CPU
 
 ### OAKE
 
-Extract features with CLIP.
+The following scripts extract features with CLIP, which can be very time-consuming. Therefore, all the scripts support automatically resuming, by skipping existing feature files. However, the existing feature files are sometimes broken. In such cases, users can set the `auto_fix` option to inspect the integrity of each feature file.
 
-Extract globals and blocks features for both coco and lvis
+Extract globals and blocks features, which can be used for both coco and lvis
 
 ```bash
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.globals oake/globals configs/oake/globals.py
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.blocks oake/blocks configs/oake/blocks.py
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.globals oake/globals configs/oake/globals.py [--override .train.dataloader.dataset.auto_fix:True .val.dataloader.dataset.auto_fix:True]
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.blocks oake/blocks configs/oake/blocks.py [--override .train.dataloader.dataset.auto_fix:True .val.dataloader.dataset.auto_fix:True]
 ```
 
 Extract objects features for coco
 
 ```bash
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_coco.py
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_coco.py [--override .train.dataloader.dataset.auto_fix:True .val.dataloader.dataset.auto_fix:True]
 ```
 
 Extract objects features for lvis
 
 ```bash
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_lvis.py
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_lvis.py [--override train.dataloader.dataset.auto_fix:True val.dataloader.dataset.auto_fix:True]
 ```
 
 Feature extraction can be very time consuming.

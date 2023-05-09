@@ -27,8 +27,15 @@ T = TypeVar('T', bound=Batch)
 
 class BaseDataset(torchvision.datasets.CocoDetection, ABC, Generic[T]):
 
-    def __init__(self, *args, output_dir: str, **kwargs) -> None:
+    def __init__(
+        self,
+        *args,
+        auto_fix: bool = False,
+        output_dir: str,
+        **kwargs,
+    ) -> None:
         super().__init__(*args, **kwargs)
+        self._auto_fix = auto_fix
         self._output_dir = pathlib.Path(output_dir)
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -36,7 +43,13 @@ class BaseDataset(torchvision.datasets.CocoDetection, ABC, Generic[T]):
         id_ = self.ids[index]
         output = self._output_dir / f'{id_:012d}.pth'
         if output.exists():
-            return None
+            if not self._auto_fix:
+                return None
+            try:
+                torch.load(output, 'cpu')
+                return None
+            except Exception:
+                todd.logger.info(f"Fixing {output}")
         image = self._load_image(id_)
         return self._preprocess(id_, output, image)
 
@@ -108,7 +121,9 @@ class BaseValidator(todd.utils.Validator, Generic[T]):
 
         if todd.Store.CUDA:
             torch.distributed.init_process_group(backend='nccl')
-            torch.cuda.set_device(todd.get_local_rank())
+            torch.cuda.set_device(
+                todd.get_local_rank() % torch.cuda.device_count()
+            )
 
         model, preprocess = cls._build_model()
 

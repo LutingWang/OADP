@@ -17,8 +17,6 @@ import torch.nn.functional as F
 import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
-from PIL import Image
-from todd import Registry
 
 from .base import BaseDataset, BaseValidator
 
@@ -38,7 +36,7 @@ class ExpandMode(enum.Enum):
     ADAPTIVE = enum.auto()
 
 
-class DatasetRegistry(Registry):
+class DatasetRegistry(todd.Registry):
     pass
 
 
@@ -162,9 +160,7 @@ class COCODataset(BaseDataset[Batch]):
         output: pathlib.Path,
         image: PIL.Image.Image,
     ) -> Batch:
-        proposals, objectness = (
-            torch.tensor(self._proposals[id_]).split((4, 1), dim=-1)
-        )
+        proposals, objectness = self._proposals[id_].split((4, 1), dim=-1)
         proposals_ = todd.BBoxesXYXY(proposals)
         indices = proposals_.indices(min_wh=(4, 4))
         if todd.Store.DRY_RUN:
@@ -193,10 +189,10 @@ class COCODataset(BaseDataset[Batch]):
 @DatasetRegistry.register()
 class LVISDataset(COCODataset):
 
-    def _load_image(self, id: int) -> Image.Image:
+    def _load_image(self, id: int) -> PIL.Image.Image:
         info = self.coco.loadImgs([id])[0]
         path = info['coco_url'].replace('http://images.cocodataset.org/', '')
-        return Image.open(os.path.join(self.root, path)).convert("RGB")
+        return PIL.Image.open(os.path.join(self.root, path)).convert("RGB")
 
 
 class Hooks:

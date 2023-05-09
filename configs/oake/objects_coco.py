@@ -22,4 +22,5 @@ val = dict(
         ),
     ),
 )
+log = dict(interval=5)
 mini_batch_size = 512

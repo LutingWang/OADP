@@ -16,4 +16,3 @@ val = dict(
         num_workers=2,
     ),
 )
-log = dict(interval=5)

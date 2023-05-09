@@ -12,3 +12,4 @@ val = dict(
         dataset=dict(output_dir='data/coco/oake/blocks/val2017'),
     ),
 )
+log = dict(interval=10)
