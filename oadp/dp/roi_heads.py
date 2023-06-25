@@ -48,6 +48,10 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         self.register_buffer('_lambda', lambda_, persistent=False)
 
     @property
+    def with_block(self) -> bool:
+        return hasattr(self, 'block_head')
+
+    @property
     def lambda_(self) -> torch.Tensor:
         return self._lambda
 
@@ -171,6 +175,10 @@ class OADPRoIHead(ViLDEnsembleRoIHead):
             block_head,
             default_args=bbox_head,
         )
+
+    @property
+    def with_block(self) -> bool:
+        return hasattr(self, '_block_head') and self._block_head is not None
 
     def _block_forward(
         self,

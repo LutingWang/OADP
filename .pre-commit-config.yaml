@@ -44,6 +44,7 @@ repos:
         additional_dependencies:
           - numpy
           - todd_ai
+        exclude: ^configs/
   - repo: https://github.com/codespell-project/codespell
     rev: v2.2.4
     hooks:

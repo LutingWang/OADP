@@ -20,7 +20,6 @@ def parse_args():
     parser.add_argument('name', type=pathlib.Path)
     parser.add_argument('config', type=todd.Config.load)
     parser.add_argument('--override', action=todd.DictAction)
-    parser.add_argument('--seed', type=int, default=3407)
     args = parser.parse_args()
     return args
 

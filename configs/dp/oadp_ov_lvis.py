@@ -1,8 +1,11 @@
 _base_ = [
     'datasets/ov_lvis.py',
-    'models/oadp_faster_rcnn_r50_fpn.py',
-    'schedules/schedule_40k.py',
-    'schedules/schedule_oadp.py',
+    # TODO: rename
+    'models/oadp_faster_rcnn_r50_fpn_noblock.py',
+    'models/mask.py',
+    'schedules/2x.py',
+    'schedules/oadp.py',
+    'runtime.py',
 ]
 
 model = dict(
@@ -16,16 +19,9 @@ model = dict(
         ),
     ),
     roi_head=dict(
+        type='ViLDEnsembleRoIHead',
         object_head=dict(
             cls_predictor_cfg=dict(
-                _delete_=True,
-                type='ViLDClassifier',
-                prompts='data/prompts/vild.pth',
-            ),
-        ),
-        block_head=dict(
-            cls_predictor_cfg=dict(
-                _delete_=True,
                 type='ViLDClassifier',
                 prompts='data/prompts/vild.pth',
             ),

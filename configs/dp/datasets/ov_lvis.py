@@ -24,7 +24,11 @@ trainer = dict(
                 ann_file=ann_file_prefix + 'lvis_v1_train.866.json',
                 pipeline=[
                     dict(type='LoadImageFromFile'),
-                    dict(type='LoadAnnotations', with_bbox=True),
+                    dict(
+                        type='LoadAnnotations',
+                        with_bbox=True,
+                        with_mask=True,
+                    ),
                     dict(
                         type='LoadCLIPFeatures',
                         default=dict(
@@ -62,9 +66,9 @@ trainer = dict(
                     dict(
                         type='Collect',
                         keys=[
-                            'img', 'gt_bboxes', 'gt_labels', 'clip_global',
-                            'clip_blocks', 'block_bboxes', 'block_labels',
-                            'clip_objects', 'object_bboxes'
+                            'img', 'gt_bboxes', 'gt_labels', 'gt_masks',
+                            'clip_global', 'clip_blocks', 'block_bboxes',
+                            'block_labels', 'clip_objects', 'object_bboxes'
                         ],
                     ),
                 ],

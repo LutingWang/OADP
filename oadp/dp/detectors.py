@@ -96,10 +96,13 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
     ) -> dict[str, torch.Tensor]:
         Globals.training = True
         feats = self.extract_feat(img)
+        losses = dict()
+
         global_losses = self._global_head.forward_train(
             feats,
             labels=gt_labels,
         )
+        losses.update(global_losses)
 
         rpn_losses, proposals = self.rpn_head.forward_train(
             feats,
@@ -110,6 +113,7 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
             proposal_cfg=self.train_cfg.rpn_proposal,
             **kwargs,
         )
+        losses.update(rpn_losses)
 
         roi_losses = self.roi_head.forward_train(
             feats,
@@ -121,29 +125,29 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
             gt_masks,
             **kwargs,
         )
-        block_losses = self.roi_head.block_forward_train(
-            feats,
-            block_bboxes,
-            block_labels,
-        )
+        losses.update(roi_losses)
+
+        if self.roi_head.with_block:
+            block_losses = self.roi_head.block_forward_train(
+                feats,
+                block_bboxes,
+                block_labels,
+            )
+            losses.update(block_losses)
         self.roi_head.object_forward_train(feats, object_bboxes)
 
         custom_tensors = dict(
             clip_global=clip_global.float(),
-            clip_blocks=torch.cat(clip_blocks).float(),
             clip_objects=torch.cat(clip_objects).float(),
         )
+        if self.roi_head.with_block:
+            custom_tensors['clip_blocks'] = torch.cat(clip_blocks).float()
         distill_losses = self.distiller(custom_tensors)
         self.distiller.reset()
         self.distiller.step()
+        losses.update(distill_losses)
 
-        return {
-            **global_losses,
-            **rpn_losses,
-            **roi_losses,
-            **block_losses,
-            **distill_losses,
-        }
+        return losses
 
     def simple_test(self, *args, **kwargs):
         Globals.training = False
