@@ -215,7 +215,7 @@ Extract objects features for coco
 Extract objects features for lvis
 
 ```bash
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_lvis.py [--override train.dataloader.dataset.auto_fix:True val.dataloader.dataset.auto_fix:True]
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_lvis.py [--override .train.dataloader.dataset.auto_fix:True .val.dataloader.dataset.auto_fix:True]
 ```
 
 Feature extraction can be very time consuming.

@@ -91,6 +91,7 @@ model = dict(
                 action=dict(
                     type='MSELoss',
                     weight=dict(type='WarmupScheduler', gain=0.5, end=200),
+                    # FIXME: in todd, sum should multiply by number of GPUs
                     reduction='sum',
                 ),
             ),

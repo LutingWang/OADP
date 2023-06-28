@@ -132,6 +132,7 @@ class BaseValidator(todd.utils.Validator, Generic[T]):
         train.dataloader.dataset.transform = preprocess
         val.dataloader.dataset.transform = preprocess
 
+        # FIXME: in todd, this creates two log files
         cls(
             args.name,
             model,
