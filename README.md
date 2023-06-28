@@ -42,7 +42,8 @@ Install other dependencies.
 ```bash
 pip install todd_ai==0.3.0
 pip install git+https://github.com/LutingWang/CLIP.git
-pip install lvis nni scikit-learn==1.1.3
+pip install git+https://github.com/lvis-dataset/lvis-api.git@lvis_challenge_2021
+pip install nni scikit-learn==1.1.3
 ```
 
 ## Preparation

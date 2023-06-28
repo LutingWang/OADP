@@ -15,7 +15,7 @@ from mmdet.utils import collect_env, get_root_logger
 from ..base import Globals
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('name', type=pathlib.Path)
     parser.add_argument('config', type=todd.Config.load)
@@ -24,7 +24,7 @@ def parse_args():
     return args
 
 
-def main():
+def main() -> None:
     args = parse_args()
     name: pathlib.Path = args.name
     config: todd.Config = args.config

@@ -141,6 +141,9 @@ class LoadCLIPFeatures:
         blocks: todd.Config | None = None,
         objects: todd.Config | None = None,
     ) -> None:
+        assert (
+            globals_ is not None or blocks is not None or objects is not None
+        )
         if todd.Store.TRAIN_WITH_VAL_DATASET:
             task_name: str = default.task_name
             default.task_name = task_name.replace('train', 'val')
@@ -154,12 +157,19 @@ class LoadCLIPFeatures:
             None if objects is None else ALR.build(objects, default)
         )
 
+        if todd.Store.DRY_RUN:
+            keys = [
+                mapping.keys()
+                for mapping in [self._globals, self._blocks, self._objects]
+                if mapping is not None
+            ]
+            self.__key = set.intersection(*keys).pop()
+
     def __call__(self, results: dict[str, Any]) -> dict[str, Any]:
-        if todd.Store.DRY_RUN:  # TODO: delete
-            id_ = 139 if todd.Store.TRAIN_WITH_VAL_DATASET else 9
-        else:
-            id_ = results["img_info"]["id"]
-        key = f'{id_:012d}'
+        key = (
+            self.__key
+            if todd.Store.DRY_RUN else f'{results["img_info"]["id"]:012d}'
+        )
         bbox_fields: list[str] = results['bbox_fields']
 
         if self._globals is not None:

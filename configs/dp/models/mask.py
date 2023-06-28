@@ -17,6 +17,7 @@ model = dict(
                 use_mask=True,
                 loss_weight=1.0,
             ),
+            num_classes=None,
         ),
     ),
     train_cfg=dict(rcnn=dict(mask_size=28)),

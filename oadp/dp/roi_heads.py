@@ -26,12 +26,22 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         *args,
         bbox_head: todd.Config,
         object_head: todd.Config,
+        mask_head: todd.Config | None = None,
         **kwargs,
     ) -> None:
         # automatically detect `num_classes`
         assert bbox_head.num_classes is None
         bbox_head.num_classes = Globals.categories.num_all
-        super().__init__(*args, bbox_head=bbox_head, **kwargs)
+        if mask_head is not None:
+            assert mask_head.num_classes is None
+            mask_head.num_classes = Globals.categories.num_all
+
+        super().__init__(
+            *args,
+            bbox_head=bbox_head,
+            mask_head=mask_head,
+            **kwargs,
+        )
 
         # `shared_head` is not supported for simplification
         assert not self.with_shared_head
