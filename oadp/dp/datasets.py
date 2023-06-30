@@ -7,11 +7,12 @@ __all__ = [
 
 import contextlib
 import io
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 import numpy as np
 import todd
 import torch
+from lvis import LVIS
 from mmdet.datasets import (
     DATASETS,
     PIPELINES,
@@ -19,7 +20,7 @@ from mmdet.datasets import (
     CustomDataset,
     LVISV1Dataset,
 )
-from mmdet.datasets.api_wrappers import COCOeval
+from mmdet.datasets.api_wrappers import COCO, COCOeval
 from todd.datasets import AccessLayerRegistry as ALR
 
 from ..base import Globals, coco, lvis
@@ -37,17 +38,19 @@ class DebugMixin(CustomDataset):
         if not todd.Store.DRY_RUN:
             return data_infos
 
-        images = self.coco.dataset['images'][:len(self)]
+        coco: COCO | LVIS = getattr(self, 'coco')
+        dataset = cast(dict[str, Any], coco.dataset)
+        images = dataset['images'][:len(self)]
         image_ids = [img['id'] for img in images]
         id2image = {img['id']: img for img in images}
         annotations = [
-            ann for ann in self.coco.dataset['annotations']
+            ann for ann in dataset['annotations']
             if ann['image_id'] in image_ids
         ]
 
         self.img_ids = image_ids
-        self.coco.imgs = id2image
-        self.coco.dataset.update(
+        coco.imgs = id2image
+        dataset.update(
             images=images,
             annotations=annotations,
         )
@@ -159,7 +162,7 @@ class LoadCLIPFeatures:
 
         if todd.Store.DRY_RUN:
             keys = [
-                mapping.keys()
+                set(mapping.keys())
                 for mapping in [self._globals, self._blocks, self._objects]
                 if mapping is not None
             ]

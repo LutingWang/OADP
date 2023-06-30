@@ -66,18 +66,23 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
     def __init__(
         self,
         *args,
-        global_head: todd.Config,
+        global_head: todd.Config | None = None,
         distiller: todd.Config,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self._global_head = GlobalHead(**global_head)
+        if global_head is not None:
+            self._global_head = GlobalHead(**global_head)
         distiller.setdefault('type', 'SelfDistiller')
         Student.__init__(self, distiller)
 
     @property
     def num_classes(self) -> int:
         return Globals.categories.num_all
+
+    @property
+    def with_global(self) -> bool:
+        return hasattr(self, '_global_head')
 
     def forward_train(
         self,
@@ -97,12 +102,15 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
         Globals.training = True
         feats = self.extract_feat(img)
         losses = dict()
+        custom_tensors = dict()
 
-        global_losses = self._global_head.forward_train(
-            feats,
-            labels=gt_labels,
-        )
-        losses.update(global_losses)
+        if self.with_global:
+            global_losses = self._global_head.forward_train(
+                feats,
+                labels=gt_labels,
+            )
+            losses.update(global_losses)
+            custom_tensors['clip_global'] = clip_global.float()
 
         rpn_losses, proposals = self.rpn_head.forward_train(
             feats,
@@ -134,14 +142,11 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
                 block_labels,
             )
             losses.update(block_losses)
-        self.roi_head.object_forward_train(feats, object_bboxes)
-
-        custom_tensors = dict(
-            clip_global=clip_global.float(),
-            clip_objects=torch.cat(clip_objects).float(),
-        )
-        if self.roi_head.with_block:
             custom_tensors['clip_blocks'] = torch.cat(clip_blocks).float()
+
+        self.roi_head.object_forward_train(feats, object_bboxes)
+        custom_tensors['clip_objects'] = torch.cat(clip_objects).float()
+
         distill_losses = self.distiller(custom_tensors)
         self.distiller.reset()
         self.distiller.step()

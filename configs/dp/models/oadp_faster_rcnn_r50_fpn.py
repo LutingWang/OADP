@@ -1,4 +1,6 @@
 _base_ = [
-    'oadp_faster_rcnn_r50_fpn_noblock.py',
+    'vild_ensemble_faster_rcnn_r50_fpn.py',
+    'oadp.py',
+    'global_.py',
     'block.py',
 ]
