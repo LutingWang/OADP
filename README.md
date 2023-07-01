@@ -292,3 +292,17 @@ DUMP=work_dirs/dump python tools/nni_dp_test.py
 ```
 
 [Baidu Netdisk]: https://pan.baidu.com/s/1HXWYSN9Vk6yDhjRI19JrfQ?pwd=OADP
+
+### Pseudo Labels
+
+To generate the novel pseudo labels on coco
+
+```bash
+(python|torchrun --nproc_per_node=${GPUS}) -m oadp.pl.gen_pl gen_pl_novel configs/pl/gen_novel_pl_on_coco.py
+```
+
+To generate the lvis pseudo labels on coco
+
+```bash
+(python|torchrun --nproc_per_node=${GPUS}) -m oadp.pl.gen_pl gen_pl_lvis configs/pl/gen_lvis_pl_on_coco.py
+```
