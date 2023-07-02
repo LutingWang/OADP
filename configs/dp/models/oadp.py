@@ -1,25 +1,6 @@
 model = dict(
     type='OADP',
-    backbone=dict(
-        style='caffe',
-        init_cfg=None,
-    ),
-    roi_head=dict(
-        type='OADPRoIHead',
-        bbox_head=dict(
-            reg_class_agnostic=True,
-            cls_predictor_cfg=dict(
-                type='ViLDClassifier',
-                prompts='data/prompts/vild.pth',
-            ),
-        ),
-        object_head=dict(
-            cls_predictor_cfg=dict(
-                type='Classifier',
-                prompts='data/prompts/ml_coco.pth',
-            ),
-        ),
-    ),
+    roi_head=dict(type='OADPRoIHead'),
     distiller=dict(
         student_hooks=dict(
             objects=dict(
@@ -41,8 +22,4 @@ model = dict(
             ),
         ),
     ),
-    test_cfg=dict(rcnn=dict(
-        score_thr=0.0,
-        max_per_img=300,
-    )),
 )

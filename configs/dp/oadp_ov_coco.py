@@ -6,7 +6,29 @@ _base_ = [
     'runtime.py',
 ]
 
-model = dict(global_head=dict(classifier=dict(out_features=65)))
+model = dict(
+    global_head=dict(classifier=dict(out_features=65)),
+    roi_head=dict(
+        bbox_head=dict(
+            cls_predictor_cfg=dict(
+                type='ViLDClassifier',
+                prompts='data/prompts/vild.pth',
+            ),
+        ),
+        object_head=dict(
+            cls_predictor_cfg=dict(
+                type='Classifier',
+                prompts='data/prompts/ml_coco.pth',
+            ),
+        ),
+        block_head=dict(
+            cls_predictor_cfg=dict(
+                type='Classifier',
+                prompts='data/prompts/ml_coco.pth',
+            ),
+        ),
+    ),
+)
 trainer = dict(
     optimizer=dict(
         paramwise_cfg=dict(

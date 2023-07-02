@@ -3,10 +3,6 @@ model = dict(
         block_head=dict(
             type='Shared2FCBlockBBoxHead',
             topk=5,
-            cls_predictor_cfg=dict(
-                type='Classifier',
-                prompts='data/prompts/ml_coco.pth',
-            ),
             loss=dict(
                 type='AsymmetricLoss',
                 weight=dict(type='WarmupScheduler', gain=16, end=1000),

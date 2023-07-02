@@ -119,12 +119,16 @@ ln -s ~/.cache/torch/hub/checkpoints/ pretrained/torchvision
 
 Download `soco_star_mask_rcnn_r50_fpn_400e.pth` from [Baidu Netdisk][].
 
+Download the [DetPro][] prompt from [Baidu Netdisk](https://pan.baidu.com/s/1MjV1DqiO0gHftyKjuiPrTA#pwd=uvab).
+
 Organize the pretrained models as follows
 
 ```text
 OADP/pretrained
 ├── clip
 │   └── ViT-B-32.pt
+├── detpro
+│   └── iou_neg5_ens.pth
 ├── torchvision
 │   └── resnet50-0676ba61.pth
 └── soco
@@ -140,6 +144,12 @@ python -m oadp.prompts.vild
 ```
 
 Download `ml_coco.pth` from [Baidu Netdisk][].
+
+Generate the [DetPro][] prompts.
+
+```bash
+python -m oadp.prompts.detpro
+```
 
 Organize the prompts as follows
 
@@ -292,3 +302,4 @@ DUMP=work_dirs/dump python tools/nni_dp_test.py
 ```
 
 [Baidu Netdisk]: https://pan.baidu.com/s/1HXWYSN9Vk6yDhjRI19JrfQ?pwd=OADP
+[DetPro]: https://github.com/dyabel/detpro
