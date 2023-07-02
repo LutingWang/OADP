@@ -284,6 +284,12 @@ To test a specific checkpoint
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test configs/dp/oadp_ov_coco.py work_dirs/oadp_ov_coco/iter_32000.pth
 ```
 
+Inference using single GPU
+
+```bash
+(python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.plot coco_plot configs/dp/oadp_ov_coco.py work_dirs/oadp_ov_coco/iter_32000.pth data/coco/val2017/000000001584.jpg
+```
+
 NNI is supported but unnecessary.
 
 ```bash
