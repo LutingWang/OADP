@@ -9,6 +9,14 @@ _base_ = [
     'runtime.py',
 ]
 
+cls_predictor_cfg = dict(
+    type='ViLDClassifier',
+    prompts='data/prompts/detpro_lvis.pth',
+    scaler=dict(
+        train=0.01,
+        val=0.007,
+    ),
+)
 model = dict(
     # global_head=dict(
     #     classifier=dict(
@@ -20,17 +28,8 @@ model = dict(
     #     ),
     # ),
     roi_head=dict(
-        object_head=dict(
-            cls_predictor_cfg=dict(
-                type='ViLDClassifier',
-                prompts='data/prompts/vild.pth',
-            ),
-        ),
-        block_head=dict(
-            cls_predictor_cfg=dict(
-                type='ViLDClassifier',
-                prompts='data/prompts/vild.pth',
-            ),
-        ),
+        bbox_head=dict(cls_predictor_cfg=cls_predictor_cfg),
+        object_head=dict(cls_predictor_cfg=cls_predictor_cfg),
+        block_head=dict(cls_predictor_cfg=cls_predictor_cfg),
     ),
 )

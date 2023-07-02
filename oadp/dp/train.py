@@ -31,6 +31,8 @@ def main() -> None:
     if args.override is not None:
         config.override(args.override)
 
+    if todd.Store.DRY_RUN:
+        name = 'dry_run' / name
     work_dir = 'work_dirs' / name
     work_dir.mkdir(parents=True, exist_ok=True)
     config.dump(work_dir / 'config.py')
