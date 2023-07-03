@@ -297,7 +297,7 @@ To test a specific checkpoint
 Inference using single GPU
 
 ```bash
-(python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.plot coco_plot configs/dp/oadp_ov_coco.py work_dirs/oadp_ov_coco/iter_32000.pth data/coco/val2017/000000001584.jpg
+torchrun --nproc_per_node=${GPUS} -m oadp.dp.inference coco_plot configs/dp/oadp_ov_coco.py work_dirs/oadp_ov_coco/iter_32000.pth data/coco/val2017/000000001584.jpg [--category="red apple,green apple"]
 ```
 
 NNI is supported but unnecessary.

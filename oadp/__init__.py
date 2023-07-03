@@ -7,6 +7,7 @@ import todd
 from .base import *
 from .dp import *
 from .oake import *
+from .prompts import *
 
 if todd.Store.CPU:
     import torch

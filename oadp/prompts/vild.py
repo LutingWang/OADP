@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 import tqdm
 
-from ..base import coco, lvis
+from ..base import Categories
 
 prompts = [
     "This is a {}", "There is a {}", "a photo of a {} in the scene",
@@ -53,8 +53,8 @@ prompts = [
 ]
 
 
-def main() -> None:
-    categories = sorted(set(coco.all_ + lvis.all_))
+def gen_prompts(new_categories: Categories, output_path: str) -> None:
+    categories = sorted(set(new_categories.all_))
     model, _ = clip.load_default()
 
     embeddings = []
@@ -69,8 +69,4 @@ def main() -> None:
         embeddings=sum(embeddings) / len(embeddings),
         names=categories,
     )
-    torch.save(state_dict, 'data/prompts/vild.pth')
-
-
-if __name__ == '__main__':
-    main()
+    torch.save(state_dict, output_path)
