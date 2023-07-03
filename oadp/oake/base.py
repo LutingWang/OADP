@@ -90,7 +90,7 @@ class BaseValidator(todd.utils.Validator, Generic[T]):
 
     @classmethod
     @abstractmethod
-    def _build_model(self) -> tuple[clip.model.CLIP, transforms.Compose]:
+    def _build_model(cls) -> tuple[clip.model.CLIP, transforms.Compose]:
         pass
 
     def _control_run_iter(

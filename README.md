@@ -301,5 +301,21 @@ DUMP=work_dirs/dump (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test c
 DUMP=work_dirs/dump python tools/nni_dp_test.py
 ```
 
+## Results
+
+The checkpoints for OADP are available on [Baidu Netdisk][].
+
+### OV COCO
+
+| mAPN50    | Config                                        | Checkpoint                            |
+| :-:       | :-:                                           | :-:                                   |
+| $31.3$    | [oadp_ov_coco.py](configs/dp/oadp_ov_coco.py) | work_dirs/oadp_ov_coco/iter_32000.pth |
+
+### OV LVIS
+
+| APr       | Config                                        | Checkpoint                            |
+| :-:       | :-:                                           | :-:                                   |
+| $20.7$    | [oadp_ov_lvis.py](configs/dp/oadp_ov_lvis.py) | work_dirs/oadp_ov_lvis/epoch_24.pth   |
+
 [Baidu Netdisk]: https://pan.baidu.com/s/1HXWYSN9Vk6yDhjRI19JrfQ?pwd=OADP
 [DetPro]: https://github.com/dyabel/detpro

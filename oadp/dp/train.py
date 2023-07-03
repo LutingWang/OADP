@@ -73,6 +73,7 @@ def main() -> None:
         raise NotImplementedError
 
     timestamp = datetime.now().astimezone().isoformat()
+    timestamp = timestamp.replace(':', '-').replace('+', '-').replace('.', '_')
     logger = get_root_logger(
         log_file=work_dir / f'{timestamp}.log',
         log_level=config_trainer.log_level,
