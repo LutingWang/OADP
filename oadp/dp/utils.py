@@ -2,7 +2,6 @@ __all__ = [
     'MultilabelTopKRecall',
     'NormalizedLinear',
 ]
-import pathlib
 import random
 from typing import Any
 
@@ -90,4 +89,4 @@ def plot_single_img(
                             int(x2), int(y2)],
                     '{}|{:.2}'.format(categories[idx], score), color
                 )
-    cv2.imwrite(output_path, image) # type: ignore
+    cv2.imwrite(output_path, image)
