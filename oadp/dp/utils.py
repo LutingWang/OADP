@@ -76,7 +76,7 @@ def draw_label_type(img: Any, bbox: list, label: str, color: tuple) -> Any:
 
 def plot_single_img(
     image_path: pathlib.Path, bbox_result: list[Any], threshold: float,
-    output_path: str, categories: list | tuple
+    output_path: pathlib.Path, categories: list | tuple
 ) -> None:
     image = cv2.imread(image_path)
     PALETTE = CocoDataset.PALETTE
