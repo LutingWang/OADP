@@ -136,7 +136,7 @@ def main():
 
     # plot
     plot_single_img(
-        args.img, results, 0.15, str(work_dir / 'result.png'),
+        args.img, results, 0.3, str(work_dir / 'result.png'),
         Globals.categories.all_
     )
 

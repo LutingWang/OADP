@@ -2,6 +2,7 @@ __all__ = [
     'BaseClassifier',
     'Classifier',
     'ViLDClassifier',
+    'LLMClassifier',
 ]
 
 from typing import TypedDict
@@ -33,6 +34,9 @@ class BaseClassifier(todd.Module):
         embeddings: torch.Tensor = prompts_['embeddings']
         indices = [names.index(name) for name in Globals.categories.all_]
         embeddings = embeddings[indices]
+
+        self.in_features = in_features
+        self.out_features = out_features
 
         if out_features == Globals.categories.num_all + 1:
             # with background embedding
@@ -110,3 +114,34 @@ class ViLDClassifier(BaseClassifier):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return super().forward(x) / self.scaler
+
+
+@LINEAR_LAYERS.register_module()
+class LLMClassifier(BaseClassifier):
+    def __init__(self, *args, **kwargs,) -> None:
+        super().__init__(*args, **kwargs)
+
+    @property
+    def embeddings(self) -> torch.Tensor:
+        embeddings: torch.Tensor = self._embeddings
+        if self._bg_embedding is None:
+            return embeddings
+        bg_embedding = F.normalize(self._bg_embedding)
+        bg_embedding = bg_embedding.repeat(self._embeddings.shape[2], 1, 1)
+        bg_embedding = bg_embedding.permute(1, 2, 0)
+        return torch.cat([embeddings, bg_embedding])
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self._linear(x).repeat(self._embeddings.shape[2], 1, 1)
+        embeddings = self.embeddings.permute(2, 1, 0)
+        x = x.to(torch.float32)  # convert to float32
+        embeddings = embeddings.to(torch.float32)  # convert to float32
+        similarity = torch.matmul(x, embeddings)
+        y, _ = torch.max(similarity, dim=0)
+        if Globals.training:
+            novel_categories = slice(
+                Globals.categories.num_bases,
+                Globals.categories.num_all,
+            )
+            y[:, novel_categories] = float('-inf')
+        return y
