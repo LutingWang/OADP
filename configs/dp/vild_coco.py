@@ -10,10 +10,16 @@ _base_ = [
 
 model=dict(
     roi_head=dict(
+        bbox_head=dict(
+            cls_predictor_cfg=dict(
+                type='ViLDClassifier',
+                prompts='data/prompts/vild.pth',
+            ),
+        ),
         object_head=dict(
             cls_predictor_cfg=dict(
-                type='Classifier',
-                prompts='data/prompts/ml_coco.pth',
+                type='ViLDClassifier',
+                prompts='data/prompts/vild.pth',
             ),
         ),
     ),
