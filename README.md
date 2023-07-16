@@ -119,7 +119,7 @@ ln -s ~/.cache/torch/hub/checkpoints/ pretrained/torchvision
 
 Download `soco_star_mask_rcnn_r50_fpn_400e.pth` from [Baidu Netdisk][].
 
-Download the [DetPro][] prompt from [Baidu Netdisk](https://pan.baidu.com/s/1MjV1DqiO0gHftyKjuiPrTA#pwd=uvab).
+Download the [DetPro][] prompt from [Baidu Netdisk](https://pan.baidu.com/s/1MjV1DqiO0gHftyKjuiPrTA?pwd=uvab).
 
 Organize the pretrained models as follows
 
