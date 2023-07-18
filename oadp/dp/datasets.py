@@ -10,6 +10,7 @@ import io
 from typing import Any, Mapping, cast
 
 import numpy as np
+import todd
 import torch
 from lvis import LVIS
 from mmdet.datasets import (
@@ -20,8 +21,6 @@ from mmdet.datasets import (
     LVISV1Dataset,
 )
 from mmdet.datasets.api_wrappers import COCO, COCOeval
-
-import todd
 from todd.datasets import AccessLayerRegistry as ALR
 
 from ..base import Globals, coco, lvis

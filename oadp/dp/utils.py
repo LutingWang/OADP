@@ -7,12 +7,11 @@ from typing import Any
 
 import cv2
 import sklearn.metrics
+import todd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmdet.datasets.coco import CocoDataset
-
-import todd
 
 
 class MultilabelTopKRecall(todd.Module):

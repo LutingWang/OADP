@@ -2,10 +2,9 @@ __all__ = [
     'AsymmetricLoss',
 ]
 
+import todd
 import torch
 from mmcv.runner import force_fp32
-
-import todd
 
 
 @todd.losses.LossRegistry.register()

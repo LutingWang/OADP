@@ -4,14 +4,13 @@ from typing import Any, NamedTuple
 import einops
 import nni
 import numpy as np
+import todd
 import torch
 import torch.distributed
 import torch.utils.data
 import torch.utils.data.distributed
 from mmdet.core import bbox2result, multiclass_nms
 from mmdet.datasets import build_dataset
-
-import todd
 
 from ..base import Globals
 

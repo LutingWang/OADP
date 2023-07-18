@@ -7,11 +7,10 @@ import pathlib
 from typing import Any, cast
 
 import mmcv
+import todd
 import torch
 from mmdet.core import bbox2roi
 from mmdet.models import HEADS, BaseRoIExtractor, StandardRoIHead
-
-import todd
 
 from ..base import Globals
 from ..base.globals_ import Store

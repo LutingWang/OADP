@@ -5,6 +5,7 @@ import pathlib
 from typing import Any
 
 import numpy as np
+import todd
 import torch
 from mmcv.parallel import collate
 from mmcv.runner import load_checkpoint
@@ -12,7 +13,6 @@ from mmdet.datasets import replace_ImageToTensor
 from mmdet.datasets.pipelines import Compose
 from mmdet.models import build_detector
 
-import todd
 from oadp.base import Categories, Globals, coco, lvis  # noqa: F401
 from oadp.prompts.vild import gen_prompts
 

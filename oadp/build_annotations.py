@@ -3,10 +3,9 @@ import pathlib
 from abc import ABC, abstractmethod
 from typing import Any
 
+import todd
 from lvis import LVIS
 from mmdet.datasets.api_wrappers import COCO
-
-import todd
 
 from .base import Categories, coco, lvis
 

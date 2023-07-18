@@ -7,12 +7,11 @@ __all__ = [
 
 from typing import TypedDict
 
+import todd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmdet.models.utils.builder import LINEAR_LAYERS
-
-import todd
 
 from ..base import Globals
 from .utils import NormalizedLinear
