@@ -3,13 +3,13 @@ import math
 import os
 import pathlib
 import pickle
-from typing import NamedTuple, cast
+from typing import NamedTuple, cast, Tuple
 
 import clip
 import clip.model
 import einops
 import PIL.Image
-import todd
+
 import torch
 import torch.distributed
 import torch.nn as nn
@@ -19,7 +19,7 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 
 from .base import BaseDataset, BaseValidator
-
+from .. import todd
 
 class Batch(NamedTuple):
     output: pathlib.Path
@@ -198,14 +198,14 @@ class LVISDataset(COCODataset):
 class Hooks:
 
     def __init__(self) -> None:
-        self._y: torch.Tensor | None = None
-        self._attn_mask: torch.Tensor | None = None
+        self._y = None  # type: torch.Tensor 
+        self._attn_mask = None  # type: torch.Tensor 
 
     def visual_forward_pre(
         self,
         module: clip.model.Transformer,
-        inputs: tuple[torch.Tensor, torch.Tensor],
-    ) -> tuple[torch.Tensor]:
+        inputs: Tuple[torch.Tensor, torch.Tensor],
+    ) -> Tuple[torch.Tensor]:
         attn_mask = einops.rearrange(inputs[-1], 'b 1 h w -> b (h w)')
         zeros = attn_mask.new_zeros(attn_mask.shape[0], 1)
         attn_mask = torch.cat([attn_mask, zeros], dim=-1)
@@ -216,7 +216,7 @@ class Hooks:
     def transformer_forward_pre(
         self,
         module: clip.model.Transformer,
-        inputs: tuple[torch.Tensor],
+        inputs: Tuple[torch.Tensor],
     ) -> None:
         x, = inputs
         self._y = x[[0]]
@@ -224,7 +224,7 @@ class Hooks:
     def residual_attention_block_forward_pre(
         self,
         module: clip.model.ResidualAttentionBlock,
-        inputs: tuple[torch.Tensor],
+        inputs: Tuple[torch.Tensor],
     ) -> None:
         assert self._y is not None
         x, = inputs
@@ -249,7 +249,7 @@ class Hooks:
     def transformer_forward(
         self,
         module: clip.model.Transformer,
-        inputs: tuple[torch.Tensor],
+        inputs: Tuple[torch.Tensor],
         output: torch.Tensor,
     ) -> torch.Tensor:
         assert self._y is not None
@@ -260,7 +260,7 @@ class Hooks:
     def visual_forward(
         self,
         module: clip.model.Transformer,
-        inputs: tuple[torch.Tensor],
+        inputs: Tuple[torch.Tensor],
         output: torch.Tensor,
     ) -> None:
         self._attn_mask = None
@@ -286,7 +286,7 @@ class Validator(BaseValidator[Batch]):
     def _build_model(
         cls,
         upsample: int = 2,
-    ) -> tuple[clip.model.CLIP, transforms.Compose]:
+    ) -> Tuple[clip.model.CLIP, transforms.Compose]:
         model, preprocess = clip.load_default(False)
 
         visual = model.visual

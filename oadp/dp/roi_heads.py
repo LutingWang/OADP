@@ -4,10 +4,10 @@ __all__ = [
 ]
 
 import pathlib
-from typing import Any, cast
+from typing import Any, cast, Dict, List, Tuple, Union
 
 import mmcv
-import todd
+
 import torch
 from mmdet.core import bbox2roi
 from mmdet.models import HEADS, BaseRoIExtractor, StandardRoIHead
@@ -15,7 +15,7 @@ from mmdet.models import HEADS, BaseRoIExtractor, StandardRoIHead
 from ..base import Globals
 from ..base.globals_ import Store
 from .bbox_heads import BlockMixin, ObjectMixin
-
+from .. import todd
 
 @HEADS.register_module()
 class ViLDEnsembleRoIHead(StandardRoIHead):
@@ -26,7 +26,7 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         *args,
         bbox_head: todd.Config,
         object_head: todd.Config,
-        mask_head: todd.Config | None = None,
+        mask_head = None,  # type: todd.Config
         **kwargs,
     ) -> None:
         # automatically detect `num_classes`
@@ -63,9 +63,9 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
 
     def _bbox_forward(
         self,
-        x: list[torch.Tensor],
+        x: List[torch.Tensor],
         rois: torch.Tensor,
-    ) -> dict[str, torch.Tensor]:
+    ) -> Dict[str, torch.Tensor]:
         """Monkey patching `simple_test_bboxes`.
 
         Args:
@@ -90,7 +90,7 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
 
         .. _ViLD: https://readpaper.com/paper/3206072662
         """
-        bbox_results: dict[str, torch.Tensor] = super()._bbox_forward(x, rois)
+        bbox_results: Dict[str, torch.Tensor] = super()._bbox_forward(x, rois)
         if Globals.training:
             return bbox_results
 
@@ -113,7 +113,7 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
 
     def _object_forward(
         self,
-        x: list[torch.Tensor],
+        x: List[torch.Tensor],
         rois: torch.Tensor,
     ) -> None:
         bre = self.bbox_roi_extractor
@@ -122,8 +122,8 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
 
     def object_forward_train(
         self,
-        x: list[torch.Tensor],
-        bboxes: list[torch.Tensor],
+        x: List[torch.Tensor],
+        bboxes: List[torch.Tensor],
     ) -> None:
         rois = bbox2roi(bboxes)
         self._object_forward(x, rois)
@@ -137,11 +137,11 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         def simple_test_bboxes(
             self,
             x: torch.Tensor,
-            img_metas: list[dict[str, Any]],
-            proposals: list[torch.Tensor],
+            img_metas: List[Dict[str, Any]],
+            proposals: List[torch.Tensor],
             rcnn_test_cfg: mmcv.ConfigDict,
             rescale: bool = False,
-        ) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
+        ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
             assert x.shape[0] == len(img_metas) == len(proposals) == 1
             filename = pathlib.Path(img_metas[0]['filename']).stem
             objectness = proposals[0][:, -1]
@@ -173,7 +173,7 @@ class OADPRoIHead(ViLDEnsembleRoIHead):
         self,
         *args,
         bbox_head: todd.Config,
-        block_head: todd.Config | None = None,
+        block_head: Union[todd.Config, None] = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, bbox_head=bbox_head, **kwargs)
@@ -189,7 +189,7 @@ class OADPRoIHead(ViLDEnsembleRoIHead):
 
     def _block_forward(
         self,
-        x: list[torch.Tensor],
+        x: List[torch.Tensor],
         rois: torch.Tensor,
     ) -> torch.Tensor:
         bre = self.bbox_roi_extractor
@@ -199,10 +199,10 @@ class OADPRoIHead(ViLDEnsembleRoIHead):
 
     def block_forward_train(
         self,
-        x: list[torch.Tensor],
-        bboxes: list[torch.Tensor],
-        targets: list[torch.Tensor],
-    ) -> dict[str, torch.Tensor]:
+        x: List[torch.Tensor],
+        bboxes: List[torch.Tensor],
+        targets: List[torch.Tensor],
+    ) -> Dict[str, torch.Tensor]:
         rois = bbox2roi(bboxes)
         logits = self._block_forward(x, rois)
         losses = self._block_head.loss(logits[:, :-1], torch.cat(targets))

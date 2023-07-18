@@ -4,8 +4,9 @@ import torch
 import tqdm
 import json
 import torch.nn.functional as F
+from typing import List
 
-def gen_prompts(json_path: list[str], output_path) -> None:
+def gen_prompts(json_path: List[str], output_path) -> None:
     text_dict = {}
     for path in json_path:
         text_dict.update(json.load(open(path)))

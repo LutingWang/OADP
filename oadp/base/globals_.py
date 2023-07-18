@@ -7,8 +7,8 @@ __all__ = [
 ]
 
 from typing import Iterable
-
-import todd
+from typing import Tuple
+from .. import todd
 
 
 class Store(metaclass=todd.StoreMeta):
@@ -23,15 +23,15 @@ class Categories:
         self._novels = tuple(novels)
 
     @property
-    def bases(self) -> tuple[str, ...]:
+    def bases(self) -> Tuple[str, ...]:
         return self._bases
 
     @property
-    def novels(self) -> tuple[str, ...]:
+    def novels(self) -> Tuple[str, ...]:
         return self._novels
 
     @property
-    def all_(self) -> tuple[str, ...]:
+    def all_(self) -> Tuple[str, ...]:
         return self._bases + self._novels
 
     @property

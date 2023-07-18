@@ -3,21 +3,20 @@ __all__ = [
     'OADP',
 ]
 
-from typing import Any
+from typing import Any, Dict, List, Tuple, Union
 
 import einops
-import todd
 import torch
 from mmdet.core import BitmapMasks
 from mmdet.models import DETECTORS, RPNHead, TwoStageDetector
 from mmdet.models.utils.builder import LINEAR_LAYERS
-from todd.distillers import SelfDistiller, Student
-from todd.losses import LossRegistry as LR
+from ..todd.distillers import SelfDistiller, Student
+from ..todd.losses import LossRegistry as LR
 
 from ..base import Globals
 from .roi_heads import OADPRoIHead
 from .utils import MultilabelTopKRecall
-
+from .. import todd
 
 class GlobalHead(todd.Module):
 
@@ -34,16 +33,16 @@ class GlobalHead(todd.Module):
         self._classifier = LINEAR_LAYERS.build(classifier)
         self._loss = LR.build(loss)
 
-    def forward(self, feats: tuple[torch.Tensor, ...]) -> torch.Tensor:
+    def forward(self, feats: Tuple[torch.Tensor, ...]) -> torch.Tensor:
         feat = einops.reduce(feats[-1], 'b c h w -> b c', reduction='mean')
         return self._classifier(feat)
 
     def forward_train(
         self,
         *args,
-        labels: list[torch.Tensor],
+        labels: List[torch.Tensor],
         **kwargs,
-    ) -> dict[str, torch.Tensor]:
+    ) -> Dict[str, torch.Tensor]:
         logits = self.forward(*args, **kwargs)
         targets = logits.new_zeros(
             logits.shape[0],
@@ -66,7 +65,7 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
     def __init__(
         self,
         *args,
-        global_head: todd.Config | None = None,
+        global_head: Union[todd.Config, None] = None,
         distiller: todd.Config,
         **kwargs,
     ) -> None:
@@ -87,18 +86,18 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
     def forward_train(
         self,
         img: torch.Tensor,
-        img_metas: list[dict[str, Any]],
-        gt_bboxes: list[torch.Tensor],
-        gt_labels: list[torch.Tensor],
+        img_metas: List[Dict[str, Any]],
+        gt_bboxes: List[torch.Tensor],
+        gt_labels: List[torch.Tensor],
         clip_global: torch.Tensor,
-        clip_blocks: list[torch.Tensor],
-        block_bboxes: list[torch.Tensor],
-        block_labels: list[torch.Tensor],
-        clip_objects: list[torch.Tensor],
-        object_bboxes: list[torch.Tensor],
-        gt_masks: list[BitmapMasks] | None = None,
+        clip_blocks: List[torch.Tensor],
+        block_bboxes: List[torch.Tensor],
+        block_labels: List[torch.Tensor],
+        clip_objects: List[torch.Tensor],
+        object_bboxes: List[torch.Tensor],
+        gt_masks: Union[List[BitmapMasks], None] = None,
         **kwargs,
-    ) -> dict[str, torch.Tensor]:
+    ) -> Dict[str, torch.Tensor]:
         Globals.training = True
         feats = self.extract_feat(img)
         losses = dict()

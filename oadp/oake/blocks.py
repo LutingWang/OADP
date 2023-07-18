@@ -1,11 +1,11 @@
 import itertools
 import pathlib
-from typing import Generator, NamedTuple
+from typing import Generator, NamedTuple, List, Tuple
 
 import clip
 import clip.model
 import PIL.Image
-import todd
+
 import torch
 import torch.cuda
 import torch.nn.functional as F
@@ -14,7 +14,7 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 
 from .base import BaseDataset, BaseValidator
-
+from .. import todd
 
 class Batch(NamedTuple):
     output: pathlib.Path
@@ -37,7 +37,7 @@ class Dataset(BaseDataset[Batch]):
         self._s = max_stride
         self._rescale = rescale
 
-    def _partition(self, length: int) -> list[int]:
+    def _partition(self, length: int) -> List[int]:
         if length < self._r:
             return []
 
@@ -54,7 +54,7 @@ class Dataset(BaseDataset[Batch]):
     def _partitions(
         self,
         image: PIL.Image.Image,
-    ) -> Generator[tuple[PIL.Image.Image, float, int, int], None, None]:
+    ) -> Generator[Tuple[PIL.Image.Image, float, int, int], None, None]:
         scale = 1.0
         while True:
             w, h = image.size
@@ -119,7 +119,7 @@ class Validator(BaseValidator[Batch]):
         return super()._build_dataloader(config)
 
     @classmethod
-    def _build_model(cls) -> tuple[clip.model.CLIP, transforms.Compose]:
+    def _build_model(cls) -> Tuple[clip.model.CLIP, transforms.Compose]:
         return clip.load_default(False)
 
     def _run_iter(self, batch: Batch, memo: todd.utils.Memo) -> torch.Tensor:

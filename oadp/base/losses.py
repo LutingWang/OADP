@@ -2,7 +2,7 @@ __all__ = [
     'AsymmetricLoss',
 ]
 
-import todd
+from .. import todd
 import torch
 from mmcv.runner import force_fp32
 

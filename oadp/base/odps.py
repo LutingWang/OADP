@@ -5,7 +5,7 @@ __all__ = [
 import os
 from typing import Mapping
 
-import todd
+from .. import todd
 
 from .globals_ import Store
 

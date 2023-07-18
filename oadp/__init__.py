@@ -2,7 +2,7 @@ import os
 
 os.environ.setdefault('MPS', 'False')  # isort: skip
 
-import todd
+from . import todd
 
 from .base import *
 from .dp import *

@@ -1,7 +1,6 @@
 import argparse
 import pprint
 
-import todd
 import torch
 import torch.distributed
 import torch.utils.data
@@ -12,7 +11,7 @@ from mmdet.models import build_detector
 from mmdet.utils import build_ddp, build_dp
 
 from ..base import Globals
-
+from .. import todd
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()

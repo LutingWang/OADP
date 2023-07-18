@@ -1,10 +1,10 @@
 import argparse
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Dict, List
 
 import einops
 import nni
 import numpy as np
-import todd
+
 import torch
 import torch.distributed
 import torch.utils.data
@@ -13,7 +13,7 @@ from mmdet.core import bbox2result, multiclass_nms
 from mmdet.datasets import build_dataset
 
 from ..base import Globals
-
+from .. import todd
 
 class Batch(NamedTuple):
     image_id: str
@@ -77,7 +77,7 @@ class Model(todd.Module):
         bbox_logits: torch.Tensor,
         object_logits: torch.Tensor,
         objectness: torch.Tensor,
-    ) -> list[np.ndarray]:
+    ) -> List[np.ndarray]:
         bbox_scores = self._classify(bbox_logits, self._bboxes)
         object_scores = self._classify(object_logits, self._objects)
 
@@ -142,7 +142,7 @@ class Validator(todd.utils.Validator):
         super()._after_run(memo)
 
         if todd.Store.CUDA:
-            results_list: list[dict[str, Any]] = \
+            results_list: List[Dict[str, Any]] = \
                 [dict()] * todd.get_world_size()
             torch.distributed.all_gather_object(results_list, memo['results'])
             if todd.get_rank() != 0:

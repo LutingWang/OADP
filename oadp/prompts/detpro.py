@@ -1,13 +1,13 @@
 import torch
 from mmdet.datasets import LVISV1Dataset
-
+from typing import List
 
 def main() -> None:
     embeddings = torch.load('pretrained/detpro/iou_neg5_ens.pth', 'cpu')
 
     # lvis annotations have a typo, which is fixed in mmdet
     # we need to change it back, so that the names match
-    names: list[str] = list(LVISV1Dataset.CLASSES)
+    names: List[str] = list(LVISV1Dataset.CLASSES)
     i = names.index('speaker_(stereo_equipment)')
     names[i] = 'speaker_(stero_equipment)'
 

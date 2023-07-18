@@ -1,10 +1,10 @@
 import pathlib
-from typing import NamedTuple
+from typing import NamedTuple, Tuple
 
 import clip
 import clip.model
 import PIL.Image
-import todd
+
 import torch
 import torch.cuda
 import torch.distributed
@@ -14,7 +14,7 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 
 from .base import BaseDataset, BaseValidator
-
+from .. import todd
 
 class Batch(NamedTuple):
     output: pathlib.Path
@@ -43,7 +43,7 @@ class Validator(BaseValidator[Batch]):
         return super()._build_dataloader(config)
 
     @classmethod
-    def _build_model(cls) -> tuple[clip.model.CLIP, transforms.Compose]:
+    def _build_model(cls) -> Tuple[clip.model.CLIP, transforms.Compose]:
         return clip.load_default(True)
 
     def _run_iter(

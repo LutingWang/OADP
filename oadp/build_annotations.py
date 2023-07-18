@@ -1,15 +1,15 @@
 import json
 import pathlib
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Dict
 
-import todd
+from .. import todd
 from lvis import LVIS
 from mmdet.datasets.api_wrappers import COCO
 
 from .base import Categories, coco, lvis
 
-Data = dict[str, Any]
+Data = Dict[str, Any]
 
 
 class Builder(ABC):
@@ -22,7 +22,7 @@ class Builder(ABC):
     def _load(self, file: pathlib.Path) -> Data:
         pass
 
-    def _map_cat_ids(self, data: Data, cat_oid2nid: dict[int, int]) -> None:
+    def _map_cat_ids(self, data: Data, cat_oid2nid: Dict[int, int]) -> None:
         for cat in data['categories']:
             cat['id'] = cat_oid2nid[cat['id']]
         for ann in data['annotations']:
@@ -96,7 +96,7 @@ class LVISBuilder(Builder):
         imgs = data.load_imgs(None)
         return dict(categories=cats, annotations=anns, images=imgs)
 
-    def _map_cat_ids(self, data: Data, cat_oid2nid: dict[int, int]) -> None:
+    def _map_cat_ids(self, data: Data, cat_oid2nid: Dict[int, int]) -> None:
         super()._map_cat_ids(data, cat_oid2nid)
         for img in data['images']:
             img['neg_category_ids'] = [

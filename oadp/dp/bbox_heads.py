@@ -3,7 +3,7 @@ __all__ = [
     'ObjectMixin',
 ]
 
-import todd
+from .. import todd
 import torch
 from mmdet.models import (
     HEADS,
@@ -11,7 +11,8 @@ from mmdet.models import (
     Shared2FCBBoxHead,
     Shared4Conv1FCBBoxHead,
 )
-from todd.losses import LossRegistry as LR
+from typing import Dict, Tuple
+from ..todd.losses import LossRegistry as LR
 
 from .classifiers import Classifier
 from .utils import MultilabelTopKRecall
@@ -35,7 +36,7 @@ class BlockMixin(NotWithRegMixin):
         self,
         logits: torch.Tensor,
         targets: torch.Tensor,
-    ) -> dict[str, torch.Tensor]:
+    ) -> Dict[str, torch.Tensor]:
         return dict(
             loss_block=self._loss(logits.sigmoid(), targets),
             recall_block=self._multilabel_topk_recall(logits, targets),
@@ -54,7 +55,7 @@ class ObjectMixin(NotWithRegMixin):
         assert bg_embedding is not None
         bg_embedding.requires_grad_(False)
 
-    def forward(self, *args, **kwargs) -> tuple[torch.Tensor, None]:
+    def forward(self, *args, **kwargs) -> Tuple[torch.Tensor, None]:
         logits, _ = super().forward(*args, **kwargs)
         logits[:, -1] = float('-inf')  # disable `_bg_embedding`
         return logits, None

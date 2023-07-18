@@ -4,7 +4,6 @@ from datetime import datetime
 
 import mmcv
 import mmdet
-import todd
 import torch
 import torch.distributed
 from mmdet.apis import train_detector
@@ -13,7 +12,7 @@ from mmdet.models import BaseDetector, build_detector
 from mmdet.utils import collect_env, get_root_logger
 
 from ..base import Globals
-
+from .. import todd
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()

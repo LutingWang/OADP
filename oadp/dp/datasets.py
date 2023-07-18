@@ -7,10 +7,10 @@ __all__ = [
 
 import contextlib
 import io
-from typing import Any, Mapping, cast
+from typing import Any, Mapping, cast, Dict, List, Union
 
 import numpy as np
-import todd
+
 import torch
 from lvis import LVIS
 from mmdet.datasets import (
@@ -21,10 +21,10 @@ from mmdet.datasets import (
     LVISV1Dataset,
 )
 from mmdet.datasets.api_wrappers import COCO, COCOeval
-from todd.datasets import AccessLayerRegistry as ALR
+from ..todd.datasets import AccessLayerRegistry as ALR
 
 from ..base import Globals, coco, lvis
-
+from .. import todd
 
 class DebugMixin(CustomDataset):
 
@@ -38,8 +38,8 @@ class DebugMixin(CustomDataset):
         if not todd.Store.DRY_RUN:
             return data_infos
 
-        coco: COCO | LVIS = getattr(self, 'coco')
-        dataset = cast(dict[str, Any], coco.dataset)
+        coco = getattr(self, 'coco')
+        dataset = cast(Dict[str, Any], coco.dataset)
         images = dataset['images'][:len(self)]
         image_ids = [img['id'] for img in images]
         id2image = {img['id']: img for img in images}
@@ -77,7 +77,7 @@ class LVISV1Dataset_(DebugMixin, LVISV1Dataset):
 class OV_COCO(CocoDataset_):
     CLASSES = coco.all_
 
-    def summarize(self, cocoEval: COCOeval, prefix: str) -> dict[str, Any]:
+    def summarize(self, cocoEval: COCOeval, prefix: str) -> Dict[str, Any]:
         string_io = io.StringIO()
         with contextlib.redirect_stdout(string_io):
             cocoEval.summarize()
@@ -90,7 +90,7 @@ class OV_COCO(CocoDataset_):
         stats['copypaste'] = ' '.join(stats.values())
         return {f'{prefix}_bbox_mAP_{k}': v for k, v in stats.items()}
 
-    def evaluate(self, results, *args, **kwargs) -> dict[str, Any]:
+    def evaluate(self, results, *args, **kwargs) -> Dict[str, Any]:
         results = self._det2json(results)
         try:
             results = self.coco.loadRes(results)
@@ -126,7 +126,7 @@ class OV_COCO(CocoDataset_):
         coco_eval.eval['recall'] = recall[:, coco.num_bases:, :, :]
         novels = self.summarize(coco_eval, f'COCO_{coco.num_novels}')
 
-        return all_ | bases | novels
+        return {**all_, **bases, **novels}
 
 
 @DATASETS.register_module()
@@ -140,9 +140,9 @@ class LoadCLIPFeatures:
     def __init__(
         self,
         default: todd.Config,
-        globals_: todd.Config | None = None,
-        blocks: todd.Config | None = None,
-        objects: todd.Config | None = None,
+        globals_: Union[todd.Config, None] = None,
+        blocks: Union[todd.Config, None] = None,
+        objects: Union[todd.Config, None] = None,
     ) -> None:
         assert (
             globals_ is not None or blocks is not None or objects is not None
@@ -150,13 +150,13 @@ class LoadCLIPFeatures:
         if todd.Store.TRAIN_WITH_VAL_DATASET:
             task_name: str = default.task_name
             default.task_name = task_name.replace('train', 'val')
-        self._globals: Mapping[str, torch.Tensor] | None = (
+        self._globals = (
             None if globals_ is None else ALR.build(globals_, default)
         )
-        self._blocks: Mapping[str, dict[str, torch.Tensor]] | None = (
+        self._blocks = (
             None if blocks is None else ALR.build(blocks, default)
         )
-        self._objects: Mapping[str, dict[str, torch.Tensor]] | None = (
+        self._objects = (
             None if objects is None else ALR.build(objects, default)
         )
 
@@ -168,12 +168,12 @@ class LoadCLIPFeatures:
             ]
             self.__key = set.intersection(*keys).pop()
 
-    def __call__(self, results: dict[str, Any]) -> dict[str, Any]:
+    def __call__(self, results: Dict[str, Any]) -> Dict[str, Any]:
         key = (
             self.__key
             if todd.Store.DRY_RUN else f'{results["img_info"]["id"]:012d}'
         )
-        bbox_fields: list[str] = results['bbox_fields']
+        bbox_fields: List[str] = results['bbox_fields']
 
         if self._globals is not None:
             global_ = self._globals[key]

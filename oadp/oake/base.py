@@ -1,12 +1,12 @@
 import argparse
 import pathlib
 from abc import ABC, abstractmethod
-from typing import Generic, Protocol, TypeVar
+from typing import Generic, Protocol, TypeVar, Tuple, Optional
 
 import clip
 import clip.model
 import PIL.Image
-import todd
+
 import torch
 import torch.distributed
 import torch.utils.data
@@ -14,6 +14,7 @@ import torch.utils.data.distributed
 import torchvision
 import torchvision.transforms as transforms
 
+from .. import todd
 
 class Batch(Protocol):
 
@@ -39,7 +40,7 @@ class BaseDataset(torchvision.datasets.CocoDetection, ABC, Generic[T]):
         self._output_dir = pathlib.Path(output_dir)
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
-    def __getitem__(self, index: int) -> T | None:
+    def __getitem__(self, index: int) -> Optional[T]:
         id_ = self.ids[index]
         output = self._output_dir / f'{id_:012d}.pth'
         if output.exists():
@@ -90,14 +91,14 @@ class BaseValidator(todd.utils.Validator, Generic[T]):
 
     @classmethod
     @abstractmethod
-    def _build_model(self) -> tuple[clip.model.CLIP, transforms.Compose]:
+    def _build_model(self) -> Tuple[clip.model.CLIP, transforms.Compose]:
         pass
 
     def _control_run_iter(
         self,
-        batch: T | None,
+        batch: Optional[T],
         memo: todd.utils.Memo,
-    ) -> todd.utils.Control | None:
+    ) -> Optional[todd.utils.Control]:
         control = super()._control_run_iter(batch, memo)
         if control is None and batch is None:
             return todd.utils.Control.CONTINUE

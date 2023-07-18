@@ -5,7 +5,7 @@ import pathlib
 from typing import Any
 
 import numpy as np
-import todd
+
 import torch
 from mmcv.parallel import collate
 from mmcv.runner import load_checkpoint
@@ -17,7 +17,7 @@ from oadp.base import Categories, Globals, coco, lvis  # noqa: F401
 from oadp.prompts.vild import gen_prompts
 
 from .utils import plot_single_img
-
+from .. import todd
 
 def set_custom_category(
     work_dir: str, config: todd.Config, categories: Categories
@@ -43,8 +43,8 @@ def set_custom_category(
     config.model.global_head.classifier.out_features = categories.num_all
 
 
-def single_gpu_infer(model: Any, imgs: list[str] | str,
-                     config: todd.Config) -> list[Any]:
+def single_gpu_infer(model: Any, imgs: List[str] | str,
+                     config: todd.Config) -> List[Any]:
     if isinstance(imgs, (list, tuple)):
         is_batch = True
     else:

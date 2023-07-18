@@ -7,7 +7,7 @@ __all__ = [
 
 from typing import TypedDict
 
-import todd
+from .. import todd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -30,7 +30,7 @@ class BaseClassifier(todd.Module):
     ) -> None:
         super().__init__(*args, **kwargs)
         prompts_ = torch.load(prompts, 'cpu')
-        names: list[str] = prompts_['names']
+        names: List[str] = prompts_['names']
         embeddings: torch.Tensor = prompts_['embeddings']
         indices = [names.index(name) for name in Globals.categories.all_]
         embeddings = embeddings[indices]
@@ -98,7 +98,7 @@ class ViLDClassifier(BaseClassifier):
     def __init__(
         self,
         *args,
-        scaler: ViLDScaler | None = None,
+        scaler = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)

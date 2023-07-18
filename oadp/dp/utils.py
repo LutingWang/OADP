@@ -3,16 +3,17 @@ __all__ = [
     'NormalizedLinear',
 ]
 import random
-from typing import Any
+from typing import Any, List, Union
 
 import cv2
 import sklearn.metrics
-import todd
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmdet.datasets.coco import CocoDataset
 
+from .. import todd
 
 class MultilabelTopKRecall(todd.Module):
 
@@ -74,8 +75,8 @@ def draw_label_type(img: Any, bbox: list, label: str, color: tuple) -> Any:
 
 
 def plot_single_img(
-    image_path: str, bbox_result: list[Any], threshold: float,
-    output_path: str, categories: list | tuple
+    image_path: str, bbox_result: List[Any], threshold: float,
+    output_path: str, categories: Union[list, tuple]
 ) -> None:
     image = cv2.imread(image_path)
     PALETTE = CocoDataset.PALETTE
