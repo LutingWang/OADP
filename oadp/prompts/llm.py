@@ -1,9 +1,11 @@
+import json
+
 import clip
 import clip.model
 import torch
-import tqdm
-import json
 import torch.nn.functional as F
+import tqdm
+
 
 def gen_prompts(json_path: list[str], output_path) -> None:
     text_dict = {}
@@ -18,13 +20,14 @@ def gen_prompts(json_path: list[str], output_path) -> None:
             tokens = clip.adaptively_tokenize(descriptions)
             embedding = model.encode_text(tokens)
             embeddings.append(torch.unsqueeze(F.normalize(embedding), 0))
-    embeddings = torch.cat(embeddings, dim=0)
-    embeddings = embeddings.permute(0, 2, 1)
+    embeddings_tensor = torch.cat(embeddings, dim=0)
+    embeddings_tensor = embeddings_tensor.permute(0, 2, 1)
     state_dict = dict(
-        embeddings=embeddings,
+        embeddings=embeddings_tensor,
         names=list(text_dict.keys()),
     )
     torch.save(state_dict, output_path)
+
 
 if __name__ == '__main__':
     gen_prompts(['data/prompts/coco.json'], 'data/prompts/llm.pth')

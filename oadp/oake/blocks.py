@@ -5,13 +5,14 @@ from typing import Generator, NamedTuple
 import clip
 import clip.model
 import PIL.Image
-import todd
 import torch
 import torch.cuda
 import torch.nn.functional as F
 import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
+
+import todd
 
 from .base import BaseDataset, BaseValidator
 

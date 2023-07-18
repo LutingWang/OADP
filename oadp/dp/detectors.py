@@ -6,11 +6,12 @@ __all__ = [
 from typing import Any
 
 import einops
-import todd
 import torch
 from mmdet.core import BitmapMasks
 from mmdet.models import DETECTORS, RPNHead, TwoStageDetector
 from mmdet.models.utils.builder import LINEAR_LAYERS
+
+import todd
 from todd.distillers import SelfDistiller, Student
 from todd.losses import LossRegistry as LR
 

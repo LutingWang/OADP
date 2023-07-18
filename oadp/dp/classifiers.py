@@ -7,11 +7,12 @@ __all__ = [
 
 from typing import TypedDict
 
-import todd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmdet.models.utils.builder import LINEAR_LAYERS
+
+import todd
 
 from ..base import Globals
 from .utils import NormalizedLinear
@@ -118,7 +119,12 @@ class ViLDClassifier(BaseClassifier):
 
 @LINEAR_LAYERS.register_module()
 class LLMClassifier(BaseClassifier):
-    def __init__(self, *args, **kwargs,) -> None:
+
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ) -> None:
         super().__init__(*args, **kwargs)
 
     @property

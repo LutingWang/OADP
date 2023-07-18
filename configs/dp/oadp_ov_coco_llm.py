@@ -1,6 +1,4 @@
-_base_ = [
-    'oadp_ov_coco.py'
-]
+_base_ = ['oadp_ov_coco.py']
 
 model = dict(
     global_head=dict(

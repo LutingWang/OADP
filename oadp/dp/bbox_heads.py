@@ -3,7 +3,6 @@ __all__ = [
     'ObjectMixin',
 ]
 
-import todd
 import torch
 from mmdet.models import (
     HEADS,
@@ -11,6 +10,8 @@ from mmdet.models import (
     Shared2FCBBoxHead,
     Shared4Conv1FCBBoxHead,
 )
+
+import todd
 from todd.losses import LossRegistry as LR
 
 from .classifiers import Classifier

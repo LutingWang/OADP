@@ -8,7 +8,7 @@ _base_ = [
     'runtime.py',
 ]
 
-model=dict(
+model = dict(
     roi_head=dict(
         bbox_head=dict(
             cls_predictor_cfg=dict(

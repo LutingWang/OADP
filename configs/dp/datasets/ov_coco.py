@@ -58,8 +58,8 @@ trainer = dict(
                     type='Collect',
                     keys=[
                         'img', 'gt_bboxes', 'gt_labels', 'gt_masks',
-                        'clip_global','clip_blocks', 'block_bboxes', 
-                        'block_labels','clip_objects', 'object_bboxes'
+                        'clip_global', 'clip_blocks', 'block_bboxes',
+                        'block_labels', 'clip_objects', 'object_bboxes'
                     ],
                 ),
             ],

@@ -4,13 +4,14 @@ from datetime import datetime
 
 import mmcv
 import mmdet
-import todd
 import torch
 import torch.distributed
 from mmdet.apis import train_detector
 from mmdet.datasets import build_dataset
 from mmdet.models import BaseDetector, build_detector
 from mmdet.utils import collect_env, get_root_logger
+
+import todd
 
 from ..base import Globals
 

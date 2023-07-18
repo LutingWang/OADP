@@ -9,7 +9,6 @@ import clip
 import clip.model
 import einops
 import PIL.Image
-import todd
 import torch
 import torch.distributed
 import torch.nn as nn
@@ -17,6 +16,8 @@ import torch.nn.functional as F
 import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
+
+import todd
 
 from .base import BaseDataset, BaseValidator
 

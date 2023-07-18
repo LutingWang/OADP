@@ -6,13 +6,14 @@ from typing import Generic, Protocol, TypeVar
 import clip
 import clip.model
 import PIL.Image
-import todd
 import torch
 import torch.distributed
 import torch.utils.data
 import torch.utils.data.distributed
 import torchvision
 import torchvision.transforms as transforms
+
+import todd
 
 
 class Batch(Protocol):
