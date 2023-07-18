@@ -137,11 +137,13 @@ class LLMClassifier(BaseClassifier):
         x = x.to(torch.float32)  # convert to float32
         embeddings = embeddings.to(torch.float32)  # convert to float32
         similarity = torch.matmul(x, embeddings)
-        y, _ = torch.max(similarity, dim=0)
         if Globals.training:
+            y = torch.mean(similarity, dim=0)
             novel_categories = slice(
                 Globals.categories.num_bases,
                 Globals.categories.num_all,
             )
             y[:, novel_categories] = float('-inf')
+        else:
+            y, _ = torch.max(similarity, dim=0)
         return y
