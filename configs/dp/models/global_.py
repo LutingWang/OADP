@@ -1,11 +1,7 @@
 model = dict(
     global_head=dict(
         topk=20,
-        classifier=dict(
-            type='Classifier',
-            prompts='data/prompts/ml_coco.pth',
-            in_features=256,
-        ),
+        classifier=dict(in_features=256),
         loss=dict(
             type='AsymmetricLoss',
             weight=dict(type='WarmupScheduler', gain=4, end=2000),

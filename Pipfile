@@ -4,17 +4,8 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-torch = "==1.12.1"
-torchvision = "==0.13.1"
-todd-ai = "==0.3.0"
-lvis = "*"
-scikit-learn = "==1.1.3"
-openmim = "*"
-clip = {git = "https://github.com/LutingWang/CLIP.git"}
-nni = "*"
 
 [dev-packages]
 
 [requires]
 python_version = "3.10"
-python_full_version = "3.10.10"

@@ -3,12 +3,11 @@ __all__ = [
     'OADP',
 ]
 
-from typing import Any
+from typing import Any, Sequence
 
 import einops
 import todd
 import torch
-from mmdet.core import BitmapMasks
 from mmdet.models import DETECTORS, RPNHead, TwoStageDetector
 from mmdet.models.utils.builder import LINEAR_LAYERS
 from todd.distillers import SelfDistiller, Student
@@ -34,7 +33,7 @@ class GlobalHead(todd.Module):
         self._classifier = LINEAR_LAYERS.build(classifier)
         self._loss = LR.build(loss)
 
-    def forward(self, feats: tuple[torch.Tensor, ...]) -> torch.Tensor:
+    def forward(self, feats: Sequence[torch.Tensor]) -> torch.Tensor:
         feat = einops.reduce(feats[-1], 'b c h w -> b c', reduction='mean')
         return self._classifier(feat)
 
@@ -59,59 +58,62 @@ class GlobalHead(todd.Module):
 
 
 @DETECTORS.register_module()
-class OADP(TwoStageDetector, Student[SelfDistiller]):
+class ViLD(TwoStageDetector, Student[SelfDistiller]):
     rpn_head: RPNHead
     roi_head: OADPRoIHead
 
     def __init__(
         self,
         *args,
-        global_head: todd.Config | None = None,
         distiller: todd.Config,
         **kwargs,
     ) -> None:
-        super().__init__(*args, **kwargs)
-        if global_head is not None:
-            self._global_head = GlobalHead(**global_head)
-        distiller.setdefault('type', 'SelfDistiller')
+        TwoStageDetector.__init__(self, *args, **kwargs)
         Student.__init__(self, distiller)
 
     @property
     def num_classes(self) -> int:
         return Globals.categories.num_all
 
-    @property
-    def with_global(self) -> bool:
-        return hasattr(self, '_global_head')
-
     def forward_train(
         self,
         img: torch.Tensor,
         img_metas: list[dict[str, Any]],
-        gt_bboxes: list[torch.Tensor],
-        gt_labels: list[torch.Tensor],
-        clip_global: torch.Tensor,
-        clip_blocks: list[torch.Tensor],
-        block_bboxes: list[torch.Tensor],
-        block_labels: list[torch.Tensor],
-        clip_objects: list[torch.Tensor],
-        object_bboxes: list[torch.Tensor],
-        gt_masks: list[BitmapMasks] | None = None,
         **kwargs,
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, Any]:
         Globals.training = True
         feats = self.extract_feat(img)
-        losses = dict()
-        custom_tensors = dict()
+        losses: dict[str, Any] = dict()
+        custom_tensors: dict[str, Any] = dict()
 
-        if self.with_global:
-            global_losses = self._global_head.forward_train(
-                feats,
-                labels=gt_labels,
-            )
-            losses.update(global_losses)
-            custom_tensors['clip_global'] = clip_global.float()
+        self._forward_train(
+            feats,
+            img_metas,
+            losses,
+            custom_tensors,
+            **kwargs,
+        )
 
+        distill_losses = self.distiller(custom_tensors)
+        self.distiller.reset()
+        self.distiller.step()
+        losses.update(distill_losses)
+
+        return losses
+
+    def _forward_train(
+        self,
+        feats: list[torch.Tensor],
+        img_metas: list[dict[str, Any]],
+        losses: dict[str, Any],
+        custom_tensors: dict[str, Any],
+        *,
+        gt_bboxes: list[torch.Tensor],
+        gt_labels: list[torch.Tensor],
+        clip_objects: list[torch.Tensor],
+        object_bboxes: list[torch.Tensor],
+        **kwargs,
+    ) -> None:
         rpn_losses, proposals = self.rpn_head.forward_train(
             feats,
             img_metas,
@@ -130,12 +132,71 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
             gt_bboxes,
             gt_labels,
             None,
-            gt_masks,
             **kwargs,
         )
         losses.update(roi_losses)
 
+        self.roi_head.object_forward_train(feats, object_bboxes)
+        custom_tensors['clip_objects'] = torch.cat(clip_objects).float()
+
+    def simple_test(self, *args, **kwargs):
+        Globals.training = False
+        return super().simple_test(*args, **kwargs)
+
+
+@DETECTORS.register_module()
+class OADP(ViLD):
+
+    def __init__(
+        self,
+        *args,
+        global_head: todd.Config | None = None,
+        distiller: todd.Config,
+        **kwargs,
+    ) -> None:
+        TwoStageDetector.__init__(self, *args, **kwargs)
+        if global_head is not None:
+            self._global_head = GlobalHead(**global_head)
+        Student.__init__(self, distiller)
+
+    @property
+    def with_global(self) -> bool:
+        return hasattr(self, '_global_head')
+
+    def _forward_train(
+        self,
+        feats: list[torch.Tensor],
+        img_metas: list[dict[str, Any]],
+        losses: dict[str, Any],
+        custom_tensors: dict[str, Any],
+        *,
+        gt_labels: list[torch.Tensor],
+        clip_global: torch.Tensor | None = None,
+        clip_blocks: list[torch.Tensor] | None = None,
+        block_bboxes: list[torch.Tensor] | None = None,
+        block_labels: list[torch.Tensor] | None = None,
+        **kwargs,
+    ) -> None:
+        super()._forward_train(
+            feats,
+            img_metas,
+            losses,
+            custom_tensors,
+            gt_labels=gt_labels,
+            **kwargs,
+        )
+        if self.with_global:
+            assert clip_global is not None
+            global_losses = self._global_head.forward_train(
+                feats,
+                labels=gt_labels,
+            )
+            losses.update(global_losses)
+            custom_tensors['clip_global'] = clip_global.float()
         if self.roi_head.with_block:
+            assert clip_blocks is not None
+            assert block_bboxes is not None
+            assert block_labels is not None
             block_losses = self.roi_head.block_forward_train(
                 feats,
                 block_bboxes,
@@ -143,17 +204,3 @@ class OADP(TwoStageDetector, Student[SelfDistiller]):
             )
             losses.update(block_losses)
             custom_tensors['clip_blocks'] = torch.cat(clip_blocks).float()
-
-        self.roi_head.object_forward_train(feats, object_bboxes)
-        custom_tensors['clip_objects'] = torch.cat(clip_objects).float()
-
-        distill_losses = self.distiller(custom_tensors)
-        self.distiller.reset()
-        self.distiller.step()
-        losses.update(distill_losses)
-
-        return losses
-
-    def simple_test(self, *args, **kwargs):
-        Globals.training = False
-        return super().simple_test(*args, **kwargs)

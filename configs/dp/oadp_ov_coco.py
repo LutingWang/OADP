@@ -2,12 +2,17 @@ _base_ = [
     'datasets/ov_coco.py',
     'models/oadp_faster_rcnn_r50_fpn.py',
     'schedules/40k.py',
-    'schedules/oadp.py',
-    'runtime.py',
+    'base.py',
 ]
 
 model = dict(
-    global_head=dict(classifier=dict(out_features=65)),
+    global_head=dict(
+        classifier=dict(
+            type='Classifier',
+            prompts='data/prompts/ml_coco.pth',
+            out_features=65,
+        ),
+    ),
     roi_head=dict(
         bbox_head=dict(
             cls_predictor_cfg=dict(

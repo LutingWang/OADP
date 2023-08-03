@@ -11,6 +11,7 @@ trainer = dict(
     resume_from=None,
     load_from='pretrained/soco/soco_star_mask_rcnn_r50_fpn_400e.pth',
     seed=3407,
+    optimizer=dict(weight_decay=2.5e-5),
 )
 validator = dict(
     # fp16=True,

@@ -117,7 +117,7 @@ python -c "import torchvision; _ = torchvision.models.ResNet50_Weights.IMAGENET1
 ln -s ~/.cache/torch/hub/checkpoints/ pretrained/torchvision
 ```
 
-Download `soco_star_mask_rcnn_r50_fpn_400e.pth` from [Baidu Netdisk][].
+Download and rename `soco_star_mask_rcnn_r50_fpn_400e.pth` from [Baidu Netdisk](https://pan.baidu.com/s/1FHN-9vsH16w4TAusyHnXvg?pwd=kwps) or [Google Drive](https://drive.google.com/file/d/1z6Tb2MPFJDv9qpEyn_J0cJcXOguKTiL0/view?usp=sharing).
 
 Download the [DetPro][] prompt from [Baidu Netdisk](https://pan.baidu.com/s/1MjV1DqiO0gHftyKjuiPrTA?pwd=uvab).
 
@@ -279,13 +279,14 @@ OADP/data
 To conduct training for coco
 
 ```bash
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
+[DRY_RUN=True] [TRAIN_WITH_VAL_DATASET=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train vild_ov_coco configs/dp/vild_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
+[DRY_RUN=True] [TRAIN_WITH_VAL_DATASET=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
 ```
 
 To conduct training for lvis
 
 ```bash
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_lvis configs/dp/oadp_ov_lvis.py
+[DRY_RUN=True] [TRAIN_WITH_VAL_DATASET=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_lvis configs/dp/oadp_ov_lvis.py
 ```
 
 To test a specific checkpoint
