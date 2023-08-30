@@ -19,6 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('config', type=todd.Config.load)
     parser.add_argument('checkpoint', help='checkpoint file')
     parser.add_argument('--override', action=todd.DictAction)
+    parser.add_argument('--metrics', nargs='+', default=['bbox'])
     args = parser.parse_args()
     return args
 
@@ -80,7 +81,7 @@ def main() -> None:
         raise NotImplementedError
 
     if todd.get_rank() == 0:
-        metric = dataset.evaluate(outputs)
+        metric = dataset.evaluate(outputs, args.metrics)
         todd.logger.info('\n' + pprint.pformat(metric))
 
 

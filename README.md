@@ -289,10 +289,10 @@ To conduct training for lvis
 [DRY_RUN=True] [TRAIN_WITH_VAL_DATASET=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_lvis configs/dp/oadp_ov_lvis.py
 ```
 
-To test a specific checkpoint
+To test a specific checkpoint (use --metrics=segm to enable instance segmentation test, metrics is set to bounding box by default)
 
 ```bash
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test configs/dp/oadp_ov_coco.py work_dirs/oadp_ov_coco/iter_32000.pth
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test configs/dp/oadp_ov_lvis.py work_dirs/oadp_ov_lvis/epoch_24.pth
 ```
 
 NNI is supported but unnecessary.
