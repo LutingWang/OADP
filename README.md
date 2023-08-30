@@ -293,6 +293,13 @@ To test a specific checkpoint
 
 ```bash
 [DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test configs/dp/oadp_ov_coco.py work_dirs/oadp_ov_coco/iter_32000.pth
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test configs/dp/oadp_ov_lvis.py work_dirs/oadp_ov_lvis/epoch_24.pth
+```
+
+For the instance segmentation performance on LVIS, use the `metrics` argument
+
+```bash
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.test configs/dp/oadp_ov_lvis.py work_dirs/oadp_ov_lvis/epoch_24.pth --metrics bbox segm
 ```
 
 NNI is supported but unnecessary.
@@ -314,9 +321,10 @@ The checkpoints for OADP are available on [Baidu Netdisk][].
 
 ### OV LVIS
 
-| APr       | Config                                        | Checkpoint                            |
-| :-:       | :-:                                           | :-:                                   |
-| $20.7$    | [oadp_ov_lvis.py](configs/dp/oadp_ov_lvis.py) | work_dirs/oadp_ov_lvis/epoch_24.pth   |
+| OD APr    | IS APr    | Config                                                | Checkpoint                            |
+| :-:       | :-:       | :-:                                                   | :-:                                   |
+| $20.6$    | $19.9$    | [oadp_ov_lvis.py](configs/dp/oadp_ov_lvis.py)         | work_dirs/oadp_ov_lvis/epoch_24.pth   |
+|           |           | [oadp_ov_lvis_lsj.py](configs/dp/oadp_ov_lvis_lsj.py) | Coming soon                           |
 
 [Baidu Netdisk]: https://pan.baidu.com/s/1HXWYSN9Vk6yDhjRI19JrfQ?pwd=OADP
 [DetPro]: https://github.com/dyabel/detpro
