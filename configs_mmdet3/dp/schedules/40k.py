@@ -1,5 +1,5 @@
 # training schedule for 90k
-max_iter = 80000
+max_iter = 40000
 interval = 2000
 train_cfg = dict(
     type='IterBasedTrainLoop', max_iters=max_iter, val_interval=interval)
@@ -16,7 +16,7 @@ param_scheduler = [
         begin=0,
         end=max_iter,
         by_epoch=False,
-        milestones=[60000],
+        milestones=[30000],
         gamma=0.1)
 ]
 
