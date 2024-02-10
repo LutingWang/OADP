@@ -1,6 +1,5 @@
 __all__ = [
     'DebugMixin',
-    'OV_LVIS',
     'LoadCLIPFeatures',
     'PackInputs'
 ]
