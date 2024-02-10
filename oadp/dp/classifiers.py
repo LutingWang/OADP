@@ -10,13 +10,13 @@ import todd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mmdet.models.utils.builder import LINEAR_LAYERS
+from mmdet.registry import MODELS
 
 from ..base import Globals
 from .utils import NormalizedLinear
 
 
-@LINEAR_LAYERS.register_module()
+@MODELS.register_module()
 class BaseClassifier(todd.Module):
 
     def __init__(
@@ -68,7 +68,7 @@ class BaseClassifier(todd.Module):
         return y
 
 
-@LINEAR_LAYERS.register_module()
+@MODELS.register_module()
 class Classifier(BaseClassifier):
     # named `Classifier` to monkey patch mmdet detectors
 
@@ -88,7 +88,7 @@ class ViLDScaler(TypedDict):
     val: float
 
 
-@LINEAR_LAYERS.register_module()
+@MODELS.register_module()
 class ViLDClassifier(BaseClassifier):
 
     def __init__(

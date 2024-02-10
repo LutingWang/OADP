@@ -9,15 +9,16 @@ from typing import Any, cast
 import mmcv
 import todd
 import torch
-from mmdet.core import bbox2roi
-from mmdet.models import HEADS, BaseRoIExtractor, StandardRoIHead
+from mmdet.structures.bbox import bbox2roi
+from mmdet.models import BaseRoIExtractor, StandardRoIHead
+from mmdet.registry import MODELS
 
 from ..base import Globals
 from ..base.globals_ import Store
 from .bbox_heads import BlockMixin, ObjectMixin
 
 
-@HEADS.register_module()
+@MODELS.register_module()
 class ViLDEnsembleRoIHead(StandardRoIHead):
     bbox_roi_extractor: BaseRoIExtractor
 
@@ -46,7 +47,7 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         # `shared_head` is not supported for simplification
         assert not self.with_shared_head
 
-        self._object_head: ObjectMixin = HEADS.build(
+        self._object_head: ObjectMixin = MODELS.build(
             object_head,
             default_args=bbox_head,
         )
@@ -120,14 +121,14 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         object_feats = bre(x[:bre.num_inputs], rois)
         self._object_head(object_feats)
 
-    def object_forward_train(
+    def object_forward(
         self,
         x: list[torch.Tensor],
         bboxes: list[torch.Tensor],
     ) -> None:
         rois = bbox2roi(bboxes)
         self._object_forward(x, rois)
-
+    #TODO: Algin to MMdet3
     if Store.DUMP:
         access_layer = todd.datasets.PthAccessLayer(
             data_root=Store.DUMP,
@@ -166,7 +167,7 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
             return [torch.tensor([[0, 0, 1, 1]])], [torch.empty([0])]
 
 
-@HEADS.register_module()
+@MODELS.register_module()
 class OADPRoIHead(ViLDEnsembleRoIHead):
 
     def __init__(
@@ -178,7 +179,7 @@ class OADPRoIHead(ViLDEnsembleRoIHead):
     ) -> None:
         super().__init__(*args, bbox_head=bbox_head, **kwargs)
         if block_head is not None:
-            self._block_head: BlockMixin = HEADS.build(
+            self._block_head: BlockMixin = MODELS.build(
                 block_head,
                 default_args=bbox_head,
             )
@@ -197,7 +198,7 @@ class OADPRoIHead(ViLDEnsembleRoIHead):
         logits, _ = self._block_head(block_feats)
         return logits
 
-    def block_forward_train(
+    def block_forward(
         self,
         x: list[torch.Tensor],
         bboxes: list[torch.Tensor],

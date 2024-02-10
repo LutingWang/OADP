@@ -6,11 +6,11 @@ __all__ = [
 import todd
 import torch
 from mmdet.models import (
-    HEADS,
     BBoxHead,
     Shared2FCBBoxHead,
     Shared4Conv1FCBBoxHead,
 )
+from mmdet.registry import MODELS
 from todd.losses import LossRegistry as LR
 
 from .classifiers import Classifier
@@ -60,11 +60,11 @@ class ObjectMixin(NotWithRegMixin):
         return logits, None
 
 
-@HEADS.register_module()
+@MODELS.register_module()
 class Shared2FCBlockBBoxHead(BlockMixin, Shared2FCBBoxHead):
     pass
 
 
-@HEADS.register_module()
+@MODELS.register_module()
 class Shared4Conv1FCObjectBBoxHead(ObjectMixin, Shared4Conv1FCBBoxHead):
     pass
