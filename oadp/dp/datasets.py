@@ -1,32 +1,37 @@
 __all__ = [
     'DebugMixin',
-    'OV_COCO',
     'OV_LVIS',
     'LoadCLIPFeatures',
+    'PackInputs'
 ]
 
 import contextlib
 import io
 from typing import Any, Mapping, cast
-
+import os.path as osp
+import tempfile
 import numpy as np
 import todd
 import torch
 from lvis import LVIS
+from mmcv.transforms import to_tensor
+from mmengine.fileio import load
 from mmdet.datasets import (
-    DATASETS,
-    PIPELINES,
     CocoDataset,
-    CustomDataset,
+    BaseDetDataset,
     LVISV1Dataset,
 )
+from mmdet.registry import DATASETS, TRANSFORMS, MODELS, METRICS
 from mmdet.datasets.api_wrappers import COCO, COCOeval
+from mmdet.evaluation.metrics import CocoMetric
+from mmdet.models.data_preprocessors import DetDataPreprocessor
+from mmdet.datasets.transforms import PackDetInputs
 from todd.datasets import AccessLayerRegistry as ALR
 
 from ..base import Globals, coco, lvis
 
 
-class DebugMixin(CustomDataset):
+class DebugMixin(BaseDetDataset):
 
     def __len__(self) -> int:
         if todd.Store.DRY_RUN:
@@ -73,9 +78,8 @@ class LVISV1Dataset_(DebugMixin, LVISV1Dataset):
     pass
 
 
-@DATASETS.register_module()
-class OV_COCO(CocoDataset_):
-    CLASSES = coco.all_
+@METRICS.register_module()
+class OVCOCOMetric(CocoMetric):
 
     def summarize(self, cocoEval: COCOeval, prefix: str) -> dict[str, Any]:
         string_io = io.StringIO()
@@ -90,15 +94,26 @@ class OV_COCO(CocoDataset_):
         stats['copypaste'] = ' '.join(stats.values())
         return {f'{prefix}_bbox_mAP_{k}': v for k, v in stats.items()}
 
-    def evaluate(self, results, *args, **kwargs) -> dict[str, Any]:
-        results = self._det2json(results)
-        try:
-            results = self.coco.loadRes(results)
-        except IndexError:
-            todd.logger.error('The testing results is empty')
-            return dict()
+    def compute_metrics(self, results, *args, **kwargs) -> dict[str, float]:
+        _, preds = zip(*results)
+        if self.outfile_prefix is None:
+            tmp_dir = tempfile.TemporaryDirectory()
+            outfile_prefix = osp.join(tmp_dir.name, 'results')
+        else:
+            outfile_prefix = self.outfile_prefix
+        
+        # handle lazy init
+        if self.cat_ids is None:
+            self.cat_ids = self._coco_api.get_cat_ids(
+                cat_names=self.dataset_meta['classes'])
+        if self.img_ids is None:
+            self.img_ids = self._coco_api.get_img_ids()
+        
+        result_files = self.results2json(preds, outfile_prefix)
+        predictions = load(result_files['bbox'])
+        coco_dt = self._coco_api.loadRes(predictions)
 
-        coco_eval = COCOeval(self.coco, results, 'bbox')
+        coco_eval = COCOeval(self._coco_api, coco_dt, 'bbox')
         coco_eval.params.catIds = self.cat_ids
         coco_eval.params.imgIds = self.img_ids
         coco_eval.params.maxDets = [100, 300, 1000]
@@ -134,7 +149,7 @@ class OV_LVIS(LVISV1Dataset_):
     CLASSES = lvis.all_
 
 
-@PIPELINES.register_module()
+@TRANSFORMS.register_module()
 class LoadCLIPFeatures:
 
     def __init__(
@@ -171,9 +186,8 @@ class LoadCLIPFeatures:
     def __call__(self, results: dict[str, Any]) -> dict[str, Any]:
         key = (
             self.__key
-            if todd.Store.DRY_RUN else f'{results["img_info"]["id"]:012d}'
+            if todd.Store.DRY_RUN else f'{results["img_id"]:012d}'
         )
-        bbox_fields: list[str] = results['bbox_fields']
 
         if self._globals is not None:
             global_ = self._globals[key]
@@ -185,30 +199,51 @@ class LoadCLIPFeatures:
             if 'gt_bboxes' in results:
                 num_all = Globals.categories.num_all
                 gt_bboxes = results['gt_bboxes']
-                gt_labels = results['gt_labels']
+                gt_labels = results['gt_bboxes_labels']
                 indices = gt_labels < num_all  # filter out pseudo labels
                 gt_bboxes = gt_bboxes[indices]
                 gt_labels = gt_labels[indices]
                 block_ids, gt_ids = torch.where(
                     todd.BBoxesXYXY(block_bboxes)
-                    & todd.BBoxesXYXY(torch.tensor(gt_bboxes)) > 0
+                    & todd.BBoxesXYXY(gt_bboxes.tensor) > 0
                 )
                 block_labels = np.zeros(
                     (block_bboxes.shape[0], num_all),
                     dtype=bool,
                 )
                 block_labels[block_ids, gt_labels[gt_ids]] = True
-                results['block_labels'] = block_labels
+                results['block_labels'] = to_tensor(block_labels)
             results['clip_blocks'] = blocks['embeddings']
-            results['block_bboxes'] = block_bboxes.float().numpy()
-            bbox_fields.append('block_bboxes')
+            results['block_bboxes'] = block_bboxes.float()
 
         if self._objects is not None:
             objects = self._objects[key]
             object_bboxes = objects['bboxes']
             indices = todd.BBoxesXYXY(object_bboxes).indices(min_wh=(4, 4))
             results['clip_objects'] = objects['embeddings'][indices]
-            results['object_bboxes'] = object_bboxes[indices].float().numpy()
-            bbox_fields.append('object_bboxes')
+            results['object_bboxes'] = object_bboxes[indices].float()
 
         return results
+
+@TRANSFORMS.register_module()
+class PackInputs(PackDetInputs):
+    def __init__(self, extra_keys, 
+                 meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
+                            'scale_factor', 'flip', 'flip_direction')):
+        super().__init__(meta_keys)
+        self.keys = extra_keys
+    
+    def transform(self, results: dict) -> dict:
+        packed_results = super().transform(results)
+        for key in self.keys:
+            packed_results[key] = results[key]
+        return packed_results
+
+@MODELS.register_module()
+class DataPreprocessor(DetDataPreprocessor):
+    def forward(self, data: dict, training: bool = False) -> dict:
+        pack_data = super().forward(data, training)
+        for key, value in data.items():
+            if key not in ['inputs', 'data_samples']:
+                pack_data[key] = value
+        return pack_data
