@@ -5,11 +5,7 @@ __all__ = [
     'PackInputs'
 ]
 
-import contextlib
-import io
 from typing import Any, Mapping, cast
-import os.path as osp
-import tempfile
 import numpy as np
 import todd
 import torch
@@ -21,14 +17,12 @@ from mmdet.datasets import (
     BaseDetDataset,
     LVISV1Dataset,
 )
-from mmdet.registry import DATASETS, TRANSFORMS, MODELS, METRICS
-from mmdet.datasets.api_wrappers import COCO, COCOeval
-from mmdet.evaluation.metrics import CocoMetric
+from mmdet.registry import DATASETS, TRANSFORMS, MODELS
+from mmdet.datasets.api_wrappers import COCO
 from mmdet.models.data_preprocessors import DetDataPreprocessor
 from mmdet.datasets.transforms import PackDetInputs
 from todd.datasets import AccessLayerRegistry as ALR
-
-from ..base import Globals, coco, lvis
+from ..base import Globals
 
 
 class DebugMixin(BaseDetDataset):
@@ -76,77 +70,6 @@ class CocoDataset_(DebugMixin, CocoDataset):
 @DATASETS.register_module(name='LVISV1Dataset', force=True)
 class LVISV1Dataset_(DebugMixin, LVISV1Dataset):
     pass
-
-
-@METRICS.register_module()
-class OVCOCOMetric(CocoMetric):
-
-    def summarize(self, cocoEval: COCOeval, prefix: str) -> dict[str, Any]:
-        string_io = io.StringIO()
-        with contextlib.redirect_stdout(string_io):
-            cocoEval.summarize()
-        todd.logger.info(f'Evaluate *{prefix}*\n{string_io.getvalue()}')
-
-        stats = {
-            s: f'{cocoEval.stats[i]:.04f}'
-            for i, s in enumerate(['', '50', '75', 's', 'm', 'l'])
-        }
-        stats['copypaste'] = ' '.join(stats.values())
-        return {f'{prefix}_bbox_mAP_{k}': v for k, v in stats.items()}
-
-    def compute_metrics(self, results, *args, **kwargs) -> dict[str, float]:
-        _, preds = zip(*results)
-        if self.outfile_prefix is None:
-            tmp_dir = tempfile.TemporaryDirectory()
-            outfile_prefix = osp.join(tmp_dir.name, 'results')
-        else:
-            outfile_prefix = self.outfile_prefix
-        
-        # handle lazy init
-        if self.cat_ids is None:
-            self.cat_ids = self._coco_api.get_cat_ids(
-                cat_names=self.dataset_meta['classes'])
-        if self.img_ids is None:
-            self.img_ids = self._coco_api.get_img_ids()
-        
-        result_files = self.results2json(preds, outfile_prefix)
-        predictions = load(result_files['bbox'])
-        coco_dt = self._coco_api.loadRes(predictions)
-
-        coco_eval = COCOeval(self._coco_api, coco_dt, 'bbox')
-        coco_eval.params.catIds = self.cat_ids
-        coco_eval.params.imgIds = self.img_ids
-        coco_eval.params.maxDets = [100, 300, 1000]
-
-        coco_eval.evaluate()
-        coco_eval.accumulate()
-
-        # iou_thrs x recall x k x area x max_dets
-        precision: np.ndarray = coco_eval.eval['precision']
-        # iou_thrs x k x area x max_dets
-        recall: np.ndarray = coco_eval.eval['recall']
-        assert len(self.cat_ids) == precision.shape[2] == recall.shape[1], (
-            f"{len(self.cat_ids)}, {precision.shape}, {recall.shape}"
-        )
-
-        all_ = self.summarize(
-            coco_eval, f'COCO_{coco.num_bases}_{coco.num_novels}'
-        )
-
-        coco_eval.eval['precision'] = precision[:, :, :coco.num_bases, :, :]
-        coco_eval.eval['recall'] = recall[:, :coco.num_bases, :, :]
-        bases = self.summarize(coco_eval, f'COCO_{coco.num_bases}')
-
-        coco_eval.eval['precision'] = precision[:, :, coco.num_bases:, :, :]
-        coco_eval.eval['recall'] = recall[:, coco.num_bases:, :, :]
-        novels = self.summarize(coco_eval, f'COCO_{coco.num_novels}')
-
-        return all_ | bases | novels
-
-
-@DATASETS.register_module()
-class OV_LVIS(LVISV1Dataset_):
-    CLASSES = lvis.all_
 
 
 @TRANSFORMS.register_module()

@@ -46,7 +46,7 @@ val_dataloader = dict(
 test_dataloader = val_dataloader
 
 val_evaluator = dict(
-    type='OVCOCOMetric',
+    type='OVCocoMetric',
     ann_file=data_root + ann_file_prefix + 'val2017.65.min.json',
     metric='bbox',
     format_only=False,
