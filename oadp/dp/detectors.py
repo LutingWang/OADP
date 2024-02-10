@@ -4,12 +4,13 @@ __all__ = [
 ]
 
 from typing import Any, Sequence
-
+import copy
 import einops
 import todd
 import torch
-from mmdet.models import DETECTORS, RPNHead, TwoStageDetector
-from mmdet.models.utils.builder import LINEAR_LAYERS
+from mmdet.models import RPNHead, TwoStageDetector
+from mmdet.registry import MODELS
+from mmdet.structures import DetDataSample, OptSampleList, SampleList
 from todd.distillers import SelfDistiller, Student
 from todd.losses import LossRegistry as LR
 
@@ -30,20 +31,20 @@ class GlobalHead(todd.Module):
     ) -> None:
         super().__init__(*args, **kwargs)
         self._multilabel_topk_recall = MultilabelTopKRecall(k=topk)
-        self._classifier = LINEAR_LAYERS.build(classifier)
+        self._classifier = MODELS.build(classifier)
         self._loss = LR.build(loss)
 
-    def forward(self, feats: Sequence[torch.Tensor]) -> torch.Tensor:
+    def _forward(self, feats: Sequence[torch.Tensor]) -> torch.Tensor:
         feat = einops.reduce(feats[-1], 'b c h w -> b c', reduction='mean')
         return self._classifier(feat)
 
-    def forward_train(
+    def forward(
         self,
         *args,
         labels: list[torch.Tensor],
         **kwargs,
     ) -> dict[str, torch.Tensor]:
-        logits = self.forward(*args, **kwargs)
+        logits = self._forward(*args, **kwargs)
         targets = logits.new_zeros(
             logits.shape[0],
             Globals.categories.num_all,
@@ -57,7 +58,7 @@ class GlobalHead(todd.Module):
         )
 
 
-@DETECTORS.register_module()
+@MODELS.register_module()
 class ViLD(TwoStageDetector, Student[SelfDistiller]):
     rpn_head: RPNHead
     roi_head: OADPRoIHead
@@ -75,20 +76,26 @@ class ViLD(TwoStageDetector, Student[SelfDistiller]):
     def num_classes(self) -> int:
         return Globals.categories.num_all
 
-    def forward_train(
-        self,
-        img: torch.Tensor,
-        img_metas: list[dict[str, Any]],
+    def list_to_tensor(self, data_list):
+        return [data.tensor for data in data_list]
+
+    def forward(self,
+        inputs: torch.Tensor,
+        data_samples: OptSampleList = None,
+        mode: str = 'tensor',
         **kwargs,
-    ) -> dict[str, Any]:
+    ):
+        if mode == 'predict':
+            return self.predict(inputs, data_samples)
+        
         Globals.training = True
-        feats = self.extract_feat(img)
+        feats = self.extract_feat(inputs)
         losses: dict[str, Any] = dict()
         custom_tensors: dict[str, Any] = dict()
 
-        self._forward_train(
+        self._forward(
             feats,
-            img_metas,
+            data_samples,
             losses,
             custom_tensors,
             **kwargs,
@@ -101,50 +108,47 @@ class ViLD(TwoStageDetector, Student[SelfDistiller]):
 
         return losses
 
-    def _forward_train(
+    def _forward(
         self,
         feats: list[torch.Tensor],
-        img_metas: list[dict[str, Any]],
+        data_samples: OptSampleList,
         losses: dict[str, Any],
         custom_tensors: dict[str, Any],
         *,
-        gt_bboxes: list[torch.Tensor],
-        gt_labels: list[torch.Tensor],
         clip_objects: list[torch.Tensor],
         object_bboxes: list[torch.Tensor],
         **kwargs,
     ) -> None:
-        rpn_losses, proposals = self.rpn_head.forward_train(
-            feats,
-            img_metas,
-            gt_bboxes,
-            gt_labels=None,
-            gt_bboxes_ignore=None,
-            proposal_cfg=self.train_cfg.rpn_proposal,
-            **kwargs,
-        )
+        # RPN forward and loss
+        proposal_cfg = self.train_cfg.rpn_proposal
+        rpn_data_samples = copy.deepcopy(data_samples)
+        # set cat_id of gt_labels to 0 in RPN
+        for data_sample in rpn_data_samples:
+            data_sample.gt_instances.labels = \
+                torch.zeros_like(data_sample.gt_instances.labels)
+
+        rpn_losses, rpn_results_list = self.rpn_head.loss_and_predict(
+            feats, rpn_data_samples, proposal_cfg=proposal_cfg)
+        # avoid get same name with roi_head loss
+        keys = rpn_losses.keys()
+        for key in list(keys):
+            if 'loss' in key and 'rpn' not in key:
+                rpn_losses[f'rpn_{key}'] = rpn_losses.pop(key)
         losses.update(rpn_losses)
 
-        roi_losses = self.roi_head.forward_train(
-            feats,
-            img_metas,
-            proposals,
-            gt_bboxes,
-            gt_labels,
-            None,
-            **kwargs,
-        )
+        # ROI loss
+        roi_losses = self.roi_head.loss(feats, rpn_results_list, data_samples)
         losses.update(roi_losses)
 
-        self.roi_head.object_forward_train(feats, object_bboxes)
-        custom_tensors['clip_objects'] = torch.cat(clip_objects).float()
+        self.roi_head.object_forward(feats, object_bboxes)
+        custom_tensors['clip_objects'] = torch.cat(clip_objects).float().cuda()
 
-    def simple_test(self, *args, **kwargs):
+    def predict(self, *args, **kwargs):
         Globals.training = False
-        return super().simple_test(*args, **kwargs)
+        return super().predict(*args, **kwargs)
 
 
-@DETECTORS.register_module()
+@MODELS.register_module()
 class OADP(ViLD):
 
     def __init__(
@@ -163,44 +167,43 @@ class OADP(ViLD):
     def with_global(self) -> bool:
         return hasattr(self, '_global_head')
 
-    def _forward_train(
+    def _forward(
         self,
         feats: list[torch.Tensor],
-        img_metas: list[dict[str, Any]],
+        data_samples: OptSampleList,
         losses: dict[str, Any],
         custom_tensors: dict[str, Any],
         *,
-        gt_labels: list[torch.Tensor],
         clip_global: torch.Tensor | None = None,
         clip_blocks: list[torch.Tensor] | None = None,
         block_bboxes: list[torch.Tensor] | None = None,
         block_labels: list[torch.Tensor] | None = None,
         **kwargs,
     ) -> None:
-        super()._forward_train(
+        super()._forward(
             feats,
-            img_metas,
+            data_samples,
             losses,
             custom_tensors,
-            gt_labels=gt_labels,
             **kwargs,
         )
         if self.with_global:
             assert clip_global is not None
-            global_losses = self._global_head.forward_train(
+            global_losses = self._global_head.forward(
                 feats,
-                labels=gt_labels,
+                labels=[sample.gt_instances.labels for sample in data_samples],
             )
             losses.update(global_losses)
-            custom_tensors['clip_global'] = clip_global.float()
+            custom_tensors['clip_global'] = torch.stack(clip_global, dim=0).float().cuda()
         if self.roi_head.with_block:
             assert clip_blocks is not None
             assert block_bboxes is not None
             assert block_labels is not None
-            block_losses = self.roi_head.block_forward_train(
+            block_labels = [label.cuda() for label in block_labels]
+            block_losses = self.roi_head.block_forward(
                 feats,
                 block_bboxes,
                 block_labels,
             )
             losses.update(block_losses)
-            custom_tensors['clip_blocks'] = torch.cat(clip_blocks).float()
+            custom_tensors['clip_blocks'] = torch.cat(clip_blocks).float().cuda()
