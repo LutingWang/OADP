@@ -3,10 +3,8 @@ __all__ = [
     'OADPRoIHead',
 ]
 
-import pathlib
 from typing import Any, cast
 
-import mmcv
 import todd
 import torch
 from mmdet.structures.bbox import bbox2roi
@@ -128,44 +126,6 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
     ) -> None:
         rois = bbox2roi(bboxes)
         self._object_forward(x, rois)
-    #TODO: Algin to MMdet3
-    if Store.DUMP:
-        access_layer = todd.datasets.PthAccessLayer(
-            data_root=Store.DUMP,
-            readonly=False,
-        )
-
-        def simple_test_bboxes(
-            self,
-            x: torch.Tensor,
-            img_metas: list[dict[str, Any]],
-            proposals: list[torch.Tensor],
-            rcnn_test_cfg: mmcv.ConfigDict,
-            rescale: bool = False,
-        ) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
-            assert x.shape[0] == len(img_metas) == len(proposals) == 1
-            filename = pathlib.Path(img_metas[0]['filename']).stem
-            objectness = proposals[0][:, -1]
-
-            bboxes, _ = super().simple_test_bboxes(
-                x,
-                img_metas,
-                proposals,
-                None,
-                rescale,
-            )
-
-            record = dict(
-                bboxes=bboxes,
-                bbox_logits=self._bbox_logits,
-                object_logits=self._object_logits,
-                objectness=objectness,
-            )
-            record = {k: v.half() for k, v in record.items()}
-            self.access_layer[filename] = record
-
-            return [torch.tensor([[0, 0, 1, 1]])], [torch.empty([0])]
-
 
 @MODELS.register_module()
 class OADPRoIHead(ViLDEnsembleRoIHead):
