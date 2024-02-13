@@ -9,7 +9,8 @@ model = dict(
         mean=[123.675, 116.28, 103.53],
         std=[58.395, 57.12, 57.375],
         bgr_to_rgb=True,
-        pad_size_divisor=32),
+        pad_size_divisor=32
+    ),
     backbone=dict(style='caffe', init_cfg=None),
     neck=dict(norm_cfg=dict(type='SyncBN', requires_grad=True)),
     roi_head=dict(

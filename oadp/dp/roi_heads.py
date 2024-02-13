@@ -3,13 +3,13 @@ __all__ = [
     'OADPRoIHead',
 ]
 
-from typing import Any, cast
+from typing import cast
 
 import todd
 import torch
-from mmdet.structures.bbox import bbox2roi
 from mmdet.models import BaseRoIExtractor, StandardRoIHead
 from mmdet.registry import MODELS
+from mmdet.structures.bbox import bbox2roi
 
 from ..base import Globals
 from ..base.globals_ import Store
@@ -126,6 +126,7 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
     ) -> None:
         rois = bbox2roi(bboxes)
         self._object_forward(x, rois)
+
 
 @MODELS.register_module()
 class OADPRoIHead(ViLDEnsembleRoIHead):

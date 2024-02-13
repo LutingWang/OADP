@@ -31,8 +31,10 @@ test_pipeline = [
     dict(type='LoadAnnotations', with_bbox=True),
     dict(
         type='PackDetInputs',
-        meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
-                   'scale_factor'))
+        meta_keys=(
+            'img_id', 'img_path', 'ori_shape', 'img_shape', 'scale_factor'
+        )
+    )
 ]
 train_dataloader = dict(
     batch_size=4,
@@ -47,7 +49,9 @@ train_dataloader = dict(
         data_prefix=dict(img='train2017/'),
         filter_cfg=dict(filter_empty_gt=True, min_size=32),
         pipeline=train_pipeline,
-        backend_args=backend_args))
+        backend_args=backend_args
+    )
+)
 val_dataloader = dict(
     batch_size=1,
     num_workers=2,
@@ -61,7 +65,9 @@ val_dataloader = dict(
         data_prefix=dict(img='val2017/'),
         test_mode=True,
         pipeline=test_pipeline,
-        backend_args=backend_args))
+        backend_args=backend_args
+    )
+)
 test_dataloader = val_dataloader
 
 val_evaluator = dict(
@@ -69,7 +75,8 @@ val_evaluator = dict(
     ann_file=data_root + 'annotations/instances_val2017.json',
     metric='bbox',
     format_only=False,
-    backend_args=backend_args)
+    backend_args=backend_args
+)
 test_evaluator = val_evaluator
 
 # inference on test dataset and

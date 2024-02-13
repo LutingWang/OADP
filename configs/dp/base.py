@@ -5,7 +5,8 @@ default_hooks = dict(
     logger=dict(type='LoggerHook', interval=50),
     param_scheduler=dict(type='ParamSchedulerHook'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='DetVisualizationHook'))
+    visualization=dict(type='DetVisualizationHook')
+)
 
 env_cfg = dict(
     cudnn_benchmark=False,
@@ -15,7 +16,8 @@ env_cfg = dict(
 
 vis_backends = [dict(type='LocalVisBackend')]
 visualizer = dict(
-    type='DetLocalVisualizer', vis_backends=vis_backends, name='visualizer')
+    type='DetLocalVisualizer', vis_backends=vis_backends, name='visualizer'
+)
 
 log_level = 'INFO'
 load_from = 'pretrained/soco/soco_star_mask_rcnn_r50_fpn_400e.pth'

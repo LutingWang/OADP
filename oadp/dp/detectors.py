@@ -3,14 +3,15 @@ __all__ = [
     'OADP',
 ]
 
-from typing import Any, Sequence
 import copy
+from typing import Any, Sequence
+
 import einops
 import todd
 import torch
 from mmdet.models import RPNHead, TwoStageDetector
 from mmdet.registry import MODELS
-from mmdet.structures import DetDataSample, OptSampleList, SampleList
+from mmdet.structures import OptSampleList
 from todd.distillers import SelfDistiller, Student
 from todd.losses import LossRegistry as LR
 
@@ -79,7 +80,8 @@ class ViLD(TwoStageDetector, Student[SelfDistiller]):
     def list_to_tensor(self, data_list):
         return [data.tensor for data in data_list]
 
-    def forward(self,
+    def forward(
+        self,
         inputs: torch.Tensor,
         data_samples: OptSampleList = None,
         mode: str = 'tensor',
@@ -87,7 +89,7 @@ class ViLD(TwoStageDetector, Student[SelfDistiller]):
     ):
         if mode == 'predict':
             return self.predict(inputs, data_samples)
-        
+
         Globals.training = True
         feats = self.extract_feat(inputs)
         losses: dict[str, Any] = dict()
@@ -128,7 +130,8 @@ class ViLD(TwoStageDetector, Student[SelfDistiller]):
                 torch.zeros_like(data_sample.gt_instances.labels)
 
         rpn_losses, rpn_results_list = self.rpn_head.loss_and_predict(
-            feats, rpn_data_samples, proposal_cfg=proposal_cfg)
+            feats, rpn_data_samples, proposal_cfg=proposal_cfg
+        )
         # avoid get same name with roi_head loss
         keys = rpn_losses.keys()
         for key in list(keys):
@@ -174,7 +177,7 @@ class OADP(ViLD):
         losses: dict[str, Any],
         custom_tensors: dict[str, Any],
         *,
-        clip_global: torch.Tensor | None = None,
+        clip_global: list[torch.Tensor] | None = None,
         clip_blocks: list[torch.Tensor] | None = None,
         block_bboxes: list[torch.Tensor] | None = None,
         block_labels: list[torch.Tensor] | None = None,
@@ -194,7 +197,8 @@ class OADP(ViLD):
                 labels=[sample.gt_instances.labels for sample in data_samples],
             )
             losses.update(global_losses)
-            custom_tensors['clip_global'] = torch.stack(clip_global, dim=0).float().cuda()
+            custom_tensors['clip_global'] = torch.stack(clip_global,
+                                                        dim=0).float().cuda()
         if self.roi_head.with_block:
             assert clip_blocks is not None
             assert block_bboxes is not None
@@ -206,4 +210,5 @@ class OADP(ViLD):
                 block_labels,
             )
             losses.update(block_losses)
-            custom_tensors['clip_blocks'] = torch.cat(clip_blocks).float().cuda()
+            custom_tensors['clip_blocks'] = torch.cat(clip_blocks
+                                                      ).float().cuda()

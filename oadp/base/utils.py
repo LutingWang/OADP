@@ -1,10 +1,12 @@
-from collections import abc
 import functools
-import numpy as np
+from collections import abc
 from inspect import getfullargspec
+
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.cuda.amp import autocast
+
 
 def cast_tensor_type(inputs, src_type, dst_type):
     """Recursively convert Tensor in inputs from src_type to dst_type.
@@ -32,9 +34,11 @@ def cast_tensor_type(inputs, src_type, dst_type):
         })
     elif isinstance(inputs, abc.Iterable):
         return type(inputs)(
-            cast_tensor_type(item, src_type, dst_type) for item in inputs)
+            cast_tensor_type(item, src_type, dst_type) for item in inputs
+        )
     else:
         return inputs
+
 
 def force_fp32(apply_to=None, out_fp16=False):
     """Decorator to convert input arguments to fp32 in force.
@@ -78,8 +82,10 @@ def force_fp32(apply_to=None, out_fp16=False):
             # check if the module has set the attribute `fp16_enabled`, if not,
             # just fallback to the original method.
             if not isinstance(args[0], torch.nn.Module):
-                raise TypeError('@force_fp32 can only be used to decorate the '
-                                'method of nn.Module')
+                raise TypeError(
+                    '@force_fp32 can only be used to decorate the '
+                    'method of nn.Module'
+                )
             if not (hasattr(args[0], 'fp16_enabled') and args[0].fp16_enabled):
                 return old_func(*args, **kwargs)
             # get the arg spec of the decorated method
@@ -93,7 +99,8 @@ def force_fp32(apply_to=None, out_fp16=False):
                 for i, arg_name in enumerate(arg_names):
                     if arg_name in args_to_cast:
                         new_args.append(
-                            cast_tensor_type(args[i], torch.half, torch.float))
+                            cast_tensor_type(args[i], torch.half, torch.float)
+                        )
                     else:
                         new_args.append(args[i])
             # convert the kwargs that need to be processed
@@ -102,7 +109,8 @@ def force_fp32(apply_to=None, out_fp16=False):
                 for arg_name, arg_value in kwargs.items():
                     if arg_name in args_to_cast:
                         new_kwargs[arg_name] = cast_tensor_type(
-                            arg_value, torch.half, torch.float)
+                            arg_value, torch.half, torch.float
+                        )
                     else:
                         new_kwargs[arg_name] = arg_value
             # apply converted arguments to the decorated method

@@ -20,13 +20,15 @@ train_pipeline = [
         blocks=dict(data_root=oake_root + 'blocks'),
         objects=dict(data_root=oake_root + 'objects'),
     ),
-    dict(type='RandomResize', scale=[(1330, 640), (1333, 800)], keep_ratio=True),
+    dict(
+        type='RandomResize', scale=[(1330, 640), (1333, 800)], keep_ratio=True
+    ),
     dict(type='RandomFlip', prob=0.5),
     dict(
         type='PackInputs',
         extra_keys=[
-            'clip_global', 'clip_blocks', 'block_bboxes', 
-            'block_labels', 'clip_objects', 'object_bboxes'
+            'clip_global', 'clip_blocks', 'block_bboxes', 'block_labels',
+            'clip_objects', 'object_bboxes'
         ],
     ),
 ]
@@ -38,13 +40,18 @@ train_dataloader = dict(
             data_root=data_root,
             pipeline=train_pipeline,
             ann_file='annotations/lvis_v1_train.866.json',
-            data_prefix=dict(img=''))))
+            data_prefix=dict(img='')
+        )
+    )
+)
 val_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
         ann_file='annotations/lvis_v1_val.1203.json',
-        data_prefix=dict(img='')))
+        data_prefix=dict(img='')
+    )
+)
 test_dataloader = val_dataloader
 
 val_evaluator = dict(ann_file=data_root + 'annotations/lvis_v1_val.1203.json')

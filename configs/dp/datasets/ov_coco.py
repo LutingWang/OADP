@@ -20,13 +20,15 @@ train_pipeline = [
         blocks=dict(data_root=oake_root + 'blocks'),
         objects=dict(data_root=oake_root + 'objects'),
     ),
-    dict(type='RandomResize', scale=[(1330, 640), (1333, 800)], keep_ratio=True),
+    dict(
+        type='RandomResize', scale=[(1330, 640), (1333, 800)], keep_ratio=True
+    ),
     dict(type='RandomFlip', prob=0.5),
     dict(
         type='PackInputs',
         extra_keys=[
-            'clip_global', 'clip_blocks', 'block_bboxes', 
-            'block_labels', 'clip_objects', 'object_bboxes'
+            'clip_global', 'clip_blocks', 'block_bboxes', 'block_labels',
+            'clip_objects', 'object_bboxes'
         ],
     ),
 ]
@@ -41,7 +43,7 @@ val_dataloader = dict(
     dataset=dict(
         data_root=data_root,
         ann_file=ann_file_prefix + 'val2017.65.min.json',
-    )    
+    )
 )
 test_dataloader = val_dataloader
 
@@ -50,5 +52,6 @@ val_evaluator = dict(
     ann_file=data_root + ann_file_prefix + 'val2017.65.min.json',
     metric='bbox',
     format_only=False,
-    backend_args=None)
+    backend_args=None
+)
 test_evaluator = val_evaluator

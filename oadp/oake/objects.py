@@ -88,7 +88,7 @@ class COCODataset(BaseDataset[Batch]):
             The expanded bounding boxes.
         """
         if self._expand_mode is ExpandMode.LONGEST_EDGE:
-            length = torch.max(bboxes.wh, 1, True)
+            length, _ = torch.max(bboxes.wh, 1, True)
         elif self._expand_mode is ExpandMode.CONSTANT:
             length = torch.full((len(bboxes), 1), 224)
         elif self._expand_mode is ExpandMode.ADAPTIVE:

@@ -1,30 +1,24 @@
-__all__ = [
-    'DebugMixin',
-    'LoadCLIPFeatures',
-    'PackInputs'
-]
+__all__ = ['DebugMixin', 'LoadCLIPFeatures', 'PackInputs']
 
 from typing import Any, Mapping, cast
+
 import numpy as np
 import todd
 import torch
 from lvis import LVIS
 from mmcv.transforms import to_tensor
-from mmengine.fileio import load
-from mmdet.datasets import (
-    CocoDataset,
-    BaseDetDataset,
-    LVISV1Dataset,
-)
-from mmdet.registry import DATASETS, TRANSFORMS, MODELS
+from mmdet.datasets import BaseDetDataset, CocoDataset, LVISV1Dataset
 from mmdet.datasets.api_wrappers import COCO
-from mmdet.models.data_preprocessors import DetDataPreprocessor
 from mmdet.datasets.transforms import PackDetInputs
+from mmdet.models.data_preprocessors import DetDataPreprocessor
+from mmdet.registry import DATASETS, MODELS, TRANSFORMS
 from todd.datasets import AccessLayerRegistry as ALR
+
 from ..base import Globals
 
 BLOCK_BBOXES_FLAG = 2
 OBJECT_BBOXES_FLAG = 3
+
 
 class DebugMixin(BaseDetDataset):
 
@@ -109,10 +103,9 @@ class LoadCLIPFeatures:
 
     def __call__(self, results: dict[str, Any]) -> dict[str, Any]:
         key = (
-            self.__key
-            if todd.Store.DRY_RUN else f'{results["img_id"]:012d}'
+            self.__key if todd.Store.DRY_RUN else f'{results["img_id"]:012d}'
         )
-        
+
         if self._globals is not None:
             global_ = self._globals[key]
             results['clip_global'] = global_.squeeze(0)
@@ -138,39 +131,53 @@ class LoadCLIPFeatures:
                 block_labels[block_ids, gt_labels[gt_ids]] = True
                 results['block_labels'] = to_tensor(block_labels)
             results['clip_blocks'] = blocks['embeddings']
-            results['gt_bboxes'].tensor = torch.cat([results['gt_bboxes'].tensor, 
-                                                    block_bboxes.float()])
+            results['gt_bboxes'].tensor = torch.cat([
+                results['gt_bboxes'].tensor,
+                block_bboxes.float()
+            ])
             block_flags = np.ones(block_bboxes.shape[0]) * BLOCK_BBOXES_FLAG
-            results['gt_ignore_flags'] = np.concatenate([results['gt_ignore_flags'], 
-                                                         block_flags])
+            results['gt_ignore_flags'] = np.concatenate([
+                results['gt_ignore_flags'], block_flags
+            ])
 
         if self._objects is not None:
             objects = self._objects[key]
             object_bboxes = objects['bboxes']
             indices = todd.BBoxesXYXY(object_bboxes).indices(min_wh=(4, 4))
             results['clip_objects'] = objects['embeddings'][indices]
-            results['gt_bboxes'].tensor = torch.cat([results['gt_bboxes'].tensor,
-                                                     object_bboxes[indices].float()])
-            object_flags = np.ones(object_bboxes[indices].shape[0]) * OBJECT_BBOXES_FLAG
-            results['gt_ignore_flags'] = np.concatenate([results['gt_ignore_flags'], 
-                                                         object_flags])
+            results['gt_bboxes'].tensor = torch.cat([
+                results['gt_bboxes'].tensor, object_bboxes[indices].float()
+            ])
+            object_flags = np.ones(
+                object_bboxes[indices].shape[0]
+            ) * OBJECT_BBOXES_FLAG
+            results['gt_ignore_flags'] = np.concatenate([
+                results['gt_ignore_flags'], object_flags
+            ])
 
         return results
 
+
 @TRANSFORMS.register_module()
 class PackInputs(PackDetInputs):
-    def __init__(self, extra_keys, 
-                 meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
-                            'scale_factor', 'flip', 'flip_direction')):
+
+    def __init__(
+        self,
+        extra_keys,
+        meta_keys=(
+            'img_id', 'img_path', 'ori_shape', 'img_shape', 'scale_factor',
+            'flip', 'flip_direction'
+        )
+    ):
         super().__init__(meta_keys)
         self.keys = extra_keys
-    
+
     def transform(self, results: dict) -> dict:
         gt_ignore_flags = results['gt_ignore_flags']
         block_idx = gt_ignore_flags == BLOCK_BBOXES_FLAG
         object_idx = gt_ignore_flags == OBJECT_BBOXES_FLAG
         gt_idx = ~(block_idx | object_idx)
-        
+
         results['block_bboxes'] = results['gt_bboxes'][block_idx]
         results['object_bboxes'] = results['gt_bboxes'][object_idx]
         results['gt_bboxes'] = results['gt_bboxes'][gt_idx]
@@ -180,8 +187,10 @@ class PackInputs(PackDetInputs):
             packed_results[key] = results[key]
         return packed_results
 
+
 @MODELS.register_module()
 class DataPreprocessor(DetDataPreprocessor):
+
     def forward(self, data: dict, training: bool = False) -> dict:
         pack_data = super().forward(data, training)
         for key, value in data.items():

@@ -5,11 +5,7 @@ __all__ = [
 
 import todd
 import torch
-from mmdet.models import (
-    BBoxHead,
-    Shared2FCBBoxHead,
-    Shared4Conv1FCBBoxHead,
-)
+from mmdet.models import BBoxHead, Shared2FCBBoxHead, Shared4Conv1FCBBoxHead
 from mmdet.registry import MODELS
 from todd.losses import LossRegistry as LR
 

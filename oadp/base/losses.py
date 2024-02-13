@@ -4,7 +4,9 @@ __all__ = [
 
 import todd
 import torch
+
 from .utils import force_fp32
+
 
 @todd.losses.LossRegistry.register()
 class AsymmetricLoss(todd.losses.BaseLoss):
