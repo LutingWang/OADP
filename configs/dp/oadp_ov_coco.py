@@ -34,12 +34,7 @@ model = dict(
         ),
     ),
 )
-trainer = dict(
-    optimizer=dict(
-        paramwise_cfg=dict(
-            custom_keys={
-                'roi_head.bbox_head': dict(lr_mult=0.5),
-            },
-        ),
-    ),
+
+optim_wrapper = dict(
+    paramwise_cfg=dict(custom_keys={'roi_head.bbox_head': dict(lr_mult=0.5)})
 )
