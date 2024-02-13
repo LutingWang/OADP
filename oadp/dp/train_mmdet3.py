@@ -107,11 +107,12 @@ def main():
 
     from ..base import coco, lvis  # noqa: F401
     Globals.categories = eval(cfg.categories)
-    cfg.train_dataloader.dataset.metainfo = dict(classes=Globals.categories.bases)
-    cfg.val_dataloader.dataset.metainfo = dict(
-        classes=Globals.categories.all_,
-        base_classes=Globals.categories.bases,
-        novel_classes=Globals.categories.novels)
+    if cfg.categories == "coco":
+        cfg.train_dataloader.dataset.metainfo = dict(classes=Globals.categories.bases)
+        cfg.val_dataloader.dataset.metainfo = dict(
+            classes=Globals.categories.all_,
+            base_classes=Globals.categories.bases,
+            novel_classes=Globals.categories.novels)
 
     # build the runner from config
     if 'runner_type' not in cfg:
