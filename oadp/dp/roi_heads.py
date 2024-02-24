@@ -12,7 +12,6 @@ from mmdet.registry import MODELS
 from mmdet.structures.bbox import bbox2roi
 
 from ..base import Globals
-from ..base.globals_ import Store
 from .bbox_heads import BlockMixin, ObjectMixin
 
 
@@ -99,10 +98,6 @@ class ViLDEnsembleRoIHead(StandardRoIHead):
         object_logits, _ = self._object_head(bbox_results['bbox_feats'])
         object_logits = cast(torch.Tensor, object_logits)
         object_scores = object_logits.softmax(-1)**(1 - self.lambda_)
-
-        if Store.DUMP:
-            self._bbox_logits = bbox_logits
-            self._object_logits = object_logits
 
         cls_score = bbox_scores * object_scores
         cls_score[:, -1] = 1 - cls_score[:, :-1].sum(-1)
