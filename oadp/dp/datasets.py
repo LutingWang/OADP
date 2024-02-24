@@ -18,6 +18,7 @@ from ..base import Globals
 
 BLOCK_BBOXES_FLAG = 2
 OBJECT_BBOXES_FLAG = 3
+np.float = np.float32  # type: ignore
 
 
 class DebugMixin(BaseDetDataset):
