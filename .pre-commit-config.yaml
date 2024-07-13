@@ -1,52 +1,58 @@
 default_language_version:
-  python: python3.10
+  python: python3.11
 repos:
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]
+        args:
+          - -sn
+        exclude: ^configs/
+  - repo: meta
+    hooks:
+      - id: check-hooks-apply
+      - id: check-useless-excludes
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v4.6.0
     hooks:
       - id: check-added-large-files
       - id: check-ast
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: check-json
       - id: check-merge-conflict
+      - id: check-shebang-scripts-are-executable
+      - id: check-toml
+      - id: check-vcs-permalinks
       - id: check-yaml
       - id: debug-statements
+      - id: destroyed-symlinks
+      - id: detect-private-key
       - id: end-of-file-fixer
       - id: fix-encoding-pragma
         args:
           - --remove
+      - id: forbid-submodules
       - id: mixed-line-ending
         args:
           - --fix=lf
-      - id: requirements-txt-fixer
-        files: requirements.txt
+      - id: pretty-format-json
+        args:
+          - --autofix
       - id: trailing-whitespace
-  - repo: https://github.com/pycqa/flake8
-    rev: 6.0.0
-    hooks:
-      - id: flake8
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
-  - repo: https://github.com/pycqa/docformatter
-    rev: v1.7.5
-    hooks:
-      - id: docformatter
-  - repo: https://github.com/google/yapf.git
-    rev: v0.40.2
-    hooks:
-      - id: yapf
-        additional_dependencies:
-          - toml
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.1.1
+    rev: v1.10.0
     hooks:
       - id: mypy
+        exclude: ^configs/
         additional_dependencies:
           - numpy
           - todd_ai
-        exclude: ^configs/
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.2.4
+    rev: v2.3.0
     hooks:
       - id: codespell
         args:
@@ -54,6 +60,51 @@ repos:
           - oadp
           - tools
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v2.42.1
+    rev: v3.27.0
     hooks:
       - id: commitizen
+  - repo: https://github.com/google/yapf
+    rev: v0.40.2
+    hooks:
+      - id: yapf
+        require_serial: true
+  - repo: https://github.com/pycqa/autoflake
+    rev: v2.3.1
+    hooks:
+      - id: autoflake
+  - repo: https://github.com/pycqa/bandit
+    rev: 1.7.8
+    hooks:
+      - id: bandit
+        args:
+          - -c
+          - pyproject.toml
+        additional_dependencies:
+          - bandit[toml]
+  - repo: https://github.com/pycqa/doc8
+    rev: v1.1.1
+    hooks:
+      - id: doc8
+  - repo: https://github.com/pycqa/docformatter
+    rev: v1.7.5
+    hooks:
+      - id: docformatter
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        additional_dependencies:
+          - flake8-bugbear
+          - flake8-docstrings
+          - mccabe
+          - pep8-naming
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+  - repo: https://github.com/pycqa/pydocstyle
+    rev: 6.3.0
+    hooks:
+      - id: pydocstyle
+        additional_dependencies:
+          - pydocstyle[toml]

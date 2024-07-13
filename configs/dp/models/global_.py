@@ -10,20 +10,25 @@ model = dict(
         ),
     ),
     distiller=dict(
-        student_hooks=dict(
+        student_hook_pipeline=dict(
             global_=dict(
-                inputs=tuple(),
-                action=dict(
-                    type='StandardHook',
+                type='SingleOperator',
+                args=tuple(),
+                atom=dict(
+                    type=(
+                        'TaskRegistry.KDRegistry.KDDistillerRegistry.'
+                        'KDHookRegistry.Hook'
+                    ),
                     path='._global_head._classifier._linear',
                 ),
             ),
         ),
-        losses=dict(
+        loss_pipeline=dict(
             loss_clip_global=dict(
-                inputs=('global_', 'clip_global'),
-                action=dict(
-                    type='MSELoss',
+                type='SingleOperator',
+                args=('global_', 'clip_global'),
+                atom=dict(
+                    type='ModelRegistry.LossRegistry.MSELoss',
                     weight=dict(type='WarmupScheduler', gain=0.5, end=200),
                     # FIXME: in todd, sum should multiply by number of GPUs
                     reduction='sum',

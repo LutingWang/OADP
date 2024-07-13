@@ -6,18 +6,17 @@ __all__ = [
 
 from typing import TypedDict
 
-import todd
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from mmdet.registry import MODELS
+from torch import nn
 
 from ..base import Globals
 from .utils import NormalizedLinear
 
 
 @MODELS.register_module()
-class BaseClassifier(todd.Module):
+class BaseClassifier(nn.Module):
 
     def __init__(
         self,

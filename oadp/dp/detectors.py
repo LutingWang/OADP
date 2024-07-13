@@ -12,15 +12,19 @@ import torch
 from mmdet.models import RPNHead, TwoStageDetector
 from mmdet.registry import MODELS
 from mmdet.structures import OptSampleList
-from todd.distillers import SelfDistiller, Student
-from todd.losses import LossRegistry as LR
+from todd.models import LossRegistry
+import todd.tasks.knowledge_distillation as kd
+from torch import nn
 
 from ..base import Globals
 from .roi_heads import OADPRoIHead
 from .utils import MultilabelTopKRecall
 
+SelfDistiller = kd.distillers.SelfDistiller
+StudentMixin = kd.distillers.StudentMixin
 
-class GlobalHead(todd.Module):
+
+class GlobalHead(nn.Module):
 
     def __init__(
         self,
@@ -33,7 +37,7 @@ class GlobalHead(todd.Module):
         super().__init__(*args, **kwargs)
         self._multilabel_topk_recall = MultilabelTopKRecall(k=topk)
         self._classifier = MODELS.build(classifier)
-        self._loss = LR.build(loss)
+        self._loss = LossRegistry.build(loss)
 
     def _forward(self, feats: Sequence[torch.Tensor]) -> torch.Tensor:
         feat = einops.reduce(feats[-1], 'b c h w -> b c', reduction='mean')
@@ -60,18 +64,13 @@ class GlobalHead(todd.Module):
 
 
 @MODELS.register_module()
-class ViLD(TwoStageDetector, Student[SelfDistiller]):
+class ViLD(StudentMixin[SelfDistiller], TwoStageDetector):
     rpn_head: RPNHead
     roi_head: OADPRoIHead
 
-    def __init__(
-        self,
-        *args,
-        distiller: todd.Config,
-        **kwargs,
-    ) -> None:
-        TwoStageDetector.__init__(self, *args, **kwargs)
-        Student.__init__(self, distiller)
+    @kd.distillers.distiller_decorator
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
     @property
     def num_classes(self) -> int:
@@ -154,17 +153,16 @@ class ViLD(TwoStageDetector, Student[SelfDistiller]):
 @MODELS.register_module()
 class OADP(ViLD):
 
+    @kd.distillers.distiller_decorator
     def __init__(
         self,
         *args,
         global_head: todd.Config | None = None,
-        distiller: todd.Config,
         **kwargs,
     ) -> None:
-        TwoStageDetector.__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         if global_head is not None:
             self._global_head = GlobalHead(**global_head)
-        Student.__init__(self, distiller)
 
     @property
     def with_global(self) -> bool:

@@ -1,28 +1,30 @@
+__all__ = [
+    'BlockBatch',
+    'BlockDataset',
+]
+
 import itertools
-import pathlib
 from typing import Generator, NamedTuple
 
-import clip
-import clip.model
 import PIL.Image
-import todd
+import todd.tasks.object_detection as od
 import torch
 import torch.cuda
-import torch.nn.functional as F
 import torch.utils.data
 import torch.utils.data.distributed
-import torchvision.transforms as transforms
 
-from .base import BaseDataset, BaseValidator
+from ..registries import OADPDatasetRegistry
+from .base import BaseDataset
 
 
-class Batch(NamedTuple):
-    output: pathlib.Path
+class BlockBatch(NamedTuple):
+    id_: int
     blocks: torch.Tensor
     bboxes: torch.Tensor
 
 
-class Dataset(BaseDataset[Batch]):
+@OADPDatasetRegistry.register_()
+class BlockDataset(BaseDataset[BlockBatch]):
 
     def __init__(
         self,
@@ -78,9 +80,9 @@ class Dataset(BaseDataset[Batch]):
 
     def _block(self, image: PIL.Image.Image, x: int, y: int) -> torch.Tensor:
         block = image.crop((x, y, x + self._r, y + self._r))
-        return self.transforms.transform(block)
+        return self._transforms(block)
 
-    def _bbox(self, scale: float, x: int, y: int) -> todd.BBox:
+    def _bbox(self, scale: float, x: int, y: int) -> od.BBox:
         x1 = x * scale
         y1 = y * scale
         r = self._r * scale
@@ -89,51 +91,21 @@ class Dataset(BaseDataset[Batch]):
     def _preprocess(
         self,
         id_: int,
-        output: pathlib.Path,
         image: PIL.Image.Image,
-    ) -> Batch:
-        block = self.transforms.transform(image)
+    ) -> BlockBatch:
+        block = self._transforms(image)
 
+        bbox: od.BBox
         w, h = image.size
         if w > h:
-            bbox = ((w - h) / 2, 0, h, h)
+            bbox = ((w - h) / 2, 0., h, h)
         else:
-            bbox = (0, (h - w) / 2, w, w)
+            bbox = (0., (h - w) / 2, w, w)
 
         blocks = [block]
         bboxes = [bbox]
-        for image, scale, x, y in self._partitions(image):
-            blocks.append(self._block(image, x, y))
+        for image_, scale, x, y in self._partitions(image):
+            blocks.append(self._block(image_, x, y))
             bboxes.append(self._bbox(scale, x, y))
 
-        return Batch(output, torch.stack(blocks), torch.tensor(bboxes))
-
-
-class Validator(BaseValidator[Batch]):
-
-    def _build_dataloader(
-        self,
-        config: todd.Config,
-    ) -> torch.utils.data.DataLoader:
-        config.dataset = Dataset(**config.dataset)
-        return super()._build_dataloader(config)
-
-    @classmethod
-    def _build_model(cls) -> tuple[clip.model.CLIP, transforms.Compose]:
-        return clip.load_default(False)
-
-    def _run_iter(self, batch: Batch, memo: todd.utils.Memo) -> torch.Tensor:
-        blocks = batch.blocks
-        if todd.Store.CUDA:
-            blocks = blocks.cuda()
-        embeddings = self._model.encode_image(blocks)
-        embeddings = F.normalize(embeddings)
-        memo['result'] = dict(
-            embeddings=embeddings.half(),
-            bboxes=batch.bboxes.half(),
-        )
-        return super()._run_iter(batch, memo)
-
-
-if __name__ == '__main__':
-    Validator.main()
+        return BlockBatch(id_, torch.stack(blocks), torch.tensor(bboxes))

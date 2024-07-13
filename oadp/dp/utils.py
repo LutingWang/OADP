@@ -4,13 +4,12 @@ __all__ = [
 ]
 
 import sklearn.metrics
-import todd
 import torch
-import torch.nn as nn
+from torch import nn
 import torch.nn.functional as F
 
 
-class MultilabelTopKRecall(todd.Module):
+class MultilabelTopKRecall(nn.Module):
 
     def __init__(self, *args, k: int, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -21,11 +20,11 @@ class MultilabelTopKRecall(todd.Module):
         logits: torch.Tensor,
         targets: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute the multilabel topk recall.
+        r"""Compute the multilabel top-K recall.
 
         Args:
-            logits: :math:`bs \\times K`, float.
-            targets: :math:`bs \\times K`, bool.
+            logits: :math:`bs \times K`, float.
+            targets: :math:`bs \times K`, bool.
 
         Returns:
             One element tensor representing the recall.

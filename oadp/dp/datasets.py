@@ -13,6 +13,7 @@ from mmdet.datasets.transforms import PackDetInputs
 from mmdet.models.data_preprocessors import DetDataPreprocessor
 from mmdet.registry import DATASETS, MODELS, TRANSFORMS
 from todd.datasets import AccessLayerRegistry as ALR
+import todd.tasks.object_detection as od
 
 from ..base import Globals
 
@@ -33,7 +34,7 @@ class DebugMixin(BaseDetDataset):
         if not todd.Store.DRY_RUN:
             return data_infos
 
-        coco: COCO | LVIS = getattr(self, 'coco')
+        coco: COCO | LVIS = self.coco
         dataset = cast(dict[str, Any], coco.dataset)
         images = dataset['images'][:len(self)]
         image_ids = [img['id'] for img in images]
@@ -85,13 +86,13 @@ class LoadCLIPFeatures:
             task_name: str = default.task_name
             default.task_name = task_name.replace('train', 'val')
         self._globals: Mapping[str, torch.Tensor] | None = (
-            None if globals_ is None else ALR.build(globals_, default)
+            None if globals_ is None else ALR.build(globals_, **default)
         )
         self._blocks: Mapping[str, dict[str, torch.Tensor]] | None = (
-            None if blocks is None else ALR.build(blocks, default)
+            None if blocks is None else ALR.build(blocks, **default)
         )
         self._objects: Mapping[str, dict[str, torch.Tensor]] | None = (
-            None if objects is None else ALR.build(objects, default)
+            None if objects is None else ALR.build(objects, **default)
         )
 
         if todd.Store.DRY_RUN:
@@ -122,8 +123,8 @@ class LoadCLIPFeatures:
                 gt_bboxes = gt_bboxes[indices]
                 gt_labels = gt_labels[indices]
                 block_ids, gt_ids = torch.where(
-                    todd.BBoxesXYXY(block_bboxes)
-                    & todd.BBoxesXYXY(gt_bboxes.tensor) > 0
+                    od.FlattenBBoxesXYXY(block_bboxes).
+                    intersections(od.FlattenBBoxesXYXY(gt_bboxes.tensor)) > 0
                 )
                 block_labels = np.zeros(
                     (block_bboxes.shape[0], num_all),
@@ -144,7 +145,7 @@ class LoadCLIPFeatures:
         if self._objects is not None:
             objects = self._objects[key]
             object_bboxes = objects['bboxes']
-            indices = todd.BBoxesXYXY(object_bboxes).indices(min_wh=(4, 4))
+            indices = od.BBoxesXYXY(object_bboxes).indices(min_wh=(4, 4))
             results['clip_objects'] = objects['embeddings'][indices]
             results['gt_bboxes'].tensor = torch.cat([
                 results['gt_bboxes'].tensor, object_bboxes[indices].float()

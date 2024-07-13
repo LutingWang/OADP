@@ -233,21 +233,28 @@ Feature extraction can be very time consuming.
 Therefore, we provide archives of the extracted features on [Baidu Netdisk][].
 The extracted features are archived with the following command
 
-```bash
-cd data/coco/oake/
+```zsh
+split_zip() {
+    local split=$1
+    local prefix=objects_${split}2017
+    local directory=objects/${split}2017
+
+    ls ${directory} > ${prefix}.txt
+    split -l 3000 ${prefix}.txt ${prefix}.txt.
+
+    for f in ${prefix}.txt.*
+    do
+        echo $f
+        sed s:^:${directory}/: $f | zip -9q@ ${prefix}.${f:e}.zip
+    done
+
+    rm ${prefix}.txt*
+}
 
 tar -zcf globals.tar.gz globals
 tar -zcf blocks.tar.gz blocks
-tar -zcf objects.tar.gz objects/val2017
-
-cd objects/train2017
-ls > objects
-split -d -3000 - objects. < objects
-for i in objects.[0-9][0-9]; do
-    zip -q -9 "$i.zip" -@ < "$i"
-    mv "$i.zip" ../..
-done
-rm objects*
+split_zip val
+split_zip train
 ```
 
 The final directory for OAKE should look like
@@ -280,7 +287,7 @@ To conduct training for coco
 
 ```bash
 [DRY_RUN=True] [TRAIN_WITH_VAL_DATASET=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train vild_ov_coco configs/dp/vild_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
-[DRY_RUN=True] [TRAIN_WITH_VAL_DATASET=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train oadp_ov_coco configs/dp/oadp_ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
+[DRY_RUN=True] [TRAIN_WITH_VAL_DATASET=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.dp.train configs/dp/oadp_ov_coco.py --work-dir work_dirs/oadp_ov_coco [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
 ```
 
 To conduct training for lvis

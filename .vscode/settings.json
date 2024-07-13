@@ -1,12 +1,11 @@
 {
-    "cSpell.words": [
-        "detpro",
-        "featmap",
-        "Netdisk",
-        "oadp",
-        "oake",
-        "segm",
-        "soco",
-        "vild"
-    ]
+  "cSpell.words": [
+    "CXCYWH",
+    "detpro",
+    "oadp",
+    "oake",
+    "soco",
+    "vild",
+    "XYXY"
+  ]
 }

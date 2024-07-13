@@ -71,7 +71,10 @@ def main():
     setup_cache_size_limit_of_dynamo()
 
     # load config
-    cfg = Config.fromstring(todd.Config.load(args.config).dumps(), ".py")
+    cfg = Config.fromstring(
+        todd.configs.PyConfig.load(args.config).dumps(),
+        '.py',
+    )
     cfg.launcher = args.launcher
     if args.cfg_options is not None:
         cfg.merge_from_dict(args.cfg_options)
@@ -114,8 +117,8 @@ def main():
         cfg.resume = True
         cfg.load_from = args.resume
 
-    from ..base import coco, lvis  # noqa: F401
-    Globals.categories = eval(cfg.categories)
+    from ..base import coco, lvis  # noqa: F401 pylint: disable=unused-import
+    Globals.categories = eval(cfg.categories)  # nosec B307
     if cfg.categories == "coco":
         cfg.train_dataloader.dataset.metainfo = dict(
             classes=Globals.categories.bases

@@ -5,7 +5,7 @@ _base_ = [
 categories = 'lvis'
 dataset_type = 'LVISV1Dataset'
 data_root = 'data/lvis_v1/'
-oake_root = data_root + 'oake/'
+oake_root = 'work_dirs/oake/'
 
 train_pipeline = [
     dict(type='LoadImageFromFile', backend_args=None),
@@ -18,7 +18,7 @@ train_pipeline = [
         ),
         globals_=dict(data_root=oake_root + 'globals'),
         blocks=dict(data_root=oake_root + 'blocks'),
-        objects=dict(data_root=oake_root + 'objects'),
+        objects=dict(data_root=oake_root + 'objects/lvis/output'),
     ),
     dict(
         type='RandomResize', scale=[(1330, 640), (1333, 800)], keep_ratio=True

@@ -25,21 +25,26 @@ model = dict(
     ),
     distiller=dict(
         type='SelfDistiller',
-        student_hooks=dict(
+        student_hook_pipeline=dict(
             objects=dict(
-                inputs=tuple(),
-                action=dict(
-                    type='StandardHook',
+                type='SingleOperator',
+                args=tuple(),
+                atom=dict(
+                    type=(
+                        'TaskRegistry.KDRegistry.KDDistillerRegistry.'
+                        'KDHookRegistry.Hook'
+                    ),
                     path='.roi_head._object_head.fc_cls._linear',
                 ),
             ),
         ),
-        adapts=dict(),
-        losses=dict(
+        adapt_pipeline=dict(),
+        loss_pipeline=dict(
             loss_clip_objects=dict(
-                inputs=('objects', 'clip_objects'),
-                action=dict(
-                    type='L1Loss',
+                type='SingleOperator',
+                args=('objects', 'clip_objects'),
+                atom=dict(
+                    type='ModelRegistry.LossRegistry.L1Loss',
                     weight=dict(type='WarmupScheduler', gain=256, end=200),
                 ),
             ),

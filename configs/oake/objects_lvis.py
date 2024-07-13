@@ -1,26 +1,23 @@
 _base_ = [
-    'objects_coco.py',
+    'objects.py',
 ]
 
-train = dict(
-    dataloader=dict(
-        dataset=dict(
-            type="LVISDataset",
-            root='data/coco',
-            annFile='data/lvis_v1/annotations/lvis_v1_train.json',
-            output_dir='data/lvis_v1/oake/objects/train2017',
-            proposal_file='data/lvis_v1/proposals/oln_r50_fpn_lvis_train.pkl',
+dataset_type = 'LVISObjectDataset'
+trainer = dict(
+    dataset=dict(
+        type=dataset_type,
+        keys=dict(
+            annotation_file='data/lvis_v1/annotations/lvis_v1_train.json'
         ),
+        proposal_file='data/lvis_v1/proposals/oln_r50_fpn_lvis_train.pkl',
     ),
 )
-val = dict(
-    dataloader=dict(
-        dataset=dict(
-            type="LVISDataset",
-            root='data/coco',
-            annFile='data/lvis_v1/annotations/lvis_v1_val.json',
-            output_dir='data/lvis_v1/oake/objects/val2017',
-            proposal_file='data/lvis_v1/proposals/oln_r50_fpn_lvis_val.pkl',
+validator = dict(
+    dataset=dict(
+        type=dataset_type,
+        keys=dict(
+            annotation_file='data/lvis_v1/annotations/lvis_v1_val.json',
         ),
+        proposal_file='data/lvis_v1/proposals/oln_r50_fpn_lvis_val.pkl',
     ),
 )

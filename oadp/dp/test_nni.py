@@ -159,8 +159,8 @@ class Validator(todd.utils.Validator):
             results[f'{img_id:012d}'] for img_id in evaluator.img_ids
         ]
         result = evaluator.evaluate(result_list)
-        mAP = result['COCO_48_bbox_mAP_50']
-        nni.report_final_result(mAP)
+        map_ = result['COCO_48_bbox_mAP_50']
+        nni.report_final_result(map_)
 
 
 def parse_args() -> argparse.Namespace:
@@ -193,7 +193,7 @@ def main() -> None:
     config: todd.Config = args.config
 
     from ..base import coco, lvis  # noqa: F401
-    Globals.categories = eval(config.categories)
+    Globals.categories = eval(config.categories)  # nosec B307
 
     if todd.Store.CUDA:
         torch.distributed.init_process_group('nccl')

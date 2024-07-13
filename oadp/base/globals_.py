@@ -11,7 +11,7 @@ from typing import Iterable
 import todd
 
 
-class Store(metaclass=todd.StoreMeta):
+class Store(metaclass=todd.utils.StoreMeta):
     ODPS: bool
     DUMP: str
 
@@ -47,11 +47,12 @@ class Categories:
         return len(self.all_)
 
 
-class Globals(metaclass=todd.NonInstantiableMeta):
+class Globals(metaclass=todd.patches.py.NonInstantiableMeta):
     """Entry point for global variables.
 
     Not to be confused with the global distillation branch.
     """
+
     categories: Categories
     training: bool
 

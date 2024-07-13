@@ -2,6 +2,7 @@
 name = 'OADP'
 description = 'Object-Aware Distillation Pyramid for Open-Vocabulary Detection'
 readme = 'README.md'
+requires-python = '>=3.11'
 
 [project.license]
 file = 'LICENSE'
@@ -13,6 +14,9 @@ email = 'wangluting@buaa.edu.cn'
 [project.urls]
 Homepage = 'https://github.com/LutingWang/OADP'
 
+[tool.autoflake]
+in-place = true
+
 [tool.yapf]
 allow_split_before_dict_value = false
 coalesce_brackets = true
@@ -22,6 +26,9 @@ split_complex_comprehension = true
 split_before_arithmetic_operator = true
 
 [tool.isort]
+extra_standard_library = [
+    'typing_extensions',
+]
 profile = 'hug'
 src_paths = [
     'oadp',
@@ -29,12 +36,10 @@ src_paths = [
 ]
 line_length = 79
 multi_line_output = 3
-known_third_party = [
-    'nni',
-]
 
 [tool.pydocstyle]
 convention = 'google'
+add-ignore = 'D100,D101,D102,D103,D104,D105,D106,D107'
 
 [tool.mypy]
 files = [
@@ -48,3 +53,40 @@ write-changes = true
 
 [tool.commitizen]
 name = 'cz_conventional_commits'
+
+[tool.pylint.'messages control']
+disable = [
+    'attribute-defined-outside-init',
+    'cyclic-import',
+    'design',
+    'eval-used',
+    'exec-used',
+    'fixme',
+    'import-outside-toplevel',
+    'missing-module-docstring',
+    'missing-class-docstring',
+    'missing-function-docstring',
+    'not-callable',
+    'protected-access',
+    'unspecified-encoding',
+    'unused-argument',
+    'use-dict-literal',
+    'use-list-literal',
+]
+enable = [
+    'useless-suppression',
+]
+
+[tool.pylint.typecheck]
+generated-members = [
+    'torch.*',
+]
+
+[tool.pylint.format]
+expected-line-ending-format = 'LF'
+max-line-length = 79
+
+[tool.bandit]
+skips = [
+    'B101',
+]

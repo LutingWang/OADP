@@ -12,27 +12,33 @@ model = dict(
         ),
     ),
     distiller=dict(
-        student_hooks=dict(
+        student_hook_pipeline=dict(
             blocks=dict(
-                inputs=tuple(),
-                action=dict(
-                    type='StandardHook',
+                type='SingleOperator',
+                args=tuple(),
+                atom=dict(
+                    type=(
+                        'TaskRegistry.KDRegistry.KDDistillerRegistry.'
+                        'KDHookRegistry.Hook'
+                    ),
                     path='.roi_head._block_head.fc_cls._linear',
                 ),
             ),
         ),
-        losses=dict(
+        loss_pipeline=dict(
             loss_clip_blocks=dict(
-                inputs=('blocks', 'clip_blocks'),
-                action=dict(
-                    type='L1Loss',
+                type='SingleOperator',
+                args=('blocks', 'clip_blocks'),
+                atom=dict(
+                    type='ModelRegistry.LossRegistry.L1Loss',
                     weight=dict(type='WarmupScheduler', gain=128, end=200),
                 ),
             ),
             loss_clip_block_relations=dict(
-                inputs=('blocks', 'clip_blocks'),
-                action=dict(
-                    type='RKDLoss',
+                type='SingleOperator',
+                args=('blocks', 'clip_blocks'),
+                atom=dict(
+                    type='ModelRegistry.LossRegistry.RKDLoss',
                     weight=dict(type='WarmupScheduler', gain=8, end=200),
                 ),
             ),

@@ -2,9 +2,7 @@ import functools
 from collections import abc
 from inspect import getfullargspec
 
-import numpy as np
 import torch
-import torch.nn as nn
 from torch.cuda.amp import autocast
 
 
@@ -19,29 +17,22 @@ def cast_tensor_type(inputs, src_type, dst_type):
     Returns:
         The same type with inputs, but all contained Tensors have been cast.
     """
-    if isinstance(inputs, nn.Module):
-        return inputs
-    elif isinstance(inputs, torch.Tensor):
+    if isinstance(inputs, torch.Tensor):
         return inputs.to(dst_type)
-    elif isinstance(inputs, str):
-        return inputs
-    elif isinstance(inputs, np.ndarray):
-        return inputs
-    elif isinstance(inputs, abc.Mapping):
+    if isinstance(inputs, abc.Mapping):
         return type(inputs)({
             k: cast_tensor_type(v, src_type, dst_type)
             for k, v in inputs.items()
         })
-    elif isinstance(inputs, abc.Iterable):
+    if isinstance(inputs, abc.Iterable):
         return type(inputs)(
             cast_tensor_type(item, src_type, dst_type) for item in inputs
         )
-    else:
-        return inputs
+    return inputs
 
 
 def force_fp32(apply_to=None, out_fp16=False):
-    """Decorator to convert input arguments to fp32 in force.
+    """Convert input arguments to fp32 in force.
 
     This decorator is useful when you write custom modules and want to support
     mixed precision training. If there are some inputs that must be processed
@@ -57,18 +48,13 @@ def force_fp32(apply_to=None, out_fp16=False):
         out_fp16 (bool): Whether to convert the output back to fp16.
 
     Example:
-
         >>> import torch.nn as nn
         >>> class MyModule1(nn.Module):
-        >>>
         >>>     # Convert x and y to fp32
         >>>     @force_fp32()
         >>>     def loss(self, x, y):
         >>>         pass
-
-        >>> import torch.nn as nn
         >>> class MyModule2(nn.Module):
-        >>>
         >>>     # convert pred to fp32
         >>>     @force_fp32(apply_to=('pred', ))
         >>>     def post_process(self, pred, others):

@@ -4,7 +4,7 @@ _base_ = [
 
 categories = 'coco'
 data_root = 'data/coco/'
-oake_root = data_root + 'oake/'
+oake_root = 'work_dirs/oake/'
 ann_file_prefix = 'annotations/instances_'
 
 train_pipeline = [
@@ -18,7 +18,7 @@ train_pipeline = [
         ),
         globals_=dict(data_root=oake_root + 'globals'),
         blocks=dict(data_root=oake_root + 'blocks'),
-        objects=dict(data_root=oake_root + 'objects'),
+        objects=dict(data_root=oake_root + 'objects/coco/output'),
     ),
     dict(
         type='RandomResize', scale=[(1330, 640), (1333, 800)], keep_ratio=True

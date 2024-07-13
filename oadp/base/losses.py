@@ -8,8 +8,8 @@ import torch
 from .utils import force_fp32
 
 
-@todd.losses.LossRegistry.register()
-class AsymmetricLoss(todd.losses.BaseLoss):
+@todd.models.LossRegistry.register_()
+class AsymmetricLoss(todd.models.losses.BaseLoss):
 
     def __init__(
         self,
@@ -32,12 +32,14 @@ class AsymmetricLoss(todd.losses.BaseLoss):
         self,
         x: torch.Tensor,
         y: torch.Tensor,
+        *args,
         **kwargs,
     ) -> torch.Tensor:
-        """"
+        r"""Forward asymmetric loss.
+
         Args:
-            x: :math:`n \\times k`, probability distribution
-            y: :math:`n \\times k`, binary ground truth of type bool
+            x: :math:`n \times k`, probability distribution
+            y: :math:`n \times k`, binary ground truth of type bool
 
         Returns:
             One element tensor representing loss.
@@ -49,8 +51,8 @@ class AsymmetricLoss(todd.losses.BaseLoss):
             comp_x = (comp_x + self._clip).clamp(max=1)
 
         # Basic CE calculation
-        loss_pos = y * torch.log(x.clamp(min=self._eps))
-        loss_neg = ~y * torch.log(comp_x.clamp(min=self._eps))
+        loss_pos = y * x.clamp(min=self._eps).log()
+        loss_neg = ~y * comp_x.clamp(min=self._eps).log()
         loss = loss_pos + loss_neg
 
         # Asymmetric Focusing
@@ -63,20 +65,20 @@ class AsymmetricLoss(todd.losses.BaseLoss):
                 one_sided_w = torch.pow(1 - pt, one_sided_gamma)
             loss *= one_sided_w
 
-        return self.reduce(-loss, **kwargs)
+        return self._reduce(-loss, *args, **kwargs)
 
 
-@todd.losses.LossRegistry.register()
-class RKDLoss(todd.losses.MSELoss):
+@todd.models.LossRegistry.register_()
+class RKDLoss(todd.models.losses.MSELoss):
 
     def get_relations(self, feats: torch.Tensor) -> torch.Tensor:
-        """Get relations between each pair of feats.
+        r"""Get relations between each pair of feats.
 
         Args:
-            feats: :math:`\\star \\times c`
+            feats: :math:`\star \times c`
 
         Returns:
-            :math:`\\prod \\star \\times \\prod \\star`
+            :math:`\prod \star \times \prod \star`
         """
         feats = feats.view(-1, feats.shape[-1])
         relations = torch.einsum('m c, n c -> m n', feats, feats)
@@ -84,23 +86,23 @@ class RKDLoss(todd.losses.MSELoss):
 
     def forward(
         self,
-        preds: torch.Tensor,
-        targets: torch.Tensor,
+        pred: torch.Tensor,
+        target: torch.Tensor,
         *args,
         **kwargs,
     ) -> torch.Tensor:
-        """Compute RKD loss.
+        r"""Compute RKD loss.
 
         Args:
-            preds: :math:`\\star \\times c`
-            targets: :math:`\\star \\times d`
+            preds: :math:`\star \times c`
+            targets: :math:`\star \times d`
 
         Returns:
             loss: 1
         """
-        assert preds.shape[:-1] == targets.shape[:-1]
-        pred_relations = self.get_relations(preds)
-        target_relations = self.get_relations(targets)
+        assert pred.shape[:-1] == target.shape[:-1]
+        pred_relations = self.get_relations(pred)
+        target_relations = self.get_relations(target)
         return super().forward(
             pred_relations,
             target_relations,

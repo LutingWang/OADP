@@ -1,15 +1,9 @@
 _base_ = [
+    '../strategies/ddp.py',
     'base.py',
 ]
 
-train = dict(
-    dataloader=dict(
-        dataset=dict(output_dir='data/coco/oake/blocks/train2017'),
-    ),
-)
-val = dict(
-    dataloader=dict(
-        dataset=dict(output_dir='data/coco/oake/blocks/val2017'),
-    ),
-)
-log = dict(interval=10)
+runner_type = 'BlockValidator'
+dataset_type = 'BlockDataset'
+trainer = dict(type=runner_type, dataset=dict(type=dataset_type))
+validator = dict(type=runner_type, dataset=dict(type=dataset_type))

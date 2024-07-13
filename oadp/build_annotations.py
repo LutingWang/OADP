@@ -30,10 +30,10 @@ class Builder(ABC):
 
     def _dump(self, data: Data, file: pathlib.Path, suffix: str) -> None:
         file = file.with_stem(f'{file.stem}.{suffix}')
-        todd.logger.info(f'Dumping {file}')
+        todd.logger.info("Dumping %s", file)
         with file.open('w') as f:
             json.dump(data, f, separators=(',', ':'))
-        todd.logger.info(f'Dumped {file}')
+        todd.logger.info("Dumped %s", file)
 
     def _filter_anns(self, data: Data) -> Data:
         anns = [
