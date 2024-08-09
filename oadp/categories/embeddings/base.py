@@ -72,7 +72,12 @@ class BaseEmbedding(BuildPreHookMixin, nn.Module, Generic[T], ABC):
         cache = cache_dir / f'{random.randrange(self._cache_limit)}.pth'
         if not cache.exists():
             return cache
-        embedding: torch.Tensor = torch.load(cache, 'cpu')
+        try:
+            embedding: torch.Tensor = torch.load(cache, 'cpu')
+        except Exception as e:
+            todd.logger.warning("Invalidating cache %s: %s", cache, e)
+            cache.unlink()
+            return cache
         if todd.Store.cuda:
             embedding = embedding.cuda()
         return embedding
@@ -93,6 +98,7 @@ class BaseEmbedding(BuildPreHookMixin, nn.Module, Generic[T], ABC):
         embeddings = ([] if len(category_names) == 0 else
                       self.encode(category_names))
         for category_name, embedding in zip(category_names, embeddings):
+            todd.logger.debug("Caching %s", cache[category_name])
             torch.save(embedding, cache[category_name])
             cache[category_name] = embedding
         embeddings = [
