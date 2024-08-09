@@ -1,4 +1,4 @@
-# type: ignore[override]
+# mypy: disable-error-code="override"
 # pylint: disable=arguments-differ
 
 import pathlib
@@ -8,67 +8,47 @@ import clip
 import clip.model
 import todd
 import torchvision.transforms as tf
+from todd.bases.registries import Item
 
 from ..datasets import BaseDataset
-from ..registries import OADPDatasetRegistry, OADPRunnerRegistry
+from ..registries import OAKEDatasetRegistry, OAKERunnerRegistry
 
-T = TypeVar('T')
+from torch import nn
+
+T = TypeVar('T', bound=nn.Module)
 
 
-@OADPRunnerRegistry.register_()
-class BaseValidator(todd.runners.Validator, Generic[T]):
+@OAKERunnerRegistry.register_()
+class BaseValidator(todd.runners.Validator[T]):
 
-    def output_path(self, id_: int) -> pathlib.Path:
-        return self._output_dir / f'{id_:012d}.pth'
+    def __init__(self, *args, output_dir: pathlib.Path, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._output_dir = output_dir
 
-    def _build_output_dir(
-        self,
-        *args,
-        output_dir: todd.Config,
-        **kwargs,
-    ) -> None:
-        self._output_dir: pathlib.Path = (
-            self._work_dir / 'output' / output_dir.task_name
+    def output_path(self, key: str) -> pathlib.Path:
+        return self._output_dir / f'{key}.pth'
+
+    @classmethod
+    def output_dir_build_pre_hook(
+        cls,
+        config: todd.Config,
+        registry: todd.RegistryMeta,
+        item: Item,
+    ) -> todd.Config:
+        output_dir: pathlib.Path = (
+            config.work_dir / 'output' / config.output_dir.task_name
         )
-        self._output_dir.mkdir(exist_ok=True, parents=True)
+        output_dir.mkdir(exist_ok=True, parents=True)
+        config.output_dir = output_dir
+        return config
 
-    def _build(self, *args, clip_: todd.Config, **kwargs) -> None:
-        model, transforms = clip.load_default(**clip_)
-        model.requires_grad_(False)
-        super()._build(*args, model=model, transforms=transforms, **kwargs)
-        self._build_output_dir(*args, **kwargs)
-
-    def _build_dataloader(
-        self,
-        *args,
-        dataloader: todd.Config,
-        **kwargs,
-    ) -> None:
-        if todd.Store.DRY_RUN:
-            dataloader.batch_size = 1
-            dataloader.num_workers = 0
-        super()._build_dataloader(*args, dataloader=dataloader, **kwargs)
-
-    def _build_model(
-        self,
-        *args,
-        model: clip.model.CLIP,
-        map_model: todd.Config | None = None,
-        **kwargs,
-    ) -> None:
-        if map_model is None:
-            map_model = todd.Config()
-        self._model = self._strategy.map_model(model, map_model)
-
-    def _build_dataset(
-        self,
-        *args,
-        dataset: todd.Config,
-        transforms: tf.Compose,
-        **kwargs,
-    ) -> None:
-        self._dataset: BaseDataset = OADPDatasetRegistry.build(
-            dataset,
-            transforms=transforms,
-            runner=self,
-        )
+    @classmethod
+    def build_pre_hook(
+        cls,
+        config: todd.Config,
+        registry: todd.RegistryMeta,
+        item: Item,
+    ) -> todd.Config:
+        config = super().build_pre_hook(config, registry, item)
+        config = cls.output_dir_build_pre_hook(config, registry, item)
+        return config

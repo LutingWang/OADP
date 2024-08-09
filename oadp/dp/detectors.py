@@ -16,7 +16,9 @@ from todd.models import LossRegistry
 import todd.tasks.knowledge_distillation as kd
 from torch import nn
 
-from ..base import Globals
+from ..categories.embeddings.registries import OADPCategoryEmbeddingRegistry
+
+from ..utils import Globals
 from .roi_heads import OADPRoIHead
 from .utils import MultilabelTopKRecall
 
@@ -158,11 +160,15 @@ class OADP(ViLD):
         self,
         *args,
         global_head: todd.Config | None = None,
+        visual_embedding: todd.Config,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
         if global_head is not None:
             self._global_head = GlobalHead(**global_head)
+        self._visual_embedding = OADPCategoryEmbeddingRegistry.build_or_return(
+            todd.Config(visual_embedding),
+        )
 
     @property
     def with_global(self) -> bool:
@@ -181,6 +187,9 @@ class OADP(ViLD):
         block_labels: list[torch.Tensor] | None = None,
         **kwargs,
     ) -> None:
+        visual_embeddings = self._visual_embedding(Globals.categories)
+        Globals.visual_embeddings = visual_embeddings
+
         super()._forward(
             feats,
             data_samples,

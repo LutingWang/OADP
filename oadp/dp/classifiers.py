@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from mmdet.registry import MODELS
 from torch import nn
 
-from ..base import Globals
+from ..utils import Globals
 from .utils import NormalizedLinear
 
 
@@ -109,3 +109,49 @@ class ViLDClassifier(BaseClassifier):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return super().forward(x) / self.scaler
+
+
+@MODELS.register_module()
+class FewShotClassifier(nn.Module):
+
+    def __init__(
+        self,
+        *args,
+        hidden_features: int = 512,
+        in_features: int,
+        out_features: int,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        if out_features == Globals.categories.num_all + 1:
+            # with background embedding
+            bg_embedding = nn.Parameter(torch.zeros(1, hidden_features))
+            nn.init.xavier_uniform_(bg_embedding)
+        elif out_features == Globals.categories.num_all:
+            bg_embedding = None
+        else:
+            raise RuntimeError(str(out_features))
+
+        self._bg_embedding = bg_embedding
+        self._linear = NormalizedLinear(in_features, hidden_features)
+
+        self._scaler = dict(train=0.007, val=0.01)  # inverse of DetPro
+
+    @property
+    def embeddings(self) -> torch.Tensor:
+        embeddings = Globals.visual_embeddings
+        if self._bg_embedding is None:
+            return embeddings
+        bg_embedding = F.normalize(self._bg_embedding)
+        return torch.cat([embeddings, bg_embedding])
+
+    @property
+    def scaler(self) -> float:
+        return (
+            self._scaler['train'] if Globals.training else self._scaler['val']
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self._linear(x)
+        y = x @ self.embeddings.T
+        return y / self.scaler

@@ -15,7 +15,7 @@ from mmdet.registry import DATASETS, MODELS, TRANSFORMS
 from todd.datasets import AccessLayerRegistry as ALR
 import todd.tasks.object_detection as od
 
-from ..base import Globals
+from ..utils import Globals
 
 BLOCK_BBOXES_FLAG = 2
 OBJECT_BBOXES_FLAG = 3

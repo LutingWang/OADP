@@ -14,23 +14,13 @@ callbacks = [
 dataloader = dict(num_workers=2, collate_fn=dict(type='oadp_collate_fn'))
 trainer = dict(
     callbacks=callbacks,
-    dataset=dict(
-        access_layer=dict(data_root=data_root, task_name='train2017'),
-        keys=dict(
-            annotation_file=annotation_root + 'instances_train2017.json',
-        ),
-    ),
+    dataset=dict(split='train'),
     dataloader=dataloader,
     output_dir=dict(task_name='train2017'),
 )
 validator = dict(
     callbacks=callbacks,
-    dataset=dict(
-        access_layer=dict(data_root=data_root, task_name='val2017'),
-        keys=dict(
-            annotation_file=annotation_root + 'instances_val2017.json',
-        ),
-    ),
+    dataset=dict(split='val'),
     dataloader=dataloader,
     output_dir=dict(task_name='val2017'),
 )

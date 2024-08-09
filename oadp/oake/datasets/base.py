@@ -2,18 +2,15 @@ __all__ = [
     'BaseDataset',
 ]
 
-import os
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Generic, TypeVar
 
-import todd
 import torch.distributed
 import torch.utils.data.distributed
-import torchvision.transforms as tf
 from PIL import Image
-from todd.bases.registries import BuildPreHookMixin
 from todd.runners.utils import RunnerHolderMixin
-from torchvision.datasets import CocoDetection
+from todd.datasets import COCODataset
+from torch import nn
 
 if TYPE_CHECKING:
     from ..runners import BaseValidator
@@ -21,51 +18,37 @@ if TYPE_CHECKING:
 T = TypeVar('T')
 
 
-class BaseDataset(RunnerHolderMixin, BuildPreHookMixin, ABC, Generic[T]):
-    runner: 'BaseValidator[T]'
+class BaseDataset(
+    RunnerHolderMixin[nn.Module],
+    COCODataset,
+    Generic[T],
+    ABC,
+):
+    validator: 'BaseValidator[nn.Module]'
 
-    def __init__(
-        self,
-        *args,
-        access_layer: todd.Config,
-        keys: todd.Config,
-        transforms: tf.Compose,
-        check: bool = False,
-        **kwargs,
-    ) -> None:
+    def __init__(self, *args, check: bool = False, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._dataset = CocoDetection(  # TODO: refactor
-            os.path.join(access_layer.data_root, access_layer.task_name),
-            keys.annotation_file,
-        )
-        self._access_layer = access_layer
-        self._transforms = transforms
         self._check = check
 
-    def __len__(self) -> int:
-        return len(self._dataset)
-
-    def _load_image(self, id_: int) -> Image.Image:  # TODO: refactor
-        return self._dataset._load_image(id_)
-
-    def __getitem__(self, index: int) -> T | None:
-        id_ = self._dataset.ids[index]
-        output_path = self.runner.output_path(id_)
+    def _access(self, index: int) -> tuple[str, Image.Image | None]:
+        key = self._keys[index]
+        output_path = self.validator.output_path(key)
         if output_path.exists():
             if not self._check:
-                return None
+                return key, None
             try:
                 torch.load(output_path, 'cpu')
-                return None
-            except Exception:
-                todd.logger.info("Fixing %s", output_path)
-        image = self._load_image(id_)
-        return self._preprocess(id_, image)
+                return key, None
+            except Exception:  # pylint: disable=broad-exception-caught
+                self.validator.logger.info("Fixing %s", output_path)
+        return super()._access(index)
+
+    def __getitem__(self, index: int) -> T | None:
+        key, image = self._access(index)
+        if image is None:
+            return None
+        return self._preprocess(key, image)
 
     @abstractmethod
-    def _preprocess(
-        self,
-        id_: int,
-        image: Image.Image,
-    ) -> T:
+    def _preprocess(self, key: str, image: Image.Image) -> T:
         pass

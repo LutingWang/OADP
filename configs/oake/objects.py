@@ -1,11 +1,10 @@
 _base_ = [
-    '../strategies/ddp.py',
+    '../strategies/cuda.py',
     'base.py',
 ]
 
 runner_type = 'ObjectValidator'
 dataset_type = 'ObjectDataset'
-grid = 14
 mini_batch_size = 512
 trainer = dict(
     type=runner_type,
@@ -16,7 +15,6 @@ trainer = dict(
         type=dataset_type,
         proposal_file='data/coco/proposals/oln_r50_fpn_coco_train.pkl',
         proposal_sorted=True,
-        grid=grid,
     ),
     mini_batch_size=mini_batch_size,
 )
@@ -29,7 +27,6 @@ validator = dict(
         type=dataset_type,
         proposal_file='data/coco/proposals/oln_r50_fpn_coco_val.pkl',
         proposal_sorted=True,
-        grid=grid,
     ),
     mini_batch_size=mini_batch_size,
 )

@@ -2,62 +2,41 @@ __all__ = [
     'Categories',
     'coco',
     'lvis',
-    'Globals',
-    'Store',
 ]
 
-from typing import Iterable
-
-import todd
-
-
-class Store(metaclass=todd.utils.StoreMeta):
-    ODPS: bool
-    DUMP: str
+from dataclasses import dataclass
+from typing_extensions import Self
 
 
+@dataclass(frozen=True)
 class Categories:
-
-    def __init__(self, bases: Iterable[str], novels: Iterable[str]) -> None:
-        self._bases = tuple(bases)
-        self._novels = tuple(novels)
-
-    @property
-    def bases(self) -> tuple[str, ...]:
-        return self._bases
-
-    @property
-    def novels(self) -> tuple[str, ...]:
-        return self._novels
+    name: str
+    bases: tuple[str, ...]
+    novels: tuple[str, ...]
 
     @property
     def all_(self) -> tuple[str, ...]:
-        return self._bases + self._novels
+        return self.bases + self.novels
 
     @property
     def num_bases(self) -> int:
-        return len(self._bases)
+        return len(self.bases)
 
     @property
     def num_novels(self) -> int:
-        return len(self._novels)
+        return len(self.novels)
 
     @property
     def num_all(self) -> int:
-        return len(self.all_)
+        return self.num_bases + self.num_novels
 
-
-class Globals(metaclass=todd.patches.py.NonInstantiableMeta):
-    """Entry point for global variables.
-
-    Not to be confused with the global distillation branch.
-    """
-
-    categories: Categories
-    training: bool
+    @classmethod
+    def get(cls, name: str) -> Self:
+        return eval(name)
 
 
 coco = Categories(
+    name='coco',
     bases=(
         'person', 'bicycle', 'car', 'motorcycle', 'train', 'truck', 'boat',
         'bench', 'bird', 'horse', 'sheep', 'bear', 'zebra', 'giraffe',
@@ -76,6 +55,7 @@ coco = Categories(
 )
 
 lvis = Categories(
+    name='lvis',
     bases=(
         'aerosol_can', 'air_conditioner', 'airplane', 'alarm_clock', 'alcohol',
         'alligator', 'almond', 'ambulance', 'amplifier', 'anklet', 'antenna',

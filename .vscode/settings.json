@@ -2,10 +2,17 @@
   "cSpell.words": [
     "CXCYWH",
     "detpro",
+    "lvis",
     "oadp",
     "oake",
+    "objectness",
     "soco",
     "vild",
     "XYXY"
+  ],
+  "python.analysis.exclude": [
+    "**/data",
+    "**/pretrained",
+    "**/work_dirs"
   ]
 }

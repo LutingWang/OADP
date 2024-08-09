@@ -1,15 +1,18 @@
 __all__ = [
     'AsymmetricLoss',
+    'RKDLoss',
 ]
 
 import todd
 import torch
+from todd.models import LossRegistry
+from todd.models.losses import BaseLoss, MSELoss
 
-from .utils import force_fp32
+from ..utils import force_fp32
 
 
-@todd.models.LossRegistry.register_()
-class AsymmetricLoss(todd.models.losses.BaseLoss):
+@LossRegistry.register_()
+class AsymmetricLoss(BaseLoss):
 
     def __init__(
         self,
@@ -68,8 +71,8 @@ class AsymmetricLoss(todd.models.losses.BaseLoss):
         return self._reduce(-loss, *args, **kwargs)
 
 
-@todd.models.LossRegistry.register_()
-class RKDLoss(todd.models.losses.MSELoss):
+@LossRegistry.register_()
+class RKDLoss(MSELoss):
 
     def get_relations(self, feats: torch.Tensor) -> torch.Tensor:
         r"""Get relations between each pair of feats.

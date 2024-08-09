@@ -12,7 +12,7 @@ import torch.utils.data.distributed
 from mmdet.core import bbox2result, multiclass_nms
 from mmdet.datasets import build_dataset
 
-from ..base import Globals
+from ..utils import Globals
 
 
 class Batch(NamedTuple):
@@ -192,7 +192,7 @@ def main() -> None:
     args = parse_args()
     config: todd.Config = args.config
 
-    from ..base import coco, lvis  # noqa: F401
+    from ..models import coco, lvis  # noqa: F401
     Globals.categories = eval(config.categories)  # nosec B307
 
     if todd.Store.CUDA:

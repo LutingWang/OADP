@@ -14,12 +14,7 @@ model = dict(
         ),
     ),
     roi_head=dict(
-        bbox_head=dict(
-            cls_predictor_cfg=dict(
-                type='ViLDClassifier',
-                prompts='data/prompts/vild.pth',
-            ),
-        ),
+        bbox_head=dict(cls_predictor_cfg=dict(type='FewShotClassifier')),
         object_head=dict(
             cls_predictor_cfg=dict(
                 type='Classifier',
@@ -33,6 +28,10 @@ model = dict(
             ),
         ),
     ),
+    visual_embedding=dict(
+        type='VisualEmbedding',
+        loader=dict(type='COCOLoader'),
+    )
 )
 
 optim_wrapper = dict(

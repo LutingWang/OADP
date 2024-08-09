@@ -11,7 +11,7 @@ from mmdet.models import BaseRoIExtractor, StandardRoIHead
 from mmdet.registry import MODELS
 from mmdet.structures.bbox import bbox2roi
 
-from ..base import Globals
+from ..utils import Globals
 from .bbox_heads import BlockMixin, ObjectMixin
 
 

@@ -3,12 +3,13 @@ import os
 import os.path as osp
 
 import todd
-from mmdet.utils import setup_cache_size_limit_of_dynamo
 from mmengine.config import Config, DictAction
 from mmengine.registry import RUNNERS
 from mmengine.runner import Runner
 
-from ..base import Globals
+from ..categories import Categories
+
+from ..utils import Globals
 
 
 def parse_args():
@@ -66,10 +67,6 @@ def parse_args():
 def main():
     args = parse_args()
 
-    # Reduce the number of repeated compilations and improve
-    # training speed.
-    setup_cache_size_limit_of_dynamo()
-
     # load config
     cfg = Config.fromstring(
         todd.configs.PyConfig.load(args.config).dumps(),
@@ -117,8 +114,7 @@ def main():
         cfg.resume = True
         cfg.load_from = args.resume
 
-    from ..base import coco, lvis  # noqa: F401 pylint: disable=unused-import
-    Globals.categories = eval(cfg.categories)  # nosec B307
+    Globals.categories = Categories.get(cfg.categories)
     if cfg.categories == "coco":
         cfg.train_dataloader.dataset.metainfo = dict(
             classes=Globals.categories.bases

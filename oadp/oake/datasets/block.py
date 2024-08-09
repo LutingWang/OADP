@@ -1,30 +1,31 @@
 __all__ = [
-    'BlockBatch',
     'BlockDataset',
 ]
 
 import itertools
 from typing import Generator, NamedTuple
 
-import PIL.Image
+from PIL import Image
 import todd.tasks.object_detection as od
 import torch
 import torch.cuda
 import torch.utils.data
 import torch.utils.data.distributed
 
-from ..registries import OADPDatasetRegistry
+from ..registries import OAKEDatasetRegistry
 from .base import BaseDataset
+from torch import nn
+from typing import TypeVar
 
 
-class BlockBatch(NamedTuple):
-    id_: int
+class T(NamedTuple):
+    key: str
     blocks: torch.Tensor
     bboxes: torch.Tensor
 
 
-@OADPDatasetRegistry.register_()
-class BlockDataset(BaseDataset[BlockBatch]):
+@OAKEDatasetRegistry.register_()
+class BlockDataset(BaseDataset[T]):
 
     def __init__(
         self,
@@ -55,8 +56,8 @@ class BlockDataset(BaseDataset[BlockBatch]):
 
     def _partitions(
         self,
-        image: PIL.Image.Image,
-    ) -> Generator[tuple[PIL.Image.Image, float, int, int], None, None]:
+        image: Image.Image,
+    ) -> Generator[tuple[Image.Image, float, int, int], None, None]:
         scale = 1.0
         while True:
             w, h = image.size
@@ -78,7 +79,7 @@ class BlockDataset(BaseDataset[BlockBatch]):
             ))
             scale *= self._rescale
 
-    def _block(self, image: PIL.Image.Image, x: int, y: int) -> torch.Tensor:
+    def _block(self, image: Image.Image, x: int, y: int) -> torch.Tensor:
         block = image.crop((x, y, x + self._r, y + self._r))
         return self._transforms(block)
 
@@ -88,11 +89,7 @@ class BlockDataset(BaseDataset[BlockBatch]):
         r = self._r * scale
         return (x1, y1, x1 + r, y1 + r)
 
-    def _preprocess(
-        self,
-        id_: int,
-        image: PIL.Image.Image,
-    ) -> BlockBatch:
+    def _preprocess(self, key: str, image: Image.Image) -> T:
         block = self._transforms(image)
 
         bbox: od.BBox
@@ -108,4 +105,4 @@ class BlockDataset(BaseDataset[BlockBatch]):
             blocks.append(self._block(image_, x, y))
             bboxes.append(self._bbox(scale, x, y))
 
-        return BlockBatch(id_, torch.stack(blocks), torch.tensor(bboxes))
+        return T(key, torch.stack(blocks), torch.tensor(bboxes))

@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import Any, TypeVar, cast
 
 import todd
 import torch
@@ -8,20 +8,23 @@ import torch.utils.data
 import torch.utils.data.distributed
 from todd.runners import Memo
 
-from ..datasets import BlockBatch
-from ..registries import OADPRunnerRegistry
+from ..datasets.block import T
+from ..registries import OAKERunnerRegistry
 from .base import BaseValidator
+from torch import nn
+
+ModuleType = TypeVar('ModuleType', bound=nn.Module)
 
 
-@OADPRunnerRegistry.register_()
-class BlockValidator(BaseValidator[BlockBatch]):
+@OAKERunnerRegistry.register_()
+class BlockValidator(BaseValidator[ModuleType]):
 
     def _build(self, *args, **kwargs) -> None:
         super()._build(*args, clip_=todd.Config(adaptive=False), **kwargs)
 
     def _run_iter(self, batch: Any, memo: Memo) -> torch.Tensor:
-        blocks = cast(BlockBatch, batch).blocks
-        bboxes = cast(BlockBatch, batch).bboxes
+        blocks = cast(T, batch).blocks
+        bboxes = cast(T, batch).bboxes
         if todd.Store.cuda:
             blocks = blocks.cuda()
             bboxes = bboxes.cuda()

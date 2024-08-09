@@ -1,32 +1,29 @@
 __all__ = [
-    'GlobalBatch',
     'GlobalDataset',
 ]
 
 from typing import NamedTuple
 
-import PIL.Image
+from PIL import Image
 import torch
 import torch.cuda
 import torch.distributed
 import torch.utils.data
 import torch.utils.data.distributed
 
-from ..registries import OADPDatasetRegistry
+from ..registries import OAKEDatasetRegistry
 from .base import BaseDataset
+from torch import nn
+from typing import TypeVar
 
 
-class GlobalBatch(NamedTuple):
-    id_: int
+class T(NamedTuple):
+    key: str
     image: torch.Tensor
 
 
-@OADPDatasetRegistry.register_()
-class GlobalDataset(BaseDataset[GlobalBatch]):
+@OAKEDatasetRegistry.register_()
+class GlobalDataset(BaseDataset[T]):
 
-    def _preprocess(
-        self,
-        id_: int,
-        image: PIL.Image.Image,
-    ) -> GlobalBatch:
-        return GlobalBatch(id_, self._transforms(image))
+    def _preprocess(self, key: str, image: Image.Image) -> T:
+        return T(key, self._transforms(image))

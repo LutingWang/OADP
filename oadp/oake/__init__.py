@@ -1,3 +1,2 @@
-from . import datasets, runners
+from . import datasets, runners, utils
 from .registries import *
-from .utils import *

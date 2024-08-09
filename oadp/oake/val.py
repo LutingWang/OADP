@@ -35,14 +35,6 @@ def validate(
     config: todd.Config,
     validator_config: todd.Config,
 ) -> None:
-    if todd.Store.DRY_RUN:
-        validator_config.update(
-            work_dir=dict(name=os.path.join('dry_run', args.name)),
-        )
-        for callback in validator_config.callbacks:
-            if cast(str, callback.type).endswith('LogCallback'):
-                callback.interval = 1
-
     runner: BaseValidator = OADPRunnerRegistry.build(
         validator_config,
         name=args.name,
