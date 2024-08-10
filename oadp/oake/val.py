@@ -6,7 +6,7 @@ from typing import cast
 import todd
 from todd.patches.py import DictAction
 
-from .registries import OADPRunnerRegistry
+from .registries import OAKERunnerRegistry
 from .runners import BaseValidator
 from .utils import log
 
@@ -35,7 +35,7 @@ def validate(
     config: todd.Config,
     validator_config: todd.Config,
 ) -> None:
-    runner: BaseValidator = OADPRunnerRegistry.build(
+    runner: BaseValidator = OAKERunnerRegistry.build(
         validator_config,
         name=args.name,
     )
