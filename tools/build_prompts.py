@@ -7,7 +7,7 @@ import tqdm
 
 import torch
 from mmdet.datasets import LVISV1Dataset
-from oadp.models import coco, lvis
+from oadp.categories import coco, lvis, objects365
 
 
 def vild() -> None:
@@ -68,7 +68,7 @@ def vild() -> None:
         "This is one large {} in the picture"
     ]
 
-    names = sorted(set(coco.all_ + lvis.all_))
+    names = sorted(set(coco.all_ + lvis.all_ + objects365.all_))
     model, _ = clip.load_default()
 
     embeddings = []
