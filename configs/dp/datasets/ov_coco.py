@@ -18,7 +18,7 @@ train_pipeline = [
         ),
         globals_=dict(data_root=oake_root + 'globals'),
         blocks=dict(data_root=oake_root + 'blocks'),
-        objects=dict(data_root=oake_root + 'objects/coco/output'),
+        # objects=dict(data_root=oake_root + 'objects/coco/output'),
     ),
     dict(
         type='RandomResize', scale=[(1330, 640), (1333, 800)], keep_ratio=True
@@ -28,7 +28,7 @@ train_pipeline = [
         type='PackInputs',
         extra_keys=[
             'clip_global', 'clip_blocks', 'block_bboxes', 'block_labels',
-            'clip_objects', 'object_bboxes'
+            # 'clip_objects', 'object_bboxes'
         ],
     ),
 ]

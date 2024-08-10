@@ -104,10 +104,10 @@ class ViLD(StudentMixin[SelfDistiller], TwoStageDetector):
             **kwargs,
         )
 
-        distill_losses = self.distiller(custom_tensors)
-        self.distiller.reset()
-        self.distiller.step()
-        losses.update(distill_losses)
+        # distill_losses = self.distiller(custom_tensors)
+        # self.distiller.reset()
+        # self.distiller.step()
+        # losses.update(distill_losses)
 
         return losses
 
@@ -117,9 +117,9 @@ class ViLD(StudentMixin[SelfDistiller], TwoStageDetector):
         data_samples: OptSampleList,
         losses: dict[str, Any],
         custom_tensors: dict[str, Any],
-        *,
-        clip_objects: list[torch.Tensor],
-        object_bboxes: list[torch.Tensor],
+        # *,
+        # clip_objects: list[torch.Tensor],
+        # object_bboxes: list[torch.Tensor],
         **kwargs,
     ) -> None:
         # RPN forward and loss
@@ -144,8 +144,8 @@ class ViLD(StudentMixin[SelfDistiller], TwoStageDetector):
         roi_losses = self.roi_head.loss(feats, rpn_results_list, data_samples)
         losses.update(roi_losses)
 
-        self.roi_head.object_forward(feats, object_bboxes)
-        custom_tensors['clip_objects'] = torch.cat(clip_objects).float().cuda()
+        # self.roi_head.object_forward(feats, object_bboxes)
+        # custom_tensors['clip_objects'] = torch.cat(clip_objects).float().cuda()
 
     def predict(self, *args, **kwargs):
         Globals.training = False
