@@ -27,8 +27,13 @@ model = dict(
     ),
     roi_head=dict(
         # type='OADPRoIHead',
-        bbox_head=dict(cls_predictor_cfg=cls_predictor_cfg),
+        bbox_head=dict(cls_predictor_cfg=dict(type='FewShotClassifier')),
+        # bbox_head=dict(cls_predictor_cfg=cls_predictor_cfg),
         object_head=dict(cls_predictor_cfg=cls_predictor_cfg),
         block_head=dict(cls_predictor_cfg=cls_predictor_cfg),
     ),
+    visual_embedding=dict(
+        type='VisualEmbedding',
+        loader=dict(type='LVISLoader'),
+    )
 )

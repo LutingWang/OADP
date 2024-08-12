@@ -1,6 +1,7 @@
 __all__ = [
     'BaseLoader',
     'COCOLoader',
+    'LVISLoader',
 ]
 
 import random
@@ -10,7 +11,7 @@ import todd.tasks.object_detection as od
 import torch
 from PIL import Image
 from pycocotools.coco import COCO
-from todd.datasets import COCODataset
+from todd.datasets import COCODataset, LVISDataset
 
 from ..errors import CategoryNotSupportedError
 from ..loaders import BaseLoader, OADPCategoryLoaderRegistry
@@ -30,10 +31,11 @@ class VisualLoader(BaseLoader[T]):
 
 @OADPCategoryLoaderRegistry.register_()
 class COCOLoader(VisualLoader):
+    DATASET_TYPE = COCODataset
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._coco = COCODataset(split='train')
+        self._coco = self.DATASET_TYPE(split='train')
 
     def _load_category_id(self, coco: COCO, category_name: str) -> int:
         category_ids = coco.getCatIds(catNms=[category_name])
@@ -57,12 +59,14 @@ class COCOLoader(VisualLoader):
         self,
         annotations: list['_Annotation'],
     ) -> '_Annotation':
-        while True:
+        for _ in range(10):
             index = random.randint(0, len(annotations) - 1)
             annotation = annotations[index]
             _, _, w, h = annotation['bbox']
             if w >= 32 and h >= 32:
                 return annotation
+        # if no annotation is found, return the last one
+        return annotation
 
     def _load_image(
         self,
@@ -84,3 +88,8 @@ class COCOLoader(VisualLoader):
         image = self._load_image(coco, annotation)
         bboxes = od.FlattenBBoxesXYWH(torch.tensor([annotation['bbox']]))
         return T(image, bboxes)
+
+
+@OADPCategoryLoaderRegistry.register_()
+class LVISLoader(COCOLoader):
+    DATASET_TYPE = LVISDataset
