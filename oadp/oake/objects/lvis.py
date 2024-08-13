@@ -26,10 +26,12 @@ class LVISObjectDataset(ObjectDataset, LVISDataset):
             self._keys.image_ids[index],
             self._categories,
         )
-        if len(annotations) == 0:
-            return None
         bboxes = annotations.bboxes
-        categories = annotations.categories
+        indices = bboxes.indices(min_wh=(4, 4))
+        if not indices.any():
+            return None
+        bboxes = bboxes[indices]
+        categories = annotations.categories[indices]
         crops, masks = self.runner.expand_transform(image, bboxes)
         return Batch(
             id_=key.replace('/', '_'),
