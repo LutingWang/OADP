@@ -1,23 +1,26 @@
 __all__ = [
     'log',
-    'oake_collate_fn',
 ]
 
 import argparse
 import pathlib
 import sys
-from typing import Any, cast
+from typing import TypeVar, cast
 
+from torch import nn
 import todd
 from todd.patches.torch import get_rank
+from todd.configs import PyConfig
 
 from ..runners import BaseValidator
+
+T = TypeVar('T', bound=nn.Module)
 
 
 def log(
     runner: BaseValidator,
     args: argparse.Namespace,
-    config: todd.Config,
+    config: PyConfig,
 ) -> None:
     if get_rank() != 0:
         return
@@ -26,11 +29,6 @@ def log(
     runner.logger.info(f"Args\n{vars(args)}")
     runner.logger.info(f"Config\n{config.dumps()}")
 
-    config_name = cast(pathlib.Path, args.config).name
-    config.dump(runner.work_dir / config_name)
-
-
-@todd.registries.CollateRegistry.register_()
-def oake_collate_fn(batch: tuple[Any]) -> Any:
-    assert len(batch) == 1
-    return batch[0]
+    if 'config' in args:
+        config_name = cast(pathlib.Path, args.config).name
+        PyConfig(config).dump(runner.work_dir / config_name)

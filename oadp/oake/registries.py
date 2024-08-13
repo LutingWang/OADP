@@ -1,15 +1,10 @@
 __all__ = [
-    'OAKERegistry',
     'OAKEDatasetRegistry',
     'OAKERunnerRegistry',
 ]
 
-from ..registries import OADPRegistry
+from ..registries import OAKERegistry
 from todd.registries import RunnerRegistry, DatasetRegistry
-
-
-class OAKERegistry(OADPRegistry):
-    pass
 
 
 class OAKEDatasetRegistry(OAKERegistry, DatasetRegistry):

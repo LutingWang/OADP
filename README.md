@@ -159,26 +159,6 @@ OADP/data/prompts
 └── ml_coco.pth
 ```
 
-### Proposals
-
-Download the proposals from [Baidu Netdisk][].
-
-Organize the proposals as follows
-
-```text
-OADP/data
-├── coco
-│   └── proposals
-│       ├── rpn_r101_fpn_coco_train.pkl
-│       ├── rpn_r101_fpn_coco_val.pkl
-│       ├── oln_r50_fpn_coco_train.pkl
-│       └── oln_r50_fpn_coco_val.pkl
-└── lvis_v1
-    └── proposals
-        ├── oln_r50_fpn_lvis_train.pkl
-        └── oln_r50_fpn_lvis_val.pkl
-```
-
 ## OADP
 
 Most commands listed in this section supports the `DRY_RUN` mode.
@@ -213,20 +193,10 @@ The following scripts extract features with CLIP, which can be very time-consumi
 Extract globals and blocks features, which can be used for both coco and lvis
 
 ```bash
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.globals oake/globals configs/oake/globals.py [--override .train.dataloader.dataset.auto_fix:True .val.dataloader.dataset.auto_fix:True]
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.blocks oake/blocks configs/oake/blocks.py [--override .train.dataloader.dataset.auto_fix:True .val.dataloader.dataset.auto_fix:True]
-```
-
-Extract objects features for coco
-
-```bash
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_coco.py [--override .train.dataloader.dataset.auto_fix:True .val.dataloader.dataset.auto_fix:True]
-```
-
-Extract objects features for lvis
-
-```bash
-[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.objects oake/objects configs/oake/objects_lvis.py [--override .train.dataloader.dataset.auto_fix:True .val.dataloader.dataset.auto_fix:True]
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.val oake/coco_globals_cuda configs/oake/coco_globals_cuda.py [--auto-fix]
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.val oake/coco_blocks_cuda configs/oake/coco_blocks_cuda.py [--auto-fix]
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.val oake/coco_objects_cuda configs/oake/coco_objects_cuda.py [--auto-fix]
+[DRY_RUN=True] (python|torchrun --nproc_per_node=${GPUS}) -m oadp.oake.val oake/lvis_objects_cuda configs/oake/lvis_objects_cuda.py [--auto-fix]
 ```
 
 Feature extraction can be very time consuming.
@@ -255,30 +225,6 @@ tar -zcf globals.tar.gz globals
 tar -zcf blocks.tar.gz blocks
 split_zip val
 split_zip train
-```
-
-The final directory for OAKE should look like
-
-```text
-OADP/data
-├── coco
-│   └── oake
-│       ├── blocks
-│       │   ├── train2017
-│       │   └── val2017
-│       ├── globals
-│       │   ├── train2017
-│       │   └── val2017
-│       └── objects
-│           ├── train2017
-│           └── val2017
-└── lvis_v1
-    └── oake
-        ├── blocks -> ../coco/oake/blocks
-        ├── globals -> ../coco/oake/globals
-        └── objects
-            ├── train2017
-            └── val2017
 ```
 
 ### DP

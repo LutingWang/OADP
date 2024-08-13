@@ -3,3 +3,4 @@ ignore = D100,D101,D102,D103,D104,D105,D106,D107,E126,E201,E241,N805,N812,N817,W
 per-file-ignores =
     oadp/__init__.py:E402,F401,F403
     oadp/**/__init__.py:F401,F403
+builtins = _kwargs_

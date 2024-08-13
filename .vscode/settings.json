@@ -1,13 +1,16 @@
 {
   "cSpell.words": [
+    "BBoxes",
     "CXCYWH",
-    "detpro",
-    "lvis",
-    "oadp",
-    "oake",
+    "DetPro",
+    "LVIS",
+    "OADP",
+    "OAKE",
     "objectness",
-    "soco",
-    "vild",
+    "Partitioner",
+    "SoCo",
+    "VILD",
+    "XYWH",
     "XYXY"
   ],
   "python.analysis.exclude": [

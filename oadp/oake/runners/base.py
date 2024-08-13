@@ -1,54 +1,61 @@
-# mypy: disable-error-code="override"
-# pylint: disable=arguments-differ
+__all__ = [
+    'BaseValidator',
+]
 
 import pathlib
-from typing import Generic, TypeVar
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, TypeVar
 
-import clip
 import clip.model
 import todd
 import torchvision.transforms as tf
 from todd.bases.registries import Item
-
-from ..datasets import BaseDataset
-from ..registries import OAKEDatasetRegistry, OAKERunnerRegistry
-
 from torch import nn
 
-T = TypeVar('T', bound=nn.Module)
+from ..registries import OAKERunnerRegistry
+
+if TYPE_CHECKING:
+    from ..datasets import BaseDataset
+
+T = TypeVar('T')
 
 
 @OAKERunnerRegistry.register_()
-class BaseValidator(todd.runners.Validator[T]):
+class BaseValidator(todd.runners.Validator[nn.Module], ABC):
+    _dataset: 'BaseDataset[T]'
 
-    def __init__(self, *args, output_dir: pathlib.Path, **kwargs) -> None:
+    def __init__(self, *args, transforms: tf.Compose, **kwargs) -> None:
+        self._transforms = transforms
         super().__init__(*args, **kwargs)
-        self._output_dir = output_dir
 
-    def output_path(self, key: str) -> pathlib.Path:
-        return self._output_dir / f'{key}.pth'
+    @property
+    def transforms(self) -> tf.Compose:
+        return self._transforms
+
+    @property
+    def output_dir(self) -> pathlib.Path:
+        return self._work_dir / 'output'
+
+    def output_path(self, id_: str) -> pathlib.Path:
+        return self.output_dir / f'{id_}.pth'
 
     @classmethod
-    def output_dir_build_pre_hook(
+    @abstractmethod
+    def model_build_pre_hook(
         cls,
         config: todd.Config,
         registry: todd.RegistryMeta,
         item: Item,
     ) -> todd.Config:
-        output_dir: pathlib.Path = (
-            config.work_dir / 'output' / config.output_dir.task_name
-        )
-        output_dir.mkdir(exist_ok=True, parents=True)
-        config.output_dir = output_dir
-        return config
+        pass
 
-    @classmethod
-    def build_pre_hook(
-        cls,
-        config: todd.Config,
-        registry: todd.RegistryMeta,
-        item: Item,
-    ) -> todd.Config:
-        config = super().build_pre_hook(config, registry, item)
-        config = cls.output_dir_build_pre_hook(config, registry, item)
-        return config
+    def _init_work_dir(self, *args, **kwargs) -> None:
+        super()._init_work_dir(*args, **kwargs)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def _init_dataset(self, *args, **kwargs) -> None:
+        self._dataset.bind(self)
+
+    def _init(self, *args, **kwargs) -> None:
+        super()._init(*args, **kwargs)
+        self._init_dataset(*args, **kwargs)
