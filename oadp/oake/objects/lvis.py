@@ -19,13 +19,15 @@ class LVISObjectDataset(ObjectDataset, LVISDataset):
         categories = self.api.load_cats(category_ids)
         return categories
 
-    def _getitem(self, index: int) -> Batch:
+    def _getitem(self, index: int) -> Batch | None:
         key, image = self._access(index)
         annotations = Annotations.load(
             self._api,
             self._keys.image_ids[index],
             self._categories,
         )
+        if len(annotations) == 0:
+            return None
         bboxes = annotations.bboxes
         categories = annotations.categories
         crops, masks = self.runner.expand_transform(image, bboxes)

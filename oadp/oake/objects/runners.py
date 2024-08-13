@@ -54,7 +54,15 @@ class ObjectValidator(BaseValidator):
         config.transforms = None
         return config
 
-    def _run_iter(self, batch: 'Batch', memo: Memo, *args, **kwargs) -> Memo:
+    def _run_iter(
+        self,
+        batch: 'Batch | None',
+        memo: Memo,
+        *args,
+        **kwargs,
+    ) -> Memo:
+        if batch is None:
+            memo['output'] = None
         crops = batch['crops']
         masks = batch['masks']
         if todd.Store.cuda:  # pylint: disable=using-constant-test

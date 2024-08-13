@@ -24,7 +24,7 @@ class Batch(TypedDict):
 
 
 @OAKEDatasetRegistry.register_()
-class ObjectDataset(BaseDataset[Batch], ABC):
+class ObjectDataset(BaseDataset[Batch | None], ABC):
     runner: ObjectValidator
 
     @property
