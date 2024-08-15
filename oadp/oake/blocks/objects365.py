@@ -1,8 +1,6 @@
 from ..globals_.objects365 import Objects365V2Dataset
-
-from .datasets import BlockDatasetMixin
 from ..registries import OAKEDatasetRegistry
-from .datasets import Batch
+from .datasets import Batch, BlockDatasetMixin
 
 
 @OAKEDatasetRegistry.register_()

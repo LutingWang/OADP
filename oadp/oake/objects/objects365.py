@@ -1,9 +1,8 @@
 from typing import Any
 
-from ..globals_.objects365 import Objects365V2Dataset, Annotations
-
-from .datasets import ObjectDataset, Batch
+from ..globals_.objects365 import Annotations, Objects365V2Dataset
 from ..registries import OAKEDatasetRegistry
+from .datasets import Batch, ObjectDataset
 
 
 @OAKEDatasetRegistry.register_()

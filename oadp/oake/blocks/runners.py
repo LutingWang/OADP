@@ -8,8 +8,8 @@ import clip.model
 import todd
 import torch.nn.functional as F
 import torchvision.transforms as tf
-from todd.runners import Memo
 from todd.bases.registries import Item
+from todd.runners import Memo
 
 from ..registries import OAKERunnerRegistry
 from ..runners import BaseValidator

@@ -3,8 +3,12 @@ _base_ = [
 ]
 
 trainer = dict(
-    dataset=dict(type='OAKEDatasetRegistry.Objects365V2BlockDataset', split='train'),
+    dataset=dict(
+        type='OAKEDatasetRegistry.Objects365V2BlockDataset', split='train'
+    ),
 )
 validator = dict(
-    dataset=dict(type='OAKEDatasetRegistry.Objects365V2BlockDataset', split='val'),
+    dataset=dict(
+        type='OAKEDatasetRegistry.Objects365V2BlockDataset', split='val'
+    ),
 )

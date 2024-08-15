@@ -1,19 +1,16 @@
-__all__ = [
-    'Objects365GlobalDataset'
-]
+__all__ = ['Objects365GlobalDataset']
 import os.path as osp
 import pathlib
+from collections import UserList
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal, Mapping, TypedDict, cast
+from typing_extensions import Self
 
 import torch
-from dataclasses import dataclass
-from collections import UserList
-from typing import TYPE_CHECKING, Any, Literal, Mapping, TypedDict, cast
-from typing_extensions import Self
-from todd.datasets.coco import BaseKeys, BaseDataset, COCO, T, PILAccessLayer
-from todd.datasets.coco import T
+from todd.datasets.coco import COCO, BaseDataset, BaseKeys, PILAccessLayer, T
 
-from .datasets import GlobalDataset
 from ..registries import OAKEDatasetRegistry
+from .datasets import GlobalDataset
 
 if TYPE_CHECKING:
     from todd.tasks.object_detection import BBox, FlattenBBoxesXYWH
@@ -24,6 +21,8 @@ objv2_ignore_list = [
     osp.join('patch6', 'objects365_v1_00320532.jpg'),
     osp.join('patch6', 'objects365_v1_00320534.jpg'),
 ]
+
+
 class Keys(BaseKeys):
 
     def __init__(self, coco: COCO, *args, **kwargs) -> None:
@@ -34,7 +33,8 @@ class Keys(BaseKeys):
             image = self._coco.loadImgs(image_id)[0]
             file_name = osp.join(
                 osp.split(osp.split(image['file_name'])[0])[-1],
-                osp.split(image['file_name'])[-1])
+                osp.split(image['file_name'])[-1]
+            )
             if file_name in objv2_ignore_list:
                 continue
             self.id2file[image_id] = file_name
@@ -43,6 +43,7 @@ class Keys(BaseKeys):
     def _getitem(self, image_id: int) -> str:
         return self.id2file[image_id]
 
+
 class _Annotation(TypedDict):
     id: int
     image_id: int
@@ -50,6 +51,7 @@ class _Annotation(TypedDict):
     area: float
     bbox: list[float]
     iscrowd: int
+
 
 @dataclass(frozen=True)
 class Annotation:
@@ -70,6 +72,7 @@ class Annotation:
             cast('BBox', annotation['bbox']),
             categories[annotation['category_id']],
         )
+
 
 class Annotations(UserList[Annotation]):
 
@@ -158,11 +161,13 @@ class Objects365V2Dataset(BaseDataset[COCO, T]):
                 self._categories,
             ) if self._load_annotations else Annotations()
         )
-        return T(id_=key.replace('/', '_'), image=tensor, annotations=annotations)
+        return T(
+            id_=key.replace('/', '_'), image=tensor, annotations=annotations
+        )
 
 
 @OAKEDatasetRegistry.register_()
 class Objects365GlobalDataset(GlobalDataset, Objects365V2Dataset):
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, load_annotations=False, **kwargs)
-    
