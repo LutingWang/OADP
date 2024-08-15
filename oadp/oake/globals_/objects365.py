@@ -136,7 +136,7 @@ class Objects365V2Dataset(BaseDataset[COCO, T]):
             )
         if annotations_file is None:
             annotations_file = (
-                self.ANNOTATIONS_ROOT / f'zhiyuan_objv2_{split}_existed.json'
+                self.ANNOTATIONS_ROOT / f'zhiyuan_objv2_{split}.json'
             )
 
         coco = COCO(annotations_file)
