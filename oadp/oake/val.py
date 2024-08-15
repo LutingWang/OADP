@@ -51,7 +51,7 @@ def validate(
 ) -> None:
     runner: BaseValidator[T] = OAKERunnerRegistry.build(
         config.trainer if train else config.validator,
-        name=f'{args.name}_{"train" if train else "val"}',
+        name=f'{args.name}/{"train" if train else "val"}',
     )
     log(runner, args, config)
     runner.run()
