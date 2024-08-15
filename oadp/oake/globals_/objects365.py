@@ -162,7 +162,7 @@ class Objects365V2Dataset(BaseDataset[COCO, T]):
             ) if self._load_annotations else Annotations()
         )
         return T(
-            id_=key.replace('/', '_'), image=tensor, annotations=annotations
+            id_=f'{int(key[-8:]):012d}', image=tensor, annotations=annotations
         )
 
 

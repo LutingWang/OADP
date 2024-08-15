@@ -8,7 +8,7 @@ _base_ = [
 model = dict(
     global_head=dict(
         classifier=dict(
-            type='Classifier',
+            type='ViLDClassifier',
             prompts='data/prompts/vild.pth',
             out_features=365,
         ),
@@ -23,14 +23,14 @@ model = dict(
         bbox_head=dict(cls_predictor_cfg=dict(type='FewShotClassifier')),
         object_head=dict(
             cls_predictor_cfg=dict(
-                type='Classifier',
-                prompts='data/prompts/ml_coco.pth',
+                type='ViLDClassifier',
+                prompts='data/prompts/vild.pth',
             ),
         ),
         block_head=dict(
             cls_predictor_cfg=dict(
-                type='Classifier',
-                prompts='data/prompts/ml_coco.pth',
+                type='ViLDClassifier',
+                prompts='data/prompts/vild.pth',
             ),
         ),
     ),

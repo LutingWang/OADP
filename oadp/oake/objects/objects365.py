@@ -29,7 +29,7 @@ class Objects365ObjectDataset(ObjectDataset, Objects365V2Dataset):
         categories = annotations.categories[indices]
         crops, masks = self.runner.expand_transform(image, bboxes)
         return Batch(
-            id_=key.replace('/', '_'),
+            id_=f'{int(key[-8:]):012d}',
             bboxes=bboxes,
             categories=categories,
             crops=crops,

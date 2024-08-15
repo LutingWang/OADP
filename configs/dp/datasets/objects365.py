@@ -4,7 +4,7 @@ _base_ = [
 
 dataset_type = 'Objects365V2Dataset'
 categories = 'objects365'
-data_root = 'data/object365v2/'
+data_root = 'data/objects365v2/'
 oake_root = 'work_dirs/oake/'
 ann_file_prefix = 'annotations/zhiyuan_objv2_'
 
@@ -14,12 +14,12 @@ train_pipeline = [
     dict(
         type='LoadCLIPFeatures',
         default=dict(
-            task_name='train2017',
+            task_name='output',
             type='PthAccessLayer',
         ),
-        globals_=dict(data_root=oake_root + 'globals'),
-        blocks=dict(data_root=oake_root + 'blocks'),
-        objects=dict(data_root=oake_root + 'objects/coco/output'),
+        globals_=dict(data_root=oake_root + 'objects365_globals_cuda/train'),
+        blocks=dict(data_root=oake_root + 'objects365_blocks_cuda/train'),
+        objects=dict(data_root=oake_root + 'objects365_objects_cuda/train'),
     ),
     dict(
         type='RandomResize', scale=[(1330, 640), (1333, 800)], keep_ratio=True

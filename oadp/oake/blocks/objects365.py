@@ -12,4 +12,4 @@ class Objects365V2BlockDataset(BlockDatasetMixin, Objects365V2Dataset):
     def _getitem(self, index: int) -> Batch:
         key, image = self._access(index)
         bboxes, blocks = self._partition(image)
-        return Batch(id_=key.replace('/', '_'), bboxes=bboxes, blocks=blocks)
+        return Batch(id_=f'{int(key[-8:]):012d}', bboxes=bboxes, blocks=blocks)
