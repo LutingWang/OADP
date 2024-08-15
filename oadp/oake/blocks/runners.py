@@ -31,15 +31,13 @@ class BlockValidator(BaseValidator):
 
     def _run_iter(self, batch: Batch, memo: Memo, *args, **kwargs) -> Memo:
         blocks = batch['blocks']
-        bboxes = batch['bboxes']
         if todd.Store.cuda:
             blocks = blocks.cuda()
-            bboxes = bboxes.cuda()
         module = cast(clip.model.CLIP, self._strategy.module)
         embeddings = module.encode_image(blocks)
         embeddings = F.normalize(embeddings)
         memo['output'] = dict(
             embeddings=embeddings.half(),
-            bboxes=bboxes.half(),
+            bboxes=batch['bboxes'],
         )
         return memo
