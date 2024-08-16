@@ -1,8 +1,10 @@
+# type: ignore[misc]
+
 __all__ = [
     'COCOObjectDataset',
 ]
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 from todd.datasets import COCODataset
 from todd.datasets.coco import Annotations
 

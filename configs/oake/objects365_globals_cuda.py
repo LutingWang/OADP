@@ -4,11 +4,13 @@ _base_ = [
 
 trainer = dict(
     dataset=dict(
-        type='OAKEDatasetRegistry.Objects365GlobalDataset', split='train'
+        type='OAKEDatasetRegistry.Objects365GlobalDataset',
+        split='train',
     ),
 )
 validator = dict(
     dataset=dict(
-        type='OAKEDatasetRegistry.Objects365GlobalDataset', split='val'
+        type='OAKEDatasetRegistry.Objects365GlobalDataset',
+        split='val',
     ),
 )

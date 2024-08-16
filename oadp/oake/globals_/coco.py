@@ -1,9 +1,10 @@
+# type: ignore[misc]
+
 __all__ = [
     'COCOGlobalDataset',
 ]
 
 from todd.datasets import COCODataset
-from todd.datasets.coco import T
 
 from .datasets import GlobalDataset
 from ..registries import OAKEDatasetRegistry

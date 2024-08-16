@@ -1,10 +1,14 @@
-from ..globals_.objects365 import Objects365V2Dataset
+__all__ = [
+    'Objects365BlockDataset',
+]
+
+from todd.datasets import Objects365Dataset
 from ..registries import OAKEDatasetRegistry
 from .datasets import Batch, BlockDatasetMixin
 
 
 @OAKEDatasetRegistry.register_()
-class Objects365V2BlockDataset(BlockDatasetMixin, Objects365V2Dataset):
+class Objects365BlockDataset(BlockDatasetMixin, Objects365Dataset):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, load_annotations=False, **kwargs)
@@ -12,4 +16,4 @@ class Objects365V2BlockDataset(BlockDatasetMixin, Objects365V2Dataset):
     def _getitem(self, index: int) -> Batch:
         key, image = self._access(index)
         bboxes, blocks = self._partition(image)
-        return Batch(id_=f'{int(key[-8:]):012d}', bboxes=bboxes, blocks=blocks)
+        return Batch(id_=key.replace('/', '_'), bboxes=bboxes, blocks=blocks)

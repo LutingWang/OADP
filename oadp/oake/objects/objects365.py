@@ -1,12 +1,17 @@
+__all__ = [
+    'Objects365ObjectDataset',
+]
+
 from typing import Any
 
-from ..globals_.objects365 import Annotations, Objects365V2Dataset
+from todd.datasets import Objects365Dataset
+from todd.datasets.objects365 import Annotations
 from ..registries import OAKEDatasetRegistry
 from .datasets import Batch, ObjectDataset
 
 
 @OAKEDatasetRegistry.register_()
-class Objects365ObjectDataset(ObjectDataset, Objects365V2Dataset):
+class Objects365ObjectDataset(ObjectDataset, Objects365Dataset):
 
     @property
     def categories(self) -> list[dict[str, Any]]:
@@ -29,7 +34,7 @@ class Objects365ObjectDataset(ObjectDataset, Objects365V2Dataset):
         categories = annotations.categories[indices]
         crops, masks = self.runner.expand_transform(image, bboxes)
         return Batch(
-            id_=f'{int(key[-8:]):012d}',
+            id_=key.replace('/', '_'),
             bboxes=bboxes,
             categories=categories,
             crops=crops,

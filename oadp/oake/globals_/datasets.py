@@ -2,7 +2,7 @@ __all__ = [
     'GlobalDataset',
 ]
 
-from typing import TypeVar, TypedDict
+from typing import TypedDict
 import torch
 
 from ..datasets import BaseDataset

@@ -3,7 +3,7 @@ __all__ = [
 ]
 
 from abc import ABC
-from typing import TYPE_CHECKING, TypeVar, TypedDict
+from typing import TypeVar, TypedDict
 
 import torch.distributed
 import torch.utils.data.distributed
@@ -48,9 +48,9 @@ class BaseDataset(RunnerHolderMixin[nn.Module], PILDataset[T], ABC):
             return False
 
     def _getitem(self, index: int) -> T:
-        return super().__getitem__(index)
+        return super().__getitem__(index)  # type: ignore[safe-super]
 
-    def __getitem__(self, index: int) -> T | None:
+    def __getitem__(self, index: int) -> T | None:  # type: ignore[override]
         if self.exists(index):
             return None
         return self._getitem(index)
