@@ -6,7 +6,7 @@ latest_todd_version := $(shell curl -H "Accept: application/vnd.github.sha" -s h
 define install_todd
 	pipenv run pip uninstall -y todd_ai
 	GIT_LFS_SKIP_SMUDGE=1 pipenv run pip install \
-		git+https://github.com/LutingWang/todd.git@$(1)
+		git+https://github.com/LutingWang/todd.git@$(1)#egg=todd_ai\[optional\]
 	pipenv run pip uninstall -y opencv-python opencv-python-headless
 	pipenv run pip install opencv-python-headless
 endef
