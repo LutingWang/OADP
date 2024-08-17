@@ -5,7 +5,9 @@ import torch
 import torch.distributed as dist
 from diffusers import StableDiffusion3Pipeline
 from todd.loggers import logger
+from todd.patches.py import encode_filename
 from todd.patches.torch import get_local_rank, get_rank, get_world_size
+from PIL import Image
 
 from oadp.categories import Categories
 
@@ -39,8 +41,20 @@ def main() -> None:
 
     categories = Categories.get(dataset).all_[get_rank()::get_world_size()]
     for category in categories:
+        work_dir = (
+            pathlib.Path('work_dirs/sample_images') / dataset
+            / encode_filename(category)
+        )
+        if work_dir.exists():
+            try:
+                for i in range(5):
+                    Image.open(work_dir / f'{i}.png')
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.info("Fixing %s due to %s", category, e)
+                work_dir.unlink()
+            else:
+                continue
         logger.info("Generating sample images for %s", category)
-        work_dir = pathlib.Path('work_dirs/sample_images') / dataset / category
         work_dir.mkdir(parents=True, exist_ok=True)
         output = pipe(category, num_images_per_prompt=5)
         for i, image in enumerate(output.images):

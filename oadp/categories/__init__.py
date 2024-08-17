@@ -1,4 +1,4 @@
-from . import visuals, embeddings, loaders
+from . import embeddings
 from .constants import *
 from .errors import *
 from .registries import *

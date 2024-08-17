@@ -1,2 +1,1 @@
-from .base import *
-from .registries import *
+from .visual import *

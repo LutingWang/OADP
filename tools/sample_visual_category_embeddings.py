@@ -11,6 +11,7 @@ from todd.datasets import BaseDataset
 from todd.datasets.access_layers import PthAccessLayer
 from todd.patches.torch import get_world_size
 from torch.utils.data import DataLoader
+import tqdm
 
 
 def parse_args() -> argparse.Namespace:
@@ -54,12 +55,13 @@ class ReservoirSampler:
             self._reservoir[i] = tensor
 
 
-def main() -> None:
-    args = parse_args()
-    dataset: str = args.dataset
+def oake(args: argparse.Namespace) -> dict[str, torch.Tensor]:
+    data_root = pathlib.Path(
+        f'work_dirs/oake/{args.dataset}_objects_cuda_train'
+    )
 
     access_layer: PthAccessLayer[Batch] = PthAccessLayer(
-        data_root=f'work_dirs/oake/{dataset}_objects_cuda_train/output',
+        data_root=str(data_root / 'output'),
     )
     dataset = Dataset(access_layer=access_layer)
 
@@ -70,7 +72,7 @@ def main() -> None:
     embeddings = defaultdict(ReservoirSampler)
 
     batch: Batch | None
-    for batch in dataloader:
+    for batch in tqdm.tqdm(dataloader):
         if batch is None:
             continue
         assert (
@@ -82,9 +84,31 @@ def main() -> None:
             category = batch['categories'][i].item()
             embeddings[category](tensor)
 
+    categories = torch.load(data_root / 'categories.pth', 'cpu')
+    return {
+        c['name']: torch.stack(embeddings[i].reservoir)
+        for i, c in enumerate(categories)
+    }
+
+
+def main() -> None:
+    args = parse_args()
+
+    oake_embeddings = oake(args)
+    sample_image_embeddings: dict[str, torch.Tensor] = torch.load(
+        f'work_dirs/sample_image_embeddings/{args.dataset}.pth',
+        'cpu',
+    )
+    assert set(sample_image_embeddings).issubset(oake_embeddings)
+
+    embeddings = {
+        k: torch.cat([v, oake_embeddings[k]])
+        for k, v in sample_image_embeddings.items()
+    }
+
     work_dir = pathlib.Path('work_dirs/visual_category_embeddings')
     work_dir.mkdir(parents=True, exist_ok=True)
-    torch.save(embeddings, work_dir / f'{dataset}.pth')
+    torch.save(embeddings, work_dir / f'{args.dataset}.pth')
 
 
 if __name__ == '__main__':
