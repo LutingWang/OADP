@@ -1,5 +1,5 @@
 _base_ = [
-    'datasets/ov_coco.py',
+    'datasets/coco.py',
     'models/oadp_faster_rcnn_r50_fpn.py',
     'schedules/40k.py',
     'base.py',
@@ -14,13 +14,12 @@ model = dict(
         ),
     ),
     roi_head=dict(
-        # bbox_head=dict(
-        #     cls_predictor_cfg=dict(
-        #         type='ViLDClassifier',
-        #         prompts='data/prompts/vild.pth',
-        #     ),
-        # ),
-        bbox_head=dict(cls_predictor_cfg=dict(type='FewShotClassifier')),
+        bbox_head=dict(
+            cls_predictor_cfg=dict(
+                type='ViLDClassifier',
+                prompts='data/prompts/vild.pth',
+            ),
+        ),
         object_head=dict(
             cls_predictor_cfg=dict(
                 type='Classifier',
@@ -34,12 +33,8 @@ model = dict(
             ),
         ),
     ),
-    visual_embedding=dict(
-        type='VisualEmbedding',
-        loader=dict(type='COCOLoader'),
-    )
 )
 
 optim_wrapper = dict(
-    paramwise_cfg=dict(custom_keys={'roi_head.bbox_head': dict(lr_mult=0.5)})
+    paramwise_cfg=dict(custom_keys={'roi_head.bbox_head': dict(lr_mult=0.5)}),
 )

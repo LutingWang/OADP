@@ -6,7 +6,11 @@ test_cfg = dict(type='TestLoop')
 # learning rate
 param_scheduler = [
     dict(
-        type='LinearLR', start_factor=0.001, by_epoch=False, begin=0, end=500
+        type='LinearLR',
+        start_factor=0.001,
+        by_epoch=False,
+        begin=0,
+        end=500,
     ),
     dict(
         type='MultiStepLR',
@@ -14,14 +18,14 @@ param_scheduler = [
         end=24,
         by_epoch=True,
         milestones=[16, 19],
-        gamma=0.1
-    )
+        gamma=0.1,
+    ),
 ]
 
 # optimizer
 optim_wrapper = dict(
     type='OptimWrapper',
-    optimizer=dict(type='SGD', lr=0.02, momentum=0.9, weight_decay=2.5e-5)
+    optimizer=dict(type='SGD', lr=0.02, momentum=0.9, weight_decay=2.5e-5),
 )
 
 # Default setting for scaling LR automatically

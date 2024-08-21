@@ -1,6 +1,7 @@
 __all__ = [
     'OADPRegistry',
     'OAKERegistry',
+    'DPRegistry',
 ]
 
 import todd
@@ -11,4 +12,8 @@ class OADPRegistry(todd.Registry):
 
 
 class OAKERegistry(OADPRegistry):
+    pass
+
+
+class DPRegistry(OADPRegistry):
     pass

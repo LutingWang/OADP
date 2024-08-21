@@ -4,6 +4,7 @@
     "CXCYWH",
     "DetPro",
     "LVIS",
+    "multilabel",
     "OADP",
     "OAKE",
     "objectness",

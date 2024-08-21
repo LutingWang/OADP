@@ -1,15 +1,11 @@
-_base_ = [
-    'coco_detection.py',
-]
-
-categories = 'objects365'
-dataset_type = 'Objects365V2Dataset'
-data_root = 'data/objects365v2/'
+categories = 'lvis'
+dataset_type = 'LVISV1Dataset'
+data_root = 'data/lvis_v1/'
 
 train_pipeline = [
     dict(type='LoadImageFromFile', backend_args=None),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(type='LoadOAKE_Objects365'),
+    dict(type='LoadOAKE_LVIS'),
     dict(
         type='RandomResize',
         scale=[(1330, 640), (1333, 800)],
@@ -35,20 +31,29 @@ test_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=2,
-    num_workers=2,
+    batch_size=4,
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     batch_sampler=dict(type='AspectRatioBatchSampler'),
     dataset=dict(
-        type=dataset_type,
-        data_root=data_root,
-        data_prefix=dict(img='train/'),
-        ann_file='annotations/zhiyuan_objv2_train.json',
-        filter_cfg=dict(filter_empty_gt=True, min_size=32),
-        pipeline=train_pipeline,
-        backend_args=None,
-    ),
+        type='ClassBalancedDataset',
+        oversample_thr=1e-3,
+        dataset=dict(
+            type=dataset_type,
+            data_root=data_root,
+            pipeline=train_pipeline,
+            ann_file='annotations/lvis_v1_train.866.json',
+            data_prefix=dict(img=''),
+            filter_cfg=dict(
+                filter_empty_gt=True,
+                min_size=32,
+                filter_oake=True,
+                pipeline=train_pipeline,
+                backend_args=None,
+            ),
+        )
+    )
 )
 val_dataloader = dict(
     batch_size=1,
@@ -59,8 +64,8 @@ val_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        data_prefix=dict(img='val/'),
-        ann_file='annotations/zhiyuan_objv2_val.json',
+        ann_file='annotations/lvis_v1_val.1203.json',
+        data_prefix=dict(img=''),
         test_mode=True,
         pipeline=test_pipeline,
         backend_args=None,
@@ -69,10 +74,9 @@ val_dataloader = dict(
 test_dataloader = val_dataloader
 
 val_evaluator = dict(
-    type='CocoMetric',
-    ann_file=data_root + 'annotations/zhiyuan_objv2_val.json',
-    metric='bbox',
-    format_only=False,
-    backend_args=None
+    type='LVISMetric',
+    ann_file=data_root + 'annotations/lvis_v1_val.1203.json',
+    metric=['bbox'],
+    backend_args=None,
 )
 test_evaluator = val_evaluator

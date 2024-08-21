@@ -2,18 +2,24 @@ __all__ = [
     'BlockValidator',
 ]
 
-from typing import cast
+from typing import TypedDict, cast
 
 import clip.model
 import todd
+import torch
 import torch.nn.functional as F
-import torchvision.transforms as tf
 from todd.bases.registries import Item
 from todd.runners import Memo
+import todd.tasks.object_detection as od
 
 from ..registries import OAKERunnerRegistry
 from ..runners import BaseValidator
 from .datasets import Batch
+
+
+class Output(TypedDict):
+    embeddings: torch.Tensor
+    bboxes: od.FlattenBBoxesXYXY
 
 
 @OAKERunnerRegistry.register_()

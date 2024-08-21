@@ -3,7 +3,7 @@ __all__ = [
 ]
 
 import itertools
-from typing import TypedDict, TypeVar
+from typing import TypedDict
 
 import todd.tasks.object_detection as od
 import torch

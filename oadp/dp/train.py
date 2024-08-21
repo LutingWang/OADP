@@ -76,6 +76,10 @@ def main():
     if args.cfg_options is not None:
         cfg.merge_from_dict(args.cfg_options)
 
+    if todd.Store.DRY_RUN:
+        cfg.train_dataloader.num_workers = 0
+        cfg.train_dataloader.persistent_workers = False
+
     # work_dir is determined in this priority: CLI > segment in file > filename
     if args.work_dir is not None:
         # update configs according to CLI args if args.work_dir is not None

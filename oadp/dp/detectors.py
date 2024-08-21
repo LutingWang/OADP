@@ -104,10 +104,10 @@ class ViLD(StudentMixin[SelfDistiller], TwoStageDetector):
             **kwargs,
         )
 
-        # distill_losses = self.distiller(custom_tensors)
-        # self.distiller.reset()
-        # self.distiller.step()
-        # losses.update(distill_losses)
+        distill_losses = self.distiller(custom_tensors)
+        self.distiller.reset()
+        self.distiller.step()
+        losses.update(distill_losses)
 
         return losses
 
@@ -117,9 +117,9 @@ class ViLD(StudentMixin[SelfDistiller], TwoStageDetector):
         data_samples: OptSampleList,
         losses: dict[str, Any],
         custom_tensors: dict[str, Any],
-        # *,
-        # clip_objects: list[torch.Tensor],
-        # object_bboxes: list[torch.Tensor],
+        *,
+        clip_objects: list[torch.Tensor],
+        object_bboxes: list[torch.Tensor],
         **kwargs,
     ) -> None:
         # RPN forward and loss
@@ -144,8 +144,8 @@ class ViLD(StudentMixin[SelfDistiller], TwoStageDetector):
         roi_losses = self.roi_head.loss(feats, rpn_results_list, data_samples)
         losses.update(roi_losses)
 
-        # self.roi_head.object_forward(feats, object_bboxes)
-        # custom_tensors['clip_objects'] = torch.cat(clip_objects).float().cuda()
+        self.roi_head.object_forward(feats, object_bboxes)
+        custom_tensors['clip_objects'] = torch.cat(clip_objects).float().cuda()
 
     def predict(self, *args, **kwargs):
         Globals.training = False
@@ -160,17 +160,22 @@ class OADP(ViLD):
         self,
         *args,
         global_head: todd.Config | None = None,
-        visual_embedding: todd.Config,
+        visual_embedding: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
         if global_head is not None:
             self._global_head = GlobalHead(**global_head)
-        self._visual_embedding = VisualCategoryEmbedding()
+        if visual_embedding:
+            self._visual_embedding = VisualCategoryEmbedding()
 
     @property
-    def with_global(self) -> bool:
+    def with_global_head(self) -> bool:
         return hasattr(self, '_global_head')
+
+    @property
+    def with_visual_embedding(self) -> bool:
+        return hasattr(self, '_visual_embedding')
 
     def _forward(
         self,
@@ -185,8 +190,9 @@ class OADP(ViLD):
         block_labels: list[torch.Tensor] | None = None,
         **kwargs,
     ) -> None:
-        visual_embeddings = self._visual_embedding()
-        Globals.visual_embeddings = visual_embeddings
+        if self.with_visual_embedding:
+            visual_embeddings = self._visual_embedding()
+            Globals.visual_embeddings = visual_embeddings
 
         super()._forward(
             feats,
@@ -195,7 +201,7 @@ class OADP(ViLD):
             custom_tensors,
             **kwargs,
         )
-        if self.with_global:
+        if self.with_global_head:
             assert clip_global is not None
             global_losses = self._global_head.forward(
                 feats,

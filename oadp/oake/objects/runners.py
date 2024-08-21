@@ -2,10 +2,11 @@ __all__ = [
     'ObjectValidator',
 ]
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, TypedDict, cast
 import todd
 from todd.runners import Memo
 from todd.bases.registries import Item
+import todd.tasks.object_detection as od
 import torch
 
 from oadp.expanded_clip import load_default
@@ -17,6 +18,12 @@ from ..runners import BaseValidator
 
 if TYPE_CHECKING:
     from .datasets import ObjectDataset, Batch
+
+
+class Output(TypedDict):
+    tensors: torch.Tensor
+    bboxes: od.FlattenBBoxesXYWH
+    categories: torch.Tensor
 
 
 @OAKERunnerRegistry.register_()

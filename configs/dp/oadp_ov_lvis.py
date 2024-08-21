@@ -1,9 +1,9 @@
 _base_ = [
-    'datasets/ov_lvis.py',
+    'datasets/lvis_v1.py',
     # 'models/vild_ensemble_faster_rcnn_r50_fpn.py',
     # 'models/block.py',
     'models/oadp_faster_rcnn_r50_fpn.py',
-    'models/mask.py',
+    # 'models/mask.py',
     'schedules/2x.py',
     'base.py',
 ]
@@ -27,13 +27,8 @@ model = dict(
     ),
     roi_head=dict(
         # type='OADPRoIHead',
-        bbox_head=dict(cls_predictor_cfg=dict(type='FewShotClassifier')),
-        # bbox_head=dict(cls_predictor_cfg=cls_predictor_cfg),
+        bbox_head=dict(cls_predictor_cfg=cls_predictor_cfg),
         object_head=dict(cls_predictor_cfg=cls_predictor_cfg),
         block_head=dict(cls_predictor_cfg=cls_predictor_cfg),
     ),
-    visual_embedding=dict(
-        type='VisualEmbedding',
-        loader=dict(type='LVISLoader'),
-    )
 )
