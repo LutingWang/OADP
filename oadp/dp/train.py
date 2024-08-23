@@ -72,7 +72,7 @@ def main():
         todd.configs.PyConfig.load(args.config).dumps(),
         '.py',
     )
-    cfg.launcher = args.launcher
+    cfg.launcher = 'pytorch' if todd.Store.cuda else 'none'
     if args.cfg_options is not None:
         cfg.merge_from_dict(args.cfg_options)
 

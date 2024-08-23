@@ -2,7 +2,8 @@ __all__ = [
     'LoadOAKE',
     'LoadOAKE_COCO',
     'LoadOAKE_LVIS',
-    'PackDetInputs',
+    'PackTrainInputs',
+    'PackValInputs',
 ]
 
 import enum
@@ -11,7 +12,7 @@ from typing import Any
 import numpy as np
 import torch
 from mmcv.transforms import to_tensor
-from mmdet.datasets.transforms import PackDetInputs as PackDetInputs_
+from mmdet.datasets.transforms import PackDetInputs
 from mmdet.registry import TRANSFORMS
 import todd.tasks.object_detection as od
 
@@ -112,8 +113,8 @@ class LoadOAKE_LVIS(LoadOAKE):  # noqa: N801 pylint: disable=invalid-name
         return self._access(results, results['img_path'])
 
 
-@TRANSFORMS.register_module(force=True)
-class PackDetInputs(PackDetInputs_):
+@TRANSFORMS.register_module()
+class PackTrainInputs(PackDetInputs):
     OAKE_KEYS = [
         'clip_global',
         'clip_blocks',
@@ -141,3 +142,18 @@ class PackDetInputs(PackDetInputs_):
             object_bboxes=bboxes[object_indices],
         )
         return packed_results
+
+
+@TRANSFORMS.register_module()
+class PackValInputs(PackDetInputs):
+
+    def __init__(self) -> None:
+        super().__init__(
+            meta_keys=(
+                'img_id',
+                'img_path',
+                'ori_shape',
+                'img_shape',
+                'scale_factor',
+            ),
+        )
