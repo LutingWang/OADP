@@ -1,15 +1,14 @@
 import argparse
 import importlib
 import pathlib
-
 from todd.configs import PyConfig
-from todd.patches.py import DictAction
-
-from .runners import DPRunner
-
 from ..categories import Categories
 
 from ..utils import Globals
+
+from mmengine.config import DictAction
+
+from .runners import DPRunner
 
 
 def parse_args():
@@ -18,11 +17,9 @@ def parse_args():
     parser.add_argument('config', type=pathlib.Path)
     parser.add_argument('--config-options', action=DictAction, default=dict())
     parser.add_argument('--override', action=DictAction, default=dict())
-    parser.add_argument('--seed', type=int, default=3407)
-    parser.add_argument('--load-model-from', nargs='+', default=[])
-    parser.add_argument('--load-from')
+    parser.add_argument('--visual')
     parser.add_argument('--autocast', action='store_true')
-    parser.add_argument('--auto-resume', action='store_true')
+    parser.add_argument('--load-model-from', required=True, nargs='+')
     args = parser.parse_args()
     return args
 
@@ -31,27 +28,29 @@ def main():
     args = parse_args()
     config = PyConfig.load(args.config, **args.config_options)
     config.override(args.override)
-    # init_seed(args.seed)
 
     for custom_import in config.get('custom_imports', []):
         importlib.import_module(custom_import)
 
     Globals.categories = Categories.get(config.categories)
 
-    # trainer = DPRunnerRegistry.build(
-    trainer = DPRunner.from_cfg(
-        config,
-        name=args.name,
-        load_from=args.load_from,
-        auto_resume=args.auto_resume,
-        autocast=args.autocast,
-    )
+    # runner = DPRunnerRegistry.build(
+    #     config,
+    #     name=f'{args.name}_test',
+    #     visual=args.visual,
+    #     autocast=args.autocast,
+    # )
     # log(trainer, args, config)
-    if args.load_model_from:
-        # trainer.strategy.load_model_from(args.load_model_from, strict=False)
-        raise ValueError("load_model_from is not supported")
-    # trainer.run()
-    trainer.train()
+    # trainer.strategy.load_model_from(args.load_model_from, strict=False)
+    runner = DPRunner.from_cfg(
+        config,
+        name=f'{args.name}_test',
+        visual=args.visual,
+        autocast=args.autocast,
+        load_model_from=args.load_model_from[0],
+    )
+    # runner.run()
+    runner.test()
 
 
 if __name__ == '__main__':

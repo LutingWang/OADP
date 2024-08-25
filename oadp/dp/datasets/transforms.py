@@ -7,13 +7,13 @@ __all__ = [
 ]
 
 import enum
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import torch
-from mmcv.transforms import to_tensor
 from mmdet.datasets.transforms import PackDetInputs
 from mmdet.registry import TRANSFORMS
+from mmdet.structures.bbox import BaseBoxes
 import todd.tasks.object_detection as od
 
 from .access_layers import AccessLayer, COCOAccessLayer, LVISAccessLayer
@@ -33,63 +33,94 @@ class LoadOAKE:
 
     def _assign_block_labels(
         self,
-        results: dict[str, Any],
+        gt_bboxes: od.FlattenBBoxesXYXY,
+        gt_labels: torch.Tensor,
         block_bboxes: od.FlattenBBoxesXYXY,
     ) -> torch.Tensor:
-        num_all = Globals.categories.num_all
-        gt_bboxes = results['gt_bboxes']
-        gt_labels = results['gt_bboxes_labels']
-        indices = gt_labels < num_all  # filter out pseudo labels
+        num_categories = Globals.categories.num_all
+        indices = gt_labels < num_categories  # filter out pseudo labels
         gt_bboxes = gt_bboxes[indices]
         gt_labels = gt_labels[indices]
+
         block_ids, gt_ids = torch.where(
-            block_bboxes.intersections(od.FlattenBBoxesXYXY(gt_bboxes.tensor))
-            > 0
+            block_bboxes.intersections(gt_bboxes) > 0
         )
-        block_labels = np.zeros(
-            (block_bboxes.shape[0], num_all),
+        block_labels = torch.zeros(
+            (len(block_bboxes), num_categories),
             dtype=bool,
         )
         block_labels[block_ids, gt_labels[gt_ids]] = True
-        return to_tensor(block_labels)
+
+        return block_labels
 
     def _append_bboxes(
         self,
-        results: dict[str, Any],
-        bboxes: od.FlattenBBoxesMixin,
+        gt_bboxes: torch.Tensor,
+        gt_flags: torch.Tensor,
+        bboxes: od.FlattenBBoxesXYXY,
         flag: int,
-    ) -> dict[str, Any]:
-        results['gt_bboxes'].tensor = torch.cat([
-            results['gt_bboxes'].tensor,
-            bboxes.to_tensor().float()
-        ])
-        results['gt_ignore_flags'] = np.concatenate([
-            results['gt_ignore_flags'],
-            np.ones(bboxes.shape[0]) * flag,
-        ])
-        return results
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        gt_bboxes = torch.cat([gt_bboxes, bboxes.to_tensor().float()])
+        gt_flags = torch.cat([gt_flags,
+                              torch.full((bboxes.shape[0], ), flag)])
+        return gt_bboxes, gt_flags
 
-    def _access(self, results: dict[str, Any], key: str) -> dict[str, Any]:
+    def _access(
+        self,
+        gt_bboxes: torch.Tensor,
+        gt_labels: torch.Tensor,
+        key: str,
+    ) -> tuple[
+        dict[str, torch.Tensor],
+        od.FlattenBBoxesXYXY,
+        od.FlattenBBoxesXYXY,
+    ]:
         global_, blocks, objects = self._access_layer[key]
 
-        results['clip_global'] = global_
-
         block_bboxes = blocks['bboxes']
-        results['block_labels'] = self._assign_block_labels(
-            results,
+        block_labels = self._assign_block_labels(
+            od.FlattenBBoxesXYXY(gt_bboxes),
+            gt_labels,
             block_bboxes,
         )
-        results['clip_blocks'] = blocks['embeddings']
-        results = self._append_bboxes(results, block_bboxes, BBoxesFlag.BLOCK)
 
         object_bboxes = objects['bboxes'].to(od.FlattenBBoxesXYXY)
-        results['clip_objects'] = objects['tensors']
-        results = self._append_bboxes(
-            results,
+
+        oake = dict(
+            clip_global=global_,
+            block_labels=block_labels,
+            clip_blocks=blocks['embeddings'],
+            clip_objects=objects['tensors'],
+        )
+        return oake, block_bboxes, object_bboxes
+
+    def _load(self, results: dict[str, Any], key: str) -> dict[str, Any]:
+        gt_bboxes = cast(BaseBoxes, results['gt_bboxes']).tensor
+        gt_labels = results['gt_bboxes_labels']
+        gt_flags = torch.from_numpy(results['gt_ignore_flags'])
+
+        oake, block_bboxes, object_bboxes = self._access(
+            gt_bboxes,
+            gt_labels,
+            key,
+        )
+        results.update(oake)
+
+        gt_bboxes, gt_flags = self._append_bboxes(
+            gt_bboxes,
+            gt_flags,
+            block_bboxes,
+            BBoxesFlag.BLOCK,
+        )
+        gt_bboxes, gt_flags = self._append_bboxes(
+            gt_bboxes,
+            gt_flags,
             object_bboxes,
             BBoxesFlag.OBJECT,
         )
 
+        cast(BaseBoxes, results['gt_bboxes']).tensor = gt_bboxes
+        results['gt_ignore_flags'] = gt_flags.numpy()
         return results
 
 
@@ -100,7 +131,7 @@ class LoadOAKE_COCO(LoadOAKE):  # noqa: N801 pylint: disable=invalid-name
         super().__init__(COCOAccessLayer())
 
     def __call__(self, results: dict[str, Any]) -> dict[str, Any]:
-        return self._access(results, results['img_id'])
+        return self._load(results, results['img_id'])
 
 
 @TRANSFORMS.register_module()
@@ -110,7 +141,7 @@ class LoadOAKE_LVIS(LoadOAKE):  # noqa: N801 pylint: disable=invalid-name
         super().__init__(LVISAccessLayer())
 
     def __call__(self, results: dict[str, Any]) -> dict[str, Any]:
-        return self._access(results, results['img_path'])
+        return self._load(results, results['img_path'])
 
 
 @TRANSFORMS.register_module()

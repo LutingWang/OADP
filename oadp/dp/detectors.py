@@ -66,20 +66,35 @@ class GlobalHead(nn.Module):
 
 
 @MODELS.register_module()
-class ViLD(StudentMixin[SelfDistiller], TwoStageDetector):
+class OADP(StudentMixin[SelfDistiller], TwoStageDetector):
     rpn_head: RPNHead
     roi_head: OADPRoIHead
 
     @kd.distillers.distiller_decorator
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(
+        self,
+        *args,
+        global_head: todd.Config | None = None,
+        visual_embedding: bool = False,
+        **kwargs,
+    ) -> None:
         super().__init__(*args, **kwargs)
+        if global_head is not None:
+            self._global_head = GlobalHead(**global_head)
+        if visual_embedding:
+            self._visual_embedding = VisualCategoryEmbedding()
 
     @property
     def num_classes(self) -> int:
         return Globals.categories.num_all
 
-    def list_to_tensor(self, data_list):
-        return [data.tensor for data in data_list]
+    @property
+    def with_global_head(self) -> bool:
+        return hasattr(self, '_global_head')
+
+    @property
+    def with_visual_embedding(self) -> bool:
+        return hasattr(self, '_visual_embedding')
 
     def forward(
         self,
@@ -88,7 +103,12 @@ class ViLD(StudentMixin[SelfDistiller], TwoStageDetector):
         mode: str = 'tensor',
         **kwargs,
     ):
+        if self.with_visual_embedding:
+            visual_embeddings = self._visual_embedding()
+            Globals.visual_embeddings = visual_embeddings
+
         if mode == 'predict':
+            Globals.training = False
             return self.predict(inputs, data_samples)
 
         Globals.training = True
@@ -118,6 +138,10 @@ class ViLD(StudentMixin[SelfDistiller], TwoStageDetector):
         losses: dict[str, Any],
         custom_tensors: dict[str, Any],
         *,
+        clip_global: list[torch.Tensor],
+        clip_blocks: list[torch.Tensor],
+        block_bboxes: list[torch.Tensor],
+        block_labels: list[torch.Tensor],
         clip_objects: list[torch.Tensor],
         object_bboxes: list[torch.Tensor],
         **kwargs,
@@ -147,62 +171,7 @@ class ViLD(StudentMixin[SelfDistiller], TwoStageDetector):
         self.roi_head.object_forward(feats, object_bboxes)
         custom_tensors['clip_objects'] = torch.cat(clip_objects).float().cuda()
 
-    def predict(self, *args, **kwargs):
-        Globals.training = False
-        return super().predict(*args, **kwargs)
-
-
-@MODELS.register_module()
-class OADP(ViLD):
-
-    @kd.distillers.distiller_decorator
-    def __init__(
-        self,
-        *args,
-        global_head: todd.Config | None = None,
-        visual_embedding: bool = False,
-        **kwargs,
-    ) -> None:
-        super().__init__(*args, **kwargs)
-        if global_head is not None:
-            self._global_head = GlobalHead(**global_head)
-        if visual_embedding:
-            self._visual_embedding = VisualCategoryEmbedding()
-
-    @property
-    def with_global_head(self) -> bool:
-        return hasattr(self, '_global_head')
-
-    @property
-    def with_visual_embedding(self) -> bool:
-        return hasattr(self, '_visual_embedding')
-
-    def _forward(
-        self,
-        feats: list[torch.Tensor],
-        data_samples: OptSampleList,
-        losses: dict[str, Any],
-        custom_tensors: dict[str, Any],
-        *,
-        clip_global: list[torch.Tensor] | None = None,
-        clip_blocks: list[torch.Tensor] | None = None,
-        block_bboxes: list[torch.Tensor] | None = None,
-        block_labels: list[torch.Tensor] | None = None,
-        **kwargs,
-    ) -> None:
-        if self.with_visual_embedding:
-            visual_embeddings = self._visual_embedding()
-            Globals.visual_embeddings = visual_embeddings
-
-        super()._forward(
-            feats,
-            data_samples,
-            losses,
-            custom_tensors,
-            **kwargs,
-        )
         if self.with_global_head:
-            assert clip_global is not None
             global_losses = self._global_head.forward(
                 feats,
                 labels=[sample.gt_instances.labels for sample in data_samples],
@@ -210,10 +179,8 @@ class OADP(ViLD):
             losses.update(global_losses)
             custom_tensors['clip_global'] = torch.stack(clip_global,
                                                         dim=0).float().cuda()
+
         if self.roi_head.with_block:
-            assert clip_blocks is not None
-            assert block_bboxes is not None
-            assert block_labels is not None
             block_labels = [label.cuda() for label in block_labels]
             block_losses = self.roi_head.block_forward(
                 feats,

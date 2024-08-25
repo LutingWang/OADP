@@ -1,10 +1,10 @@
 _base_ = [
-    'oadp_ov_lvis.py',
+    'ov_coco.py',
 ]
 
 model = dict(
     roi_head=dict(
-        bbox_head=dict(
+        object_head=dict(
             cls_predictor_cfg=dict(_delete_=True, type='FewShotClassifier'),
         ),
     ),

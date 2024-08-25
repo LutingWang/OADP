@@ -1,5 +1,5 @@
 _base_ = [
-    'datasets/lvis_v1.py',
+    'datasets/lvis.py',
     # 'models/vild_ensemble_faster_rcnn_r50_fpn.py',
     # 'models/block.py',
     'models/oadp_faster_rcnn_r50_fpn.py',

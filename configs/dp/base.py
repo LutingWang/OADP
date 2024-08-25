@@ -21,7 +21,4 @@ visualizer = dict(
     name='visualizer',
 )
 
-log_level = 'INFO'
-load_from = 'pretrained/soco/soco_star_mask_rcnn_r50_fpn_400e.pth'
-resume = False
 randomness = dict(seed=3407, diff_rank_seed=True)

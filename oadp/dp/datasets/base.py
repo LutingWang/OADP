@@ -6,7 +6,7 @@ __all__ = [
 ]
 
 import os
-from typing import Any
+from typing import Any, Mapping
 
 import todd
 from mmdet.datasets import BaseDetDataset, CocoDataset as CocoDataset_, LVISV1Dataset as LVISV1Dataset_
@@ -14,8 +14,21 @@ from mmdet.models.data_preprocessors import DetDataPreprocessor as DetDataPrepro
 from mmdet.registry import DATASETS, MODELS
 from todd.loggers import logger
 
+from oadp.utils import Globals
+
 
 class BaseMixin(BaseDetDataset):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(
+            *args,
+            metainfo=dict(
+                classes=Globals.categories.all_,
+                base_classes=Globals.categories.bases,
+                novel_classes=Globals.categories.novels,
+            ),
+            **kwargs,
+        )
 
     @property
     def should_filter_oake(self) -> bool:
@@ -106,9 +119,9 @@ class LVISV1Dataset(BaseMixin, LVISV1Dataset_):
 @MODELS.register_module(force=True)
 class DetDataPreprocessor(DetDataPreprocessor_):
 
-    def forward(self, data: dict, training: bool = False) -> dict:
-        pack_data = super().forward(data, training)
-        for key, value in data.items():
-            if key not in ['inputs', 'data_samples']:
-                pack_data[key] = value
-        return pack_data
+    def forward(
+        self,
+        data: Mapping[Any, Any],
+        training: bool = False,
+    ) -> dict[Any, Any]:
+        return data | super().forward(data, training)
