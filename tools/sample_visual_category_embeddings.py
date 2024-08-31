@@ -3,7 +3,7 @@ import os
 import pathlib
 import random
 from collections import defaultdict
-from typing import TypedDict
+from typing import TypedDict, cast
 
 import todd.tasks.object_detection as od
 import torch
@@ -16,6 +16,7 @@ import tqdm
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
+    parser.add_argument('model')
     parser.add_argument('dataset')
     args = parser.parse_args()
     return args
@@ -27,9 +28,9 @@ class Batch(TypedDict):
     categories: torch.Tensor
 
 
-class Dataset(BaseDataset[Batch | None, str, Batch | None]):
+class Dataset(BaseDataset[Batch, str, Batch]):
 
-    def __getitem__(self, index: int) -> Batch | None:
+    def __getitem__(self, index: int) -> Batch:
         _, batch = super()._access(index)
         return batch
 
@@ -57,7 +58,7 @@ class ReservoirSampler:
 
 def oake(args: argparse.Namespace) -> dict[str, torch.Tensor]:
     data_root = pathlib.Path(
-        f'work_dirs/oake/{args.dataset}_objects_cuda_train'
+        f'work_dirs/oake/{args.model}_{args.dataset}_objects_cuda_train'
     )
 
     access_layer: PthAccessLayer[Batch] = PthAccessLayer(
@@ -69,19 +70,18 @@ def oake(args: argparse.Namespace) -> dict[str, torch.Tensor]:
     cpu = max(cpu // get_world_size(), 1)
     dataloader = DataLoader(dataset, None, num_workers=cpu)
 
-    embeddings = defaultdict(ReservoirSampler)
+    embeddings: defaultdict[int, ReservoirSampler] = \
+        defaultdict(ReservoirSampler)
 
-    batch: Batch | None
+    batch: Batch
     for batch in tqdm.tqdm(dataloader):
-        if batch is None:
-            continue
         assert (
             batch['tensors'].shape[0] == len(batch['bboxes']) ==
             batch['categories'].shape[0]
         )
         for i in range(batch['tensors'].shape[0]):
             tensor = batch['tensors'][i]
-            category = batch['categories'][i].item()
+            category = cast(int, batch['categories'][i].item())
             embeddings[category](tensor)
 
     categories = torch.load(data_root / 'categories.pth', 'cpu')
@@ -101,12 +101,15 @@ def main() -> None:
     )
     assert set(sample_image_embeddings).issubset(oake_embeddings)
 
+    breakpoint()
     embeddings = {
-        k: torch.cat([v, oake_embeddings[k]])
+        k: torch.cat([v, oake_embeddings[k][:, 0, :]])  # TODO
         for k, v in sample_image_embeddings.items()
     }
 
-    work_dir = pathlib.Path('work_dirs/visual_category_embeddings')
+    work_dir = pathlib.Path(
+        f'work_dirs/{args.model}_visual_category_embeddings',
+    )
     work_dir.mkdir(parents=True, exist_ok=True)
     torch.save(embeddings, work_dir / f'{args.dataset}.pth')
 

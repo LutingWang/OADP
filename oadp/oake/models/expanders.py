@@ -32,7 +32,7 @@ class BaseExpander(ABC):
         expand_size = expand_size.clamp_min(bboxes.width)
         expand_size = expand_size.clamp_min(bboxes.height)
         expand_size = einops.repeat(expand_size, 'n -> n d', d=2)
-        expanded_bboxes = torch.cat([bboxes.center, expand_size], dim=-1)
+        expanded_bboxes = torch.cat([bboxes.center, expand_size], -1)
         return bboxes.to(od.FlattenBBoxesCXCYWH).copy(expanded_bboxes)
 
     def _translate(

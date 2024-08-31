@@ -24,8 +24,20 @@ class Batch(TypedDict):
 
 
 @OAKEDatasetRegistry.register_()
-class ObjectDataset(BaseDataset[Batch | None], ABC):
+class ObjectDataset(
+    BaseDataset[Batch | None],  # type: ignore[type-var]
+    ABC,
+):
     runner: ObjectValidator
+
+    def __init__(
+        self,
+        *args,
+        min_wh: tuple[int, int] = (16, 16),
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self._min_wh = min_wh
 
     @property
     @abstractmethod

@@ -1,3 +1,5 @@
+# mypy: disable-error-code="misc"
+
 __all__ = [
     'Objects365ObjectDataset',
 ]

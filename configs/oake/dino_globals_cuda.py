@@ -5,15 +5,17 @@ from todd.configs import PyConfig
 _kwargs_: dict[str, Any]
 _kwargs_ = dict(_kwargs_)
 
+_kwargs_.setdefault('dataset', 'COCO')
+_kwargs_.setdefault('branch', 'Global')
 _kwargs_.setdefault('strategy', 'cuda')
 
 _base_ = [
     PyConfig.load('configs/oake/interface.py', **_kwargs_),
 ]
 
-runner = dict(type='BlockValidator')
+runner = dict(model=dict(type='dinov2', expand_mask_size=None, adaptive=True))
 custom_imports = [
-    'oadp.oake.blocks',
+    'oadp.oake.globals_',
 ]
 
 _export_ = dict(

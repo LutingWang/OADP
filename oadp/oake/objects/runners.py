@@ -2,18 +2,16 @@ __all__ = [
     'ObjectValidator',
 ]
 
-from typing import TYPE_CHECKING, TypedDict, cast
+from typing import TYPE_CHECKING, TypedDict
 import todd
 from todd.runners import Memo
 from todd.bases.registries import Item
 import todd.tasks.object_detection as od
 import torch
 
-from oadp.expanded_clip import load_default
-from oadp.expanded_clip import ExpandTransform
-from oadp.expanded_clip import ExpandedCLIP
+from ..models import ExpandTransform
 
-from ..registries import OAKERunnerRegistry
+from ..registries import OAKEModelRegistry, OAKERunnerRegistry
 from ..runners import BaseValidator
 
 if TYPE_CHECKING:
@@ -53,10 +51,8 @@ class ObjectValidator(BaseValidator):
         registry: todd.RegistryMeta,
         item: Item,
     ) -> todd.Config:
-        config.model, transforms = load_default()
-        config.expand_transform = ExpandTransform(
-            transforms=transforms,
-            mask_size=14,
+        config.model, config.expand_transform = OAKEModelRegistry.build(
+            config.model,
         )
         config.transforms = None
         return config
@@ -75,8 +71,7 @@ class ObjectValidator(BaseValidator):
         if todd.Store.cuda:  # pylint: disable=using-constant-test
             crops = crops.cuda()
             masks = masks.cuda()
-        module = cast(ExpandedCLIP, self._strategy.module)
-        tensors: torch.Tensor = module(crops, masks)
+        tensors: torch.Tensor = self.model(crops, masks)
         memo['output'] = dict(
             tensors=tensors.half(),
             bboxes=batch['bboxes'],

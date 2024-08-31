@@ -12,7 +12,7 @@ from todd.bases.registries import Item
 from todd.runners import Memo
 import todd.tasks.object_detection as od
 
-from ..registries import OAKERunnerRegistry
+from ..registries import OAKEModelRegistry, OAKERunnerRegistry
 from ..runners import BaseValidator
 from .datasets import Batch
 
@@ -32,16 +32,14 @@ class BlockValidator(BaseValidator):
         registry: todd.RegistryMeta,
         item: Item,
     ) -> todd.Config:
-        config.model, config.transforms = clip.load_default(False)
+        config.model, config.transforms = OAKEModelRegistry.build(config.model)
         return config
 
     def _run_iter(self, batch: Batch, memo: Memo, *args, **kwargs) -> Memo:
         blocks = batch['blocks']
         if todd.Store.cuda:
             blocks = blocks.cuda()
-        module = cast(clip.model.CLIP, self._strategy.module)
-        embeddings = module.encode_image(blocks)
-        embeddings = F.normalize(embeddings)
+        embeddings: torch.Tensor = self.model(blocks)
         memo['output'] = dict(
             embeddings=embeddings.half(),
             bboxes=batch['bboxes'],

@@ -1,3 +1,5 @@
+# mypy: disable-error-code="misc"
+
 __all__ = [
     'LVISObjectDataset',
 ]
@@ -27,7 +29,7 @@ class LVISObjectDataset(ObjectDataset, LVISDataset):
             self._categories,
         )
         bboxes = annotations.bboxes
-        indices = bboxes.indices(min_wh=(4, 4))
+        indices = bboxes.indices(min_wh=self._min_wh)
         if not indices.any():
             return None
         bboxes = bboxes[indices]

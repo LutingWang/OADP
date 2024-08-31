@@ -3,6 +3,7 @@
     "BBoxes",
     "CXCYWH",
     "DetPro",
+    "ImageNet",
     "LVIS",
     "multilabel",
     "OADP",
@@ -10,6 +11,7 @@
     "objectness",
     "Partitioner",
     "SoCo",
+    "upsampled",
     "VILD",
     "XYWH",
     "XYXY"

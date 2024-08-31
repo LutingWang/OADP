@@ -2,6 +2,8 @@ from typing import Any
 
 _kwargs_: dict[str, Any]
 _kwargs_ = dict(_kwargs_)
+dataset = _kwargs_['dataset']  # COCO, LVIS, Object365
+branch = _kwargs_['branch']  # Object, Block, or Global
 auto_fix = _kwargs_['auto_fix']
 
 _base_ = [
@@ -20,7 +22,25 @@ callbacks = [
     dict(type='OAKECallbackRegistry.OAKECallback'),
 ]
 dataloader = dict(batch_size=None, num_workers=2)
-dataset = dict(auto_fix=auto_fix)
-runner = dict(callbacks=callbacks, dataloader=dataloader, dataset=dataset)
+trainer = dict(
+    type=f'{branch}Validator',
+    callbacks=callbacks,
+    dataloader=dataloader,
+    dataset=dict(
+        type=f'OAKEDatasetRegistry.{dataset}{branch}Dataset',
+        auto_fix=auto_fix,
+        split='train',
+    ),
+)
+validator = dict(
+    type=f'{branch}Validator',
+    callbacks=callbacks,
+    dataloader=dataloader,
+    dataset=dict(
+        type=f'OAKEDatasetRegistry.{dataset}{branch}Dataset',
+        auto_fix=auto_fix,
+        split='val',
+    ),
+)
 
-_export_ = dict(trainer=runner, validator=runner)
+_export_ = dict(trainer=trainer, validator=validator)

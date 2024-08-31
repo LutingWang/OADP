@@ -1,4 +1,4 @@
-from . import categories, dp, expanded_clip, models, oake, utils
+from . import categories, models, utils
 from .registries import *
 
 from . import patches  # isort: skip
