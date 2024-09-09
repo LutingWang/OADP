@@ -3,11 +3,9 @@ __all__ = [
 ]
 
 import pathlib
-from todd import Config
-from todd import Store
-from mmengine.runner import Runner
 
-from ..utils import Globals
+from mmengine.runner import Runner
+from todd import Config, Store
 
 
 class DPRunner(Runner):

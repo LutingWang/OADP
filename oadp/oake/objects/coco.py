@@ -5,11 +5,12 @@ __all__ = [
 ]
 
 from typing import TYPE_CHECKING
+
 from todd.datasets import COCODataset
 from todd.datasets.coco import Annotations
 
-from .datasets import ObjectDataset, Batch
 from ..registries import OAKEDatasetRegistry
+from .datasets import Batch, ObjectDataset
 
 if TYPE_CHECKING:
     from pycocotools.coco import _Category

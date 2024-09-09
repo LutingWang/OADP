@@ -3,7 +3,6 @@ __all__ = [
     'RKDLoss',
 ]
 
-import todd
 import torch
 from todd.models import LossRegistry
 from todd.models.losses import BaseLoss, MSELoss

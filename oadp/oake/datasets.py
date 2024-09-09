@@ -3,7 +3,7 @@ __all__ = [
 ]
 
 from abc import ABC
-from typing import TypeVar, TypedDict
+from typing import TypedDict, TypeVar
 
 import torch.distributed
 import torch.utils.data.distributed

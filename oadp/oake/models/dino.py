@@ -5,17 +5,17 @@ __all__ = [
 ]
 
 from typing import Callable
+
 import einops
-import torchvision.transforms.v2 as tf_v2
 import torch
-from torch import nn
+import torchvision.transforms.v2 as tf_v2
+from PIL import Image
 from todd.datasets import IMAGENET_MEAN, IMAGENET_STD
 from todd.models.modules import DINOv2 as BaseDINOv2
 from todd.models.modules.dino import DINOv2Block
-from PIL import Image
+from torch import nn
 
 from ..registries import OAKEModelRegistry
-
 from .expanders import ExpandTransform
 
 

@@ -137,6 +137,15 @@ OADP/pretrained
 
 ### Prompts
 
+```bash
+wget https://huggingface.co/datasets/xinyu1205/recognize-anything-plus-model-tag-descriptions/resolve/main/ram_tag_list_4585_llm_tag_descriptions.json -P oadp/prompts/utils/ram
+wget https://raw.githubusercontent.com/OPPOMKLab/recognize-anything/main/datasets/openimages_rare_200/openimages_rare_200_llm_tag_descriptions.json -P oadp/prompts/utils/ram
+```
+
+```bash
+bash tools/torchrun.sh -m oadp.prompts.val lvis_clip --config type::LVISPrompter --model type::CLIP
+```
+
 Generate the ViLD prompts.
 
 ```bash

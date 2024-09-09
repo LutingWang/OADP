@@ -5,11 +5,12 @@ __all__ = [
 ]
 
 from typing import Any
+
 from todd.datasets import LVISDataset
 from todd.datasets.lvis import Annotations
 
-from .datasets import ObjectDataset, Batch
 from ..registries import OAKEDatasetRegistry
+from .datasets import Batch, ObjectDataset
 
 
 @OAKEDatasetRegistry.register_()

@@ -2,16 +2,14 @@ __all__ = [
     'OAKECallback',
 ]
 
-from typing import Any, TypedDict
-
 import torch
 from todd.runners import Memo
 from todd.runners.callbacks import BaseCallback
 from torch import nn
 
+from ..datasets import Batch
 from .base import BaseValidator
 from .registries import OAKECallbackRegistry
-from ..datasets import Batch
 
 
 @OAKECallbackRegistry.register_()

@@ -1,13 +1,12 @@
 import argparse
 import importlib
 import pathlib
-from todd.configs import PyConfig
-from ..categories import Categories
-
-from ..utils import Globals
 
 from mmengine.config import DictAction
+from todd.configs import PyConfig
 
+from ..categories import Categories
+from ..utils import Globals
 from .runners import DPRunner
 
 

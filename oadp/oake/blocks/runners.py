@@ -2,15 +2,13 @@ __all__ = [
     'BlockValidator',
 ]
 
-from typing import TypedDict, cast
+from typing import TypedDict
 
-import clip.model
 import todd
+import todd.tasks.object_detection as od
 import torch
-import torch.nn.functional as F
 from todd.bases.registries import Item
 from todd.runners import Memo
-import todd.tasks.object_detection as od
 
 from ..registries import OAKEModelRegistry, OAKERunnerRegistry
 from ..runners import BaseValidator

@@ -9,8 +9,12 @@ import os
 from typing import Any, Mapping
 
 import todd
-from mmdet.datasets import BaseDetDataset, CocoDataset as CocoDataset_, LVISV1Dataset as LVISV1Dataset_
-from mmdet.models.data_preprocessors import DetDataPreprocessor as DetDataPreprocessor_
+from mmdet.datasets import BaseDetDataset
+from mmdet.datasets import CocoDataset as CocoDataset_
+from mmdet.datasets import LVISV1Dataset as LVISV1Dataset_
+from mmdet.models.data_preprocessors import (
+    DetDataPreprocessor as DetDataPreprocessor_,
+)
 from mmdet.registry import DATASETS, MODELS
 from todd.loggers import logger
 

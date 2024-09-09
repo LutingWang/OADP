@@ -4,8 +4,9 @@ __all__ = [
     'OAKEModelRegistry',
 ]
 
+from todd.registries import DatasetRegistry, ModelRegistry, RunnerRegistry
+
 from ..registries import OAKERegistry
-from todd.registries import RunnerRegistry, DatasetRegistry, ModelRegistry
 
 
 class OAKEDatasetRegistry(OAKERegistry, DatasetRegistry):

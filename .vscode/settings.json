@@ -9,10 +9,13 @@
     "OADP",
     "OAKE",
     "objectness",
+    "OpenImages",
     "Partitioner",
     "SoCo",
+    "Synset",
     "upsampled",
     "VILD",
+    "WordNet",
     "XYWH",
     "XYXY"
   ],

@@ -2,6 +2,7 @@ __all__ = [
     'OADPRegistry',
     'OAKERegistry',
     'DPRegistry',
+    'PromptRegistry',
 ]
 
 import todd
@@ -16,4 +17,8 @@ class OAKERegistry(OADPRegistry):
 
 
 class DPRegistry(OADPRegistry):
+    pass
+
+
+class PromptRegistry(OADPRegistry):
     pass

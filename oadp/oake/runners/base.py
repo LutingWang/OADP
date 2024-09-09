@@ -6,7 +6,6 @@ import pathlib
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, TypeVar
 
-import clip.model
 import todd
 import torchvision.transforms as tf
 from todd.bases.registries import Item

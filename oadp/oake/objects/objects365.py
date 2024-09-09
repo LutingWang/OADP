@@ -8,6 +8,7 @@ from typing import Any
 
 from todd.datasets import Objects365Dataset
 from todd.datasets.objects365 import Annotations
+
 from ..registries import OAKEDatasetRegistry
 from .datasets import Batch, ObjectDataset
 

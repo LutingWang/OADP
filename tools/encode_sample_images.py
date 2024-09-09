@@ -6,8 +6,8 @@ import torch
 import torch.nn.functional as F
 import tqdm
 from clip import load_default
-from todd.patches.py import decode_filename
 from PIL import Image
+from todd.patches.py import decode_filename
 
 
 def parse_args() -> argparse.Namespace:

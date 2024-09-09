@@ -9,10 +9,9 @@ import todd.tasks.object_detection as od
 import torch.distributed
 import torch.utils.data.distributed
 
-from .runners import ObjectValidator
 from ..datasets import BaseDataset
-
 from ..registries import OAKEDatasetRegistry
+from .runners import ObjectValidator
 
 
 class Batch(TypedDict):

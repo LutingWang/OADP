@@ -4,9 +4,8 @@ import einops
 import torch
 import torch.nn.functional as F
 import tqdm
-
-import torch
 from mmdet.datasets import LVISV1Dataset
+
 from oadp.categories import coco, lvis, objects365
 
 

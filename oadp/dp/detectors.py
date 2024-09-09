@@ -8,12 +8,12 @@ from typing import Any, Sequence
 
 import einops
 import todd
+import todd.tasks.knowledge_distillation as kd
 import torch
 from mmdet.models import RPNHead, TwoStageDetector
 from mmdet.registry import MODELS
 from mmdet.structures import OptSampleList
 from todd.models import LossRegistry
-import todd.tasks.knowledge_distillation as kd
 from torch import nn
 
 from oadp.categories.embeddings import VisualCategoryEmbedding

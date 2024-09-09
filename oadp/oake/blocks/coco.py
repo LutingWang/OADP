@@ -4,9 +4,8 @@ __all__ = [
 
 from todd.datasets import COCODataset
 
-from .datasets import BlockDatasetMixin
 from ..registries import OAKEDatasetRegistry
-from .datasets import Batch
+from .datasets import Batch, BlockDatasetMixin
 
 
 @OAKEDatasetRegistry.register_()

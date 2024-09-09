@@ -7,7 +7,7 @@ __all__ = [
 from todd.datasets import Objects365Dataset
 
 from ..registries import OAKEDatasetRegistry
-from .datasets import GlobalDataset, Batch
+from .datasets import Batch, GlobalDataset
 
 
 @OAKEDatasetRegistry.register_()

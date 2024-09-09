@@ -9,13 +9,12 @@ from typing import Callable
 import einops
 import torch
 import torch.nn.functional as F
-from torch import nn
-from PIL import Image
 import torchvision.transforms.v2 as tf_v2
-
-from todd.models.modules import CLIPViT as BaseCLIPViT
-from todd.models.modules.clip import CLIPViTBlock
+from PIL import Image
 from todd.datasets import CLIP_MEAN, CLIP_STD
+from todd.models.modules import CLIPViT as BaseCLIPViT
+from todd.models.modules.clip import CLIPBlock
+from torch import nn
 
 from ..registries import OAKEModelRegistry
 from .expanders import ExpandTransform
@@ -31,7 +30,7 @@ class CLIPViT(BaseCLIPViT):
         return cls_
 
 
-class ExpandedCLIPViTBlock(CLIPViTBlock):
+class ExpandedCLIPBlock(CLIPBlock):
 
     def forward(  # type: ignore[override] # pylint: disable=arguments-differ
         self,
@@ -64,7 +63,7 @@ class ExpandedCLIPViTBlock(CLIPViTBlock):
 
 
 class ExpandedCLIPViT(BaseCLIPViT):
-    BLOCK_TYPE = ExpandedCLIPViTBlock
+    BLOCK_TYPE = ExpandedCLIPBlock
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)

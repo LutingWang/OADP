@@ -2,8 +2,9 @@ __all__ = [
     'OAKECallbackRegistry',
 ]
 
-from ..registries import OAKERunnerRegistry
 from todd.runners import CallbackRegistry
+
+from ..registries import OAKERunnerRegistry
 
 
 class OAKECallbackRegistry(OAKERunnerRegistry, CallbackRegistry):

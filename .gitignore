@@ -1,4 +1,3 @@
-.vscode/launch.json
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -164,3 +163,5 @@ cython_debug/
 /data
 /pretrained
 /work_dirs
+
+/oadp/prompts/utils/ram/*.json

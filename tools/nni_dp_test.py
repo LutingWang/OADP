@@ -4,7 +4,9 @@ import sys
 from nni.experiment import Experiment
 
 sys.path.insert(0, '')
-from oadp.models import Store  # noqa: E402 pylint: disable=wrong-import-position
+from oadp.models import (  # noqa: E402 pylint: disable=wrong-import-position
+    Store,
+)
 
 experiment = Experiment('local')
 experiment.config.experiment_name = 'dp_test'

@@ -48,8 +48,15 @@ files = [
 ]
 plugins = 'numpy.typing.mypy_plugin'
 
+[[tool.mypy.overrides]]
+module = [
+    'nltk.*',
+]
+ignore_missing_imports = true
+
 [tool.codespell]
 write-changes = true
+skip = '*.json'
 
 [tool.commitizen]
 name = 'cz_conventional_commits'

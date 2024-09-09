@@ -3,19 +3,19 @@ __all__ = [
 ]
 
 from typing import TYPE_CHECKING, TypedDict
+
 import todd
-from todd.runners import Memo
-from todd.bases.registries import Item
 import todd.tasks.object_detection as od
 import torch
+from todd.bases.registries import Item
+from todd.runners import Memo
 
 from ..models import ExpandTransform
-
 from ..registries import OAKEModelRegistry, OAKERunnerRegistry
 from ..runners import BaseValidator
 
 if TYPE_CHECKING:
-    from .datasets import ObjectDataset, Batch
+    from .datasets import Batch, ObjectDataset
 
 
 class Output(TypedDict):

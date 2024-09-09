@@ -3,6 +3,7 @@ __all__ = [
 ]
 
 from typing import TypedDict
+
 import torch
 
 from ..datasets import BaseDataset

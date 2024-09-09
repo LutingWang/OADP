@@ -2,19 +2,15 @@ __all__ = [
     'GlobalValidator',
 ]
 
-from typing import cast
-
-import clip.model
 import einops
 import todd
 import torch
-import torch.nn.functional as F
-from todd.runners import Memo
 from todd.bases.registries import Item
+from todd.runners import Memo
 
-from .datasets import Batch
 from ..registries import OAKEModelRegistry, OAKERunnerRegistry
 from ..runners import BaseValidator
+from .datasets import Batch
 
 
 @OAKERunnerRegistry.register_()

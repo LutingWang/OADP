@@ -6,8 +6,8 @@ __all__ = [
 
 from todd.datasets import COCODataset
 
-from .datasets import GlobalDataset
 from ..registries import OAKEDatasetRegistry
+from .datasets import GlobalDataset
 
 
 @OAKEDatasetRegistry.register_()

@@ -7,10 +7,9 @@ import pathlib
 import sys
 from typing import TypeVar, cast
 
-from torch import nn
-import todd
-from todd.patches.torch import get_rank
 from todd.configs import PyConfig
+from todd.patches.torch import get_rank
+from torch import nn
 
 from ..runners import BaseValidator
 

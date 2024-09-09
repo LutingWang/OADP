@@ -5,11 +5,9 @@ import pathlib
 from todd.configs import PyConfig
 from todd.patches.py import DictAction
 
-from .runners import DPRunner
-
 from ..categories import Categories
-
 from ..utils import Globals
+from .runners import DPRunner
 
 
 def parse_args():

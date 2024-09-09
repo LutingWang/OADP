@@ -7,11 +7,11 @@ from typing import TypedDict, cast
 
 import todd.tasks.object_detection as od
 import torch
+import tqdm
 from todd.datasets import BaseDataset
 from todd.datasets.access_layers import PthAccessLayer
 from todd.patches.torch import get_world_size
 from torch.utils.data import DataLoader
-import tqdm
 
 
 def parse_args() -> argparse.Namespace:
@@ -101,7 +101,6 @@ def main() -> None:
     )
     assert set(sample_image_embeddings).issubset(oake_embeddings)
 
-    breakpoint()
     embeddings = {
         k: torch.cat([v, oake_embeddings[k][:, 0, :]])  # TODO
         for k, v in sample_image_embeddings.items()

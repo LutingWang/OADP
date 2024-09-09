@@ -9,16 +9,15 @@ __all__ = [
 import enum
 from typing import Any, cast
 
-import numpy as np
+import todd.tasks.object_detection as od
 import torch
 from mmdet.datasets.transforms import PackDetInputs
 from mmdet.registry import TRANSFORMS
 from mmdet.structures.bbox import BaseBoxes
-import todd.tasks.object_detection as od
-
-from .access_layers import AccessLayer, COCOAccessLayer, LVISAccessLayer
 
 from oadp.utils import Globals
+
+from .access_layers import AccessLayer, COCOAccessLayer, LVISAccessLayer
 
 
 class BBoxesFlag(enum.IntEnum):
