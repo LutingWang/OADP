@@ -1,4 +1,4 @@
-# type: ignore[misc]
+# mypy: disable-error-code="misc"
 
 __all__ = [
     'COCOGlobalDataset',

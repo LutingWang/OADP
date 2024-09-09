@@ -11,6 +11,7 @@
     "objectness",
     "OpenImages",
     "Partitioner",
+    "pretrained",
     "SoCo",
     "Synset",
     "upsampled",

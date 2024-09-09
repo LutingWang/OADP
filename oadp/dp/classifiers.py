@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from mmdet.registry import MODELS
 from torch import nn
 
+from ..categories.embeddings import TextualCategoryEmbedding
 from ..utils import Globals
 from .utils import NormalizedLinear
 
@@ -155,3 +156,59 @@ class FewShotClassifier(nn.Module):
         x = self._linear(x)
         y = x @ self.embeddings.T
         return y / self.scaler
+
+
+class Scaler(TypedDict):
+    train: float
+    val: float
+
+
+@MODELS.register_module()
+class OVClassifier(nn.Module):
+
+    def __init__(
+        self,
+        *args,
+        scaler: Scaler,
+        in_features: int,
+        out_features: int,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self._scaler = scaler
+
+        textual_category_embedding = TextualCategoryEmbedding()
+        self._textual_category_embedding = textual_category_embedding
+
+        embedding_dim = textual_category_embedding.embedding_dim
+        self._linear = nn.Linear(in_features, embedding_dim)
+
+        if out_features == Globals.categories.num_all + 1:
+            background_embedding = nn.Parameter(torch.zeros(1, embedding_dim))
+            nn.init.xavier_uniform_(background_embedding)
+        elif out_features == Globals.categories.num_all:
+            background_embedding = None
+        else:
+            raise RuntimeError(
+                f"Unexpected {out_features=} given "
+                f"{Globals.categories.num_all=}",
+            )
+        self._background_embedding = background_embedding
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self._linear(x)
+        x = F.normalize(x)
+        embeddings: torch.Tensor = self._textual_category_embedding()
+        logits = x @ embeddings.T
+
+        if Globals.training:
+            logits = logits / self._scaler['train']
+            novel_categories = slice(
+                Globals.categories.num_bases,
+                Globals.categories.num_all,
+            )
+            logits[:, novel_categories] = float('-inf')
+        else:
+            logits = logits / self._scaler['val']
+
+        return logits

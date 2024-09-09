@@ -101,7 +101,7 @@ class LVISV1Dataset(BaseMixin, LVISV1Dataset_):
         keys: dict[str, int] = dict()
         for i, datum in enumerate(data):
             key: str = datum['img_path']
-            key = key.removeprefix('data/lvis_v1/')
+            key = key.removeprefix('data/lvis/')
             key = key.removesuffix('.jpg')
             key = key.replace('/', '_', 1)
             keys[key] = i

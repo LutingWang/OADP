@@ -1,6 +1,6 @@
 import argparse
 import pathlib
-from typing import Any, TypeVar
+from typing import Any
 
 import todd
 import torch
@@ -11,8 +11,6 @@ from tqdm import tqdm
 
 from .prompters import BasePrompter
 from .registries import PrompterRegistry
-
-T = TypeVar('T')
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,7 +28,7 @@ def main() -> None:
     dist.init_process_group()
     torch.cuda.set_device(get_local_rank() % torch.cuda.device_count())
 
-    prompter: BasePrompter[T] = PrompterRegistry.build(
+    prompter: BasePrompter = PrompterRegistry.build(
         args.config,
         model=args.model,
     )
@@ -44,7 +42,7 @@ def main() -> None:
     categories = categories[get_rank()::get_world_size()]
     categories = list(map(prompter, tqdm(categories)))
 
-    gathered_categories: list[list[T]] = \
+    gathered_categories: list[list[dict[str, Any]]] = \
         [[] for _ in range(get_world_size())]
     dist.all_gather_object(gathered_categories, categories)
 

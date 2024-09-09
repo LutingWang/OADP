@@ -162,6 +162,6 @@ cython_debug/
 .DS_STORE
 /data
 /pretrained
-/work_dirs
+/work_dirs*
 
 /oadp/prompts/utils/ram/*.json

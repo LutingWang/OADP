@@ -28,7 +28,7 @@ class GlobalValidator(BaseValidator):
 
     def _run_iter(self, batch: Batch, memo: Memo, *args, **kwargs) -> Memo:
         image = batch['image']
-        if todd.Store.cuda:  # pylint: disable=using-constant-test
+        if todd.Store.cuda:
             image = image.cuda()
         image = einops.rearrange(image, 'c h w -> 1 c h w')
         embedding: torch.Tensor = self.model(image)

@@ -3,7 +3,7 @@ __all__ = [
 ]
 
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from typing import Any
 
 import todd
 import torch
@@ -12,10 +12,8 @@ from todd.bases.registries import BuildPreHookMixin, Item
 from ..models import BaseModel
 from ..registries import PromptModelRegistry
 
-T = TypeVar('T')
 
-
-class BasePrompter(BuildPreHookMixin, Generic[T], ABC):
+class BasePrompter(BuildPreHookMixin, ABC):
 
     def __init__(self, *args, model: BaseModel, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -45,13 +43,13 @@ class BasePrompter(BuildPreHookMixin, Generic[T], ABC):
         return config
 
     @abstractmethod
-    def load(self) -> list[T]:
+    def load(self) -> list[dict[str, Any]]:
         pass
 
     @abstractmethod
-    def _prompt(self, category: T) -> T:
+    def _prompt(self, category: dict[str, Any]) -> dict[str, Any]:
         pass
 
     @torch.no_grad()
-    def __call__(self, category: T) -> T:
-        return self._prompt(category)
+    def __call__(self, category: dict[str, Any]) -> dict[str, Any]:
+        return category | self._prompt(category)

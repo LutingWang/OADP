@@ -1,6 +1,6 @@
 categories = 'lvis'
 dataset_type = 'LVISV1Dataset'
-data_root = 'data/lvis_v1/'
+data_root = 'data/lvis/'
 
 train_pipeline = [
     dict(type='LoadImageFromFile', backend_args=None),

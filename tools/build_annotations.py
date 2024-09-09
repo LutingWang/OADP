@@ -128,7 +128,7 @@ def main() -> None:
     coco_builder.build('instances_val2017.json', True)
     coco_builder.build('instances_train2017.json', False)
 
-    lvis_builder = LVISBuilder('data/lvis_v1/annotations')
+    lvis_builder = LVISBuilder('data/lvis/annotations')
     lvis_builder.build('lvis_v1_val.json', False)
     lvis_builder.build('lvis_v1_train.json', False)
 

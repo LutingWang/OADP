@@ -79,6 +79,8 @@ disable = [
     'unused-argument',
     'use-dict-literal',
     'use-list-literal',
+
+    'using-constant-test',
 ]
 enable = [
     'useless-suppression',

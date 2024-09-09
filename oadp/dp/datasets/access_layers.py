@@ -174,7 +174,7 @@ class LVISAccessLayer(AccessLayer[str]):
         )
 
     def __getitem__(self, key: str) -> T:
-        prefix = 'data/lvis_v1/'
+        prefix = 'data/lvis/'
         suffix = '.jpg'
         assert key.startswith(prefix) and key.endswith(suffix)
         key = key.removeprefix(prefix).removesuffix(suffix)

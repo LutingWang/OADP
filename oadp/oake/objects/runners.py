@@ -68,7 +68,7 @@ class ObjectValidator(BaseValidator):
             memo['output'] = None
         crops = batch['crops']
         masks = batch['masks']
-        if todd.Store.cuda:  # pylint: disable=using-constant-test
+        if todd.Store.cuda:
             crops = crops.cuda()
             masks = masks.cuda()
         tensors: torch.Tensor = self.model(crops, masks)

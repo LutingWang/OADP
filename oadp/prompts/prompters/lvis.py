@@ -12,7 +12,7 @@ from .base import BasePrompter
 
 
 @PrompterRegistry.register_()
-class LVISPrompter(BasePrompter[dict[str, Any]]):
+class LVISPrompter(BasePrompter):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -21,7 +21,7 @@ class LVISPrompter(BasePrompter[dict[str, Any]]):
         self._wordnet = WordNet()
 
     def load(self) -> list[dict[str, Any]]:
-        with open('data/lvis_v1/annotations/lvis_v1_val.json') as f:
+        with open('data/lvis/annotations/lvis_v1_val.json') as f:
             annotations = json.load(f)
         return annotations['categories']
 
@@ -37,7 +37,7 @@ class LVISPrompter(BasePrompter[dict[str, Any]]):
             re.sub(r'\(.*\)', '', synonym) for synonym in synonyms
         )
 
-        category.update(
+        return dict(
             definition=definition,
             synonyms=synonyms,
             descriptions=descriptions,
@@ -48,4 +48,3 @@ class LVISPrompter(BasePrompter[dict[str, Any]]):
                 self._model(descriptions, batch_size=128)
             ),
         )
-        return category
