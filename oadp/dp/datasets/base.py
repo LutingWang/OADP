@@ -63,7 +63,7 @@ class CocoDataset(BaseMixin, CocoDataset_):
         valid_keys = {
             k.removesuffix('.pth')
             for k in
-            os.listdir('work_dirs/oake/coco_objects_cuda_train/output')
+            os.listdir('work_dirs/oake/coco/clip_objects_cuda_train/output')
             if k.endswith('.pth')
         }
 
@@ -94,7 +94,7 @@ class LVISV1Dataset(BaseMixin, LVISV1Dataset_):
         valid_keys = {
             k.removesuffix('.pth')
             for k in
-            os.listdir('work_dirs/oake/lvis_objects_cuda_train/output')
+            os.listdir('work_dirs/oake/lvis/clip_objects_cuda_train/output')
             if k.endswith('.pth')
         }
 

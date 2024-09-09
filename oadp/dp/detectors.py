@@ -16,8 +16,6 @@ from mmdet.structures import OptSampleList
 from todd.models import LossRegistry
 from torch import nn
 
-from oadp.categories.embeddings import VisualCategoryEmbedding
-
 from ..utils import Globals
 from .roi_heads import OADPRoIHead
 from .utils import MultilabelTopKRecall
@@ -75,14 +73,11 @@ class OADP(StudentMixin[SelfDistiller], TwoStageDetector):
         self,
         *args,
         global_head: todd.Config | None = None,
-        visual_embedding: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
         if global_head is not None:
             self._global_head = GlobalHead(**global_head)
-        if visual_embedding:
-            self._visual_embedding = VisualCategoryEmbedding()
 
     @property
     def num_classes(self) -> int:
@@ -92,10 +87,6 @@ class OADP(StudentMixin[SelfDistiller], TwoStageDetector):
     def with_global_head(self) -> bool:
         return hasattr(self, '_global_head')
 
-    @property
-    def with_visual_embedding(self) -> bool:
-        return hasattr(self, '_visual_embedding')
-
     def forward(
         self,
         inputs: torch.Tensor,
@@ -103,10 +94,6 @@ class OADP(StudentMixin[SelfDistiller], TwoStageDetector):
         mode: str = 'tensor',
         **kwargs,
     ):
-        if self.with_visual_embedding:
-            visual_embeddings = self._visual_embedding()
-            Globals.visual_embeddings = visual_embeddings
-
         if mode == 'predict':
             Globals.training = False
             return self.predict(inputs, data_samples)

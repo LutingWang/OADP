@@ -5,7 +5,6 @@ from todd.configs import PyConfig
 _kwargs_: dict[str, Any]
 _kwargs_ = dict(_kwargs_)
 
-_kwargs_.setdefault('dataset', 'COCO')
 _kwargs_.setdefault('branch', 'Object')
 _kwargs_.setdefault('strategy', 'cuda')
 

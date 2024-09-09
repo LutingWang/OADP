@@ -184,21 +184,27 @@ class OVClassifier(nn.Module):
         self._linear = nn.Linear(in_features, embedding_dim)
 
         if out_features == Globals.categories.num_all + 1:
-            background_embedding = nn.Parameter(torch.zeros(1, embedding_dim))
-            nn.init.xavier_uniform_(background_embedding)
+            bg_embedding = nn.Parameter(torch.zeros(1, embedding_dim))
+            nn.init.xavier_uniform_(bg_embedding)
         elif out_features == Globals.categories.num_all:
-            background_embedding = None
+            bg_embedding = None
         else:
             raise RuntimeError(
                 f"Unexpected {out_features=} given "
                 f"{Globals.categories.num_all=}",
             )
-        self._background_embedding = background_embedding
+        self._bg_embedding = bg_embedding
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self._linear(x)
         x = F.normalize(x)
+
         embeddings: torch.Tensor = self._textual_category_embedding()
+        if self._bg_embedding is not None:
+            # TODO: is normalization needed for t5?
+            bg_embedding = F.normalize(self._bg_embedding)
+            embeddings = torch.cat([embeddings, bg_embedding])
+
         logits = x @ embeddings.T
 
         if Globals.training:

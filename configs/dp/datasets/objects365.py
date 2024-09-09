@@ -9,7 +9,7 @@ data_root = 'data/objects365v2/'
 train_pipeline = [
     dict(type='LoadImageFromFile', backend_args=None),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(type='LoadOAKE_Objects365'),
+    dict(type='LoadOAKE_Objects365', model='clip'),
     dict(
         type='RandomResize',
         scale=[(1330, 640), (1333, 800)],

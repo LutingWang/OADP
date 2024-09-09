@@ -69,15 +69,15 @@ class ExpandedCLIPViT(BaseCLIPViT):
         super().__init__(*args, **kwargs)
         self._blocks._unpack_args = True
 
-    def load_pretrained(self, *args, **kwargs) -> None:
-        super().load_pretrained(*args, **kwargs)
-        self.upsample()
-
     def upsample(self, ratio: int = 2) -> None:
         patch_w, patch_h = self._patch_wh
         upsampled_patch_wh = (patch_w * ratio, patch_h * ratio)
         position_embedding = self._interpolate_position_embedding(
             upsampled_patch_wh,
+        )
+        position_embedding = einops.rearrange(
+            position_embedding,
+            '1 ... -> ...',
         )
         self._position_embedding = nn.Parameter(position_embedding)
         self._patch_wh = upsampled_patch_wh

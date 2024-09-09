@@ -126,8 +126,8 @@ class LoadOAKE:
 @TRANSFORMS.register_module()
 class LoadOAKE_COCO(LoadOAKE):  # noqa: N801 pylint: disable=invalid-name
 
-    def __init__(self) -> None:
-        super().__init__(COCOAccessLayer())
+    def __init__(self, model: str) -> None:
+        super().__init__(COCOAccessLayer(model=model))
 
     def __call__(self, results: dict[str, Any]) -> dict[str, Any]:
         return self._load(results, results['img_id'])
@@ -136,8 +136,8 @@ class LoadOAKE_COCO(LoadOAKE):  # noqa: N801 pylint: disable=invalid-name
 @TRANSFORMS.register_module()
 class LoadOAKE_LVIS(LoadOAKE):  # noqa: N801 pylint: disable=invalid-name
 
-    def __init__(self) -> None:
-        super().__init__(LVISAccessLayer())
+    def __init__(self, model: str) -> None:
+        super().__init__(LVISAccessLayer(model=model))
 
     def __call__(self, results: dict[str, Any]) -> dict[str, Any]:
         return self._load(results, results['img_path'])

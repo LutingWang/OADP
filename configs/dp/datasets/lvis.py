@@ -5,7 +5,7 @@ data_root = 'data/lvis/'
 train_pipeline = [
     dict(type='LoadImageFromFile', backend_args=None),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(type='LoadOAKE_LVIS'),
+    dict(type='LoadOAKE_LVIS', model='clip'),
     dict(
         type='RandomResize',
         scale=[(1330, 640), (1333, 800)],

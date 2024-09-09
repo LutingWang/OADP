@@ -18,31 +18,15 @@ from .registries import DPAccessLayerRegistry
 T = TypeVar('T')
 
 
-class BaseMixin(PthAccessLayer[T], ABC):
-    TASK_NAME: str
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, task_name=self.TASK_NAME, **kwargs)
-
-
-class BaseGlobalAccessLayer(
-    BaseMixin[torch.Tensor],
-    PthAccessLayer[torch.Tensor],
-):
+class BaseGlobalAccessLayer(PthAccessLayer[torch.Tensor]):
     pass
 
 
-class BaseBlockAccessLayer(
-    BaseMixin[BlockOutput],
-    PthAccessLayer[BlockOutput],
-):
+class BaseBlockAccessLayer(PthAccessLayer[BlockOutput]):
     pass
 
 
-class BaseObjectAccessLayer(
-    BaseMixin[ObjectOutput],
-    PthAccessLayer[ObjectOutput],
-):
+class BaseObjectAccessLayer(PthAccessLayer[ObjectOutput]):
 
     def __getitem__(self, key: str) -> ObjectOutput:
         item = super().__getitem__(key)
@@ -101,26 +85,44 @@ class AccessLayer(
 
 
 class COCOGlobalAccessLayer(BaseGlobalAccessLayer):
-    TASK_NAME = 'coco_globals_cuda_train/output'
+
+    def __init__(self, *args, model: str, **kwargs) -> None:
+        super().__init__(
+            *args,
+            task_name=f'coco/{model}_globals_cuda_train/output',
+            **kwargs,
+        )
 
 
 class COCOBlockAccessLayer(BaseBlockAccessLayer):
-    TASK_NAME = 'coco_blocks_cuda_train/output'
+
+    def __init__(self, *args, model: str, **kwargs) -> None:
+        super().__init__(
+            *args,
+            task_name=f'coco/{model}_blocks_cuda_train/output',
+            **kwargs,
+        )
 
 
 class COCOObjectAccessLayer(BaseObjectAccessLayer):
-    TASK_NAME = 'coco_objects_cuda_train/output'
+
+    def __init__(self, *args, model: str, **kwargs) -> None:
+        super().__init__(
+            *args,
+            task_name=f'coco/{model}_objects_cuda_train/output',
+            **kwargs,
+        )
 
 
 @DPAccessLayerRegistry.register_()
 class COCOAccessLayer(AccessLayer[int]):
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, model: str, **kwargs) -> None:
         super().__init__(
             *args,
-            global_=COCOGlobalAccessLayer(self.DATA_ROOT),
-            block=COCOBlockAccessLayer(self.DATA_ROOT),
-            object_=COCOObjectAccessLayer(self.DATA_ROOT),
+            global_=COCOGlobalAccessLayer(self.DATA_ROOT, model=model),
+            block=COCOBlockAccessLayer(self.DATA_ROOT, model=model),
+            object_=COCOObjectAccessLayer(self.DATA_ROOT, model=model),
             **kwargs,
         )
 
@@ -129,6 +131,10 @@ class COCOAccessLayer(AccessLayer[int]):
 
 
 class LVISMixin(PthAccessLayer[T], ABC):
+
+    def __init__(self, *args, model: str, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._model = model
 
     @abstractmethod
     def get_key(self, split: Literal['train', 'val'], key: str) -> str:
@@ -141,35 +147,34 @@ class LVISMixin(PthAccessLayer[T], ABC):
 
 
 class LVISGlobalAccessLayer(LVISMixin, BaseGlobalAccessLayer):
-    TASK_NAME = ''
 
     def get_key(self, split: Literal['train', 'val'], key: str) -> str:
-        return f'coco_globals_cuda_{split}/output/{key}'
+        return f'coco/{self._model}_globals_cuda_{split}/output/{key}'
 
 
 class LVISBlockAccessLayer(LVISMixin, BaseBlockAccessLayer):
-    TASK_NAME = ''
 
     def get_key(self, split: Literal['train', 'val'], key: str) -> str:
-        return f'coco_blocks_cuda_{split}/output/{key}'
+        return f'coco/{self._model}_blocks_cuda_{split}/output/{key}'
 
 
 class LVISObjectAccessLayer(LVISMixin, BaseObjectAccessLayer):
-    TASK_NAME = 'lvis_objects_cuda_train/output'
 
     def get_key(self, split: Literal['train', 'val'], key: str) -> str:
-        return f'{split}2017_{key}'
+        return (
+            f'lvis/{self._model}_objects_cuda_train/output/{split}2017_{key}'
+        )
 
 
 @DPAccessLayerRegistry.register_()
 class LVISAccessLayer(AccessLayer[str]):
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, model: str, **kwargs) -> None:
         super().__init__(
             *args,
-            global_=LVISGlobalAccessLayer(self.DATA_ROOT),
-            block=LVISBlockAccessLayer(self.DATA_ROOT),
-            object_=LVISObjectAccessLayer(self.DATA_ROOT),
+            global_=LVISGlobalAccessLayer(self.DATA_ROOT, model=model),
+            block=LVISBlockAccessLayer(self.DATA_ROOT, model=model),
+            object_=LVISObjectAccessLayer(self.DATA_ROOT, model=model),
             **kwargs,
         )
 

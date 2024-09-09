@@ -5,6 +5,7 @@ import random
 from collections import defaultdict
 from typing import TypedDict, cast
 
+import todd
 import todd.tasks.object_detection as od
 import torch
 import tqdm
@@ -16,8 +17,8 @@ from torch.utils.data import DataLoader
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument('model')
     parser.add_argument('dataset')
+    parser.add_argument('model')
     args = parser.parse_args()
     return args
 
@@ -58,7 +59,7 @@ class ReservoirSampler:
 
 def oake(args: argparse.Namespace) -> dict[str, torch.Tensor]:
     data_root = pathlib.Path(
-        f'work_dirs/oake/{args.model}_{args.dataset}_objects_cuda_train'
+        f'work_dirs/oake/{args.dataset}/{args.model}_objects_cuda_train'
     )
 
     access_layer: PthAccessLayer[Batch] = PthAccessLayer(
@@ -79,15 +80,14 @@ def oake(args: argparse.Namespace) -> dict[str, torch.Tensor]:
             batch['tensors'].shape[0] == len(batch['bboxes']) ==
             batch['categories'].shape[0]
         )
-        for i in range(batch['tensors'].shape[0]):
-            tensor = batch['tensors'][i]
-            category = cast(int, batch['categories'][i].item())
-            embeddings[category](tensor)
+        for tensor, category in zip(batch['tensors'], batch['categories']):
+            embeddings[category.item()](tensor)
 
     categories = torch.load(data_root / 'categories.pth', 'cpu')
     return {
-        c['name']: torch.stack(embeddings[i].reservoir)
+        c['name']: torch.stack(reservoir)
         for i, c in enumerate(categories)
+        if len(reservoir := embeddings[i].reservoir) > 0
     }
 
 
@@ -99,18 +99,18 @@ def main() -> None:
         f'work_dirs/sample_image_embeddings/{args.dataset}.pth',
         'cpu',
     )
-    assert set(sample_image_embeddings).issubset(oake_embeddings)
+    assert set(oake_embeddings).issubset(sample_image_embeddings)
 
     embeddings = {
-        k: torch.cat([v, oake_embeddings[k][:, 0, :]])  # TODO
+        k: torch.cat([v, oake_embeddings[k]]) if k in oake_embeddings else v
         for k, v in sample_image_embeddings.items()
     }
 
-    work_dir = pathlib.Path(
-        f'work_dirs/{args.model}_visual_category_embeddings',
-    )
+    work_dir = pathlib.Path('work_dirs/visual_category_embeddings')
+    if todd.Store.DRY_RUN:
+        work_dir = work_dir / 'dry_run'
     work_dir.mkdir(parents=True, exist_ok=True)
-    torch.save(embeddings, work_dir / f'{args.dataset}.pth')
+    torch.save(embeddings, work_dir / f'{args.dataset}_{args.model}.pth')
 
 
 if __name__ == '__main__':
