@@ -45,9 +45,8 @@ def main():
         autocast=args.autocast,
     )
     # log(trainer, args, config)
-    if args.load_model_from:
-        # trainer.strategy.load_model_from(args.load_model_from, strict=False)
-        raise ValueError("load_model_from is not supported")
+    # if args.load_model_from:
+    #     trainer.strategy.load_model_from(args.load_model_from, strict=False)
     # trainer.run()
     trainer.train()
 

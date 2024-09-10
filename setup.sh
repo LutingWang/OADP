@@ -11,7 +11,8 @@ pipenv run pip install \
     scikit-learn \
 
 pipenv run mim install mmcv
-pipenv run mim install mmdet --no-deps
+pipenv run mim install mmdet --no-deps  # mmdet requires mmcv<2.2.0
+pipenv run pip install shapely terminaltables  # mmdet dependencies
 
 pipenv run pip install \
     git+https://github.com/lvis-dataset/lvis-api.git@lvis_challenge_2021

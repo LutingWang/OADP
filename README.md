@@ -66,6 +66,7 @@ wget https://raw.githubusercontent.com/OPPOMKLab/recognize-anything/main/dataset
 
 ```bash
 bash tools/torchrun.sh -m oadp.prompts.val lvis_clip --config type::LVISPrompter --model type::CLIP
+bash tools/torchrun.sh -m oadp.prompts.val lvis_t5 --config type::LVISPrompter --model type::T5
 ```
 
 Download `ml_coco.pth` from [Baidu Netdisk][].

@@ -1,7 +1,3 @@
-_base_ = [
-    'coco_detection.py',
-]
-
 categories = 'objects365'
 dataset_type = 'Objects365V2Dataset'
 data_root = 'data/objects365v2/'
