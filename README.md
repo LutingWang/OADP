@@ -114,14 +114,14 @@ To conduct training for coco
 To conduct training for lvis
 
 ```bash
-[DRY_RUN=True] [TRAIN_WITH_VAL_DATASET=True] bash tools/torchrun.sh -m oadp.dp.train ov_lvis configs/dp/ov_lvis.py
+bash tools/torchrun.sh -m oadp.dp.train ov_lvis configs/dp/ov_lvis.py
 ```
 
 To test a specific checkpoint
 
 ```bash
-[DRY_RUN=True] bash tools/torchrun.sh -m oadp.dp.test configs/dp/oadp_ov_coco.py work_dirs/oadp_ov_coco/iter_32000.pth
-[DRY_RUN=True] bash tools/torchrun.sh -m oadp.dp.test configs/dp/oadp_ov_lvis.py work_dirs/oadp_ov_lvis/epoch_24.pth
+bash tools/torchrun.sh -m oadp.dp.test ov_coco configs/dp/ov_coco.py --load-model-from work_dirs/ov_coco/epoch_24.pth --visual xxx
+bash tools/torchrun.sh -m oadp.dp.test ov_lvis configs/dp/ov_lvis.py --load-model-from work_dirs/ov_lvis/epoch_24.pth --visual xxx
 ```
 
 For the instance segmentation performance on LVIS, use the `metrics` argument

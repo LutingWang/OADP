@@ -6,6 +6,7 @@ import random
 
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 from ...utils import Globals
 
@@ -50,8 +51,11 @@ class BaseCategoryEmbedding(nn.Module):
     def forward(self) -> torch.Tensor:
         embeddings = self.get_embeddings()
 
-        embeddings = [
-            embedding[random.randrange(embedding.shape[0])]
-            for embedding in embeddings
-        ]
-        return torch.stack(embeddings)
+        # embeddings = [
+        #     embedding[random.randrange(embedding.shape[0])]
+        #     for embedding in embeddings
+        # ]
+        # return torch.stack(embeddings)
+
+        embeddings = [embedding.mean(0) for embedding in embeddings]
+        return F.normalize(torch.stack(embeddings))

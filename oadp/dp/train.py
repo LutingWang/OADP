@@ -37,10 +37,17 @@ def main():
     Globals.categories = Categories.get(config.categories)
 
     # trainer = DPRunnerRegistry.build(
+    #     config,
+    #     name=args.name,
+    #     load_from=args.load_from,
+    #     auto_resume=args.auto_resume,
+    #     autocast=args.autocast,
+    # )
     trainer = DPRunner.from_cfg(
         config,
         name=args.name,
         load_from=args.load_from,
+        load_model_from=args.load_model_from[0],
         auto_resume=args.auto_resume,
         autocast=args.autocast,
     )

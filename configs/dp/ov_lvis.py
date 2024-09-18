@@ -7,13 +7,21 @@ _base_ = [
 ]
 
 cls_predictor_cfg = dict(
-    type='OVClassifier',
-    scaler=dict(train=0.01, val=0.007),
+    # type='OVClassifier',
+    # scaler=dict(train=0.01, val=0.007),
+    type='ViLDClassifier',
+    prompts='data/prompts/detpro_lvis.pth',
+    scaler=dict(
+        train=0.01,
+        val=0.007,
+    ),
 )
 model = dict(
     global_head=dict(
         classifier=dict(
-            **cls_predictor_cfg,
+            # **cls_predictor_cfg,
+            type='ViLDClassifier',
+            prompts='data/prompts/detpro_lvis.pth',
             out_features=1203,
         ),
     ),

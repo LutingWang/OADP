@@ -4,7 +4,9 @@ curl https://raw.githubusercontent.com/LutingWang/todd/main/bin/pipenv_install |
 
 git config --global --add safe.directory $(dirname $(realpath $0))
 
-pipenv run pip install -i https://download.pytorch.org/whl/cu118 torch==2.4.0+cu118 torchvision==0.19.0+cu118
+# pipenv run pip install -i https://download.pytorch.org/whl/cu118 torch==2.4.0+cu118 torchvision==0.19.0+cu118
+pipenv run pip install /mnt/bn/wangluting/wheels/torch-2.4.0+cu118-cp311-cp311-linux_x86_64.whl
+pipenv run pip install -i https://download.pytorch.org/whl/cu118 torchvision==0.19.0+cu118
 pipenv run pip install \
     nni \
     openmim \
