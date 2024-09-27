@@ -3,7 +3,7 @@ import os
 import pathlib
 import random
 from collections import defaultdict
-from typing import TypedDict, cast
+from typing import TypedDict
 
 import todd
 import todd.tasks.object_detection as od
@@ -81,7 +81,7 @@ def oake(args: argparse.Namespace) -> dict[str, torch.Tensor]:
             batch['categories'].shape[0]
         )
         for tensor, category in zip(batch['tensors'], batch['categories']):
-            embeddings[category.item()](tensor)
+            embeddings[category.item()](tensor.clone())
 
     categories = torch.load(data_root / 'categories.pth', 'cpu')
     return {
@@ -93,6 +93,9 @@ def oake(args: argparse.Namespace) -> dict[str, torch.Tensor]:
 
 def main() -> None:
     args = parse_args()
+
+    # some coco categories are not in the sample images
+    assert args.dataset != 'coco'
 
     oake_embeddings = oake(args)
     sample_image_embeddings: dict[str, torch.Tensor] = torch.load(

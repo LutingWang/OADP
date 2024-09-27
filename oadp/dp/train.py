@@ -47,7 +47,8 @@ def main():
         config,
         name=args.name,
         load_from=args.load_from,
-        load_model_from=args.load_model_from[0],
+        load_model_from=args.load_model_from[0]
+        if args.load_model_from else None,
         auto_resume=args.auto_resume,
         autocast=args.autocast,
     )

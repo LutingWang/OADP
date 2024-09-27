@@ -50,6 +50,8 @@ plugins = 'numpy.typing.mypy_plugin'
 
 [[tool.mypy.overrides]]
 module = [
+    'lvis.*',
+    'mmdet.*',
     'nltk.*',
 ]
 ignore_missing_imports = true

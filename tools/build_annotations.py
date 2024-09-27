@@ -1,21 +1,23 @@
 import json
 import pathlib
+import sys
 from abc import ABC, abstractmethod
 from typing import Any
 
 import todd
 from lvis import LVIS
-from mmdet.datasets.api_wrappers import COCO
 
-from oadp.models import Categories, coco, lvis
+sys.path.insert(0, '')
+from oadp.categories import Categories, coco, lvis  # noqa: E402 E501 isort:skip pylint: disable=wrong-import-position
+from mmdet.datasets.api_wrappers import COCO  # noqa: E402 E501 isort:skip pylint: disable=wrong-import-position,wrong-import-order
 
 Data = dict[str, Any]
 
 
 class Builder(ABC):
+    CATEGORIES: Categories
 
-    def __init__(self, categories: Categories, root: str) -> None:
-        self._categories = categories
+    def __init__(self, root: str) -> None:
         self._root = pathlib.Path(root)
 
     @abstractmethod
@@ -38,7 +40,7 @@ class Builder(ABC):
     def _filter_annotations(self, data: Data) -> Data:
         annotations = [
             annotation for annotation in data['annotations']
-            if annotation['category_id'] < self._categories.num_bases
+            if annotation['category_id'] < self.CATEGORIES.num_bases
         ]
         return data | dict(annotations=annotations)
 
@@ -57,7 +59,7 @@ class Builder(ABC):
         data = self._load(file)
 
         category_oid2nid = {  # nid = new id, oid = old id
-            category['id']: self._categories.all_.index(category['name'])
+            category['id']: self.CATEGORIES.all_.index(category['name'])
             for category in data['categories']
         }
         self._map_category_ids(data, category_oid2nid)
@@ -66,22 +68,20 @@ class Builder(ABC):
             key=lambda category: category['id'],
         )
 
-        self._dump(data, file, str(self._categories.num_all))
+        self._dump(data, file, str(self.CATEGORIES.num_all))
         filtered_data = self._filter_annotations(data)
-        self._dump(filtered_data, file, str(self._categories.num_bases))
+        self._dump(filtered_data, file, str(self.CATEGORIES.num_bases))
         if min_:
             filtered_data = self._filter_images(data)
-            self._dump(filtered_data, file, f'{self._categories.num_all}.min')
+            self._dump(filtered_data, file, f'{self.CATEGORIES.num_all}.min')
 
 
 class COCOBuilder(Builder):
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(coco, *args, **kwargs)
+    CATEGORIES = coco
 
     def _load(self, file: pathlib.Path) -> Data:
         data = COCO(file)
-        category_ids = data.get_cat_ids(cat_names=self._categories.all_)
+        category_ids = data.get_cat_ids(cat_names=self.CATEGORIES.all_)
         annotation_ids = data.get_ann_ids(cat_ids=category_ids)
         image_ids = data.get_img_ids()
         categories = data.load_cats(category_ids)
@@ -95,9 +95,7 @@ class COCOBuilder(Builder):
 
 
 class LVISBuilder(Builder):
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(lvis, *args, **kwargs)
+    CATEGORIES = lvis
 
     def _load(self, file: pathlib.Path) -> Data:
         data = LVIS(file)
