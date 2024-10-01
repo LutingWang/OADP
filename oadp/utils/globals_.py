@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from ..categories import Categories
 
 
-class Globals(metaclass=todd.patches.py.NonInstantiableMeta):
+class Globals(metaclass=todd.patches.py_.NonInstantiableMeta):
     """Entry point for global variables.
 
     Not to be confused with the global distillation branch.

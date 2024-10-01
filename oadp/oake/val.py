@@ -5,7 +5,7 @@ from typing import TypeVar
 
 import todd
 from todd.configs import PyConfig
-from todd.patches.py import DictAction
+from todd.patches.py_ import DictAction
 from torch import nn
 
 from .registries import OAKERunnerRegistry
