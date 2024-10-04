@@ -125,7 +125,7 @@ python tools/sample_visual_category_embeddings.py lvis clip
 To conduct training for coco
 
 ```bash
-[DRY_RUN=True] [TRAIN_WITH_VAL_DATASET=True] auto_torchrun -m oadp.dp.train ov_coco configs/dp/ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
+auto_torchrun -m oadp.dp.train ov_coco configs/dp/ov_coco.py [--override .validator.dataloader.dataset.ann_file::data/coco/annotations/instances_val2017.48.json]
 ```
 
 To conduct training for lvis

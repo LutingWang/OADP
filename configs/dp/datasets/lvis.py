@@ -5,7 +5,21 @@ data_root = 'data/lvis/'
 train_pipeline = [
     dict(type='LoadImageFromFile', backend_args=None),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(type='LoadOAKE_LVIS', model='clip'),
+    dict(type='LVISTransform'),
+    dict(
+        type='MMLoadOAKEGlobal',
+        access_layer=dict(type='LVISGlobalAccessLayer', model='clip'),
+    ),
+    dict(
+        type='MMLoadOAKEBlock',
+        access_layer=dict(type='LVISBlockAccessLayer', model='clip'),
+    ),
+    dict(
+        type='MMLoadOAKEObject',
+        access_layer=dict(type='LVISObjectAccessLayer', model='clip'),
+    ),
+    dict(type='MMAssignOAKEBlockLabels'),
+    dict(type='AppendBBoxes'),
     dict(
         type='RandomResize',
         scale=[(1330, 640), (1333, 800)],

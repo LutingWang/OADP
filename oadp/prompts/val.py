@@ -5,7 +5,7 @@ from typing import Any
 import todd
 import torch
 import torch.distributed as dist
-from todd.patches.py import DictAction
+from todd.patches.py_ import DictAction
 from todd.patches.torch import get_local_rank, get_rank, get_world_size
 from tqdm import tqdm
 

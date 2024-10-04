@@ -10,7 +10,7 @@ from einops.layers.torch import Rearrange
 from PIL import Image
 from todd.datasets import CLIP_MEAN, CLIP_STD
 from todd.models.modules import CLIPViT
-from todd.patches.py import decode_filename
+from todd.patches.py_ import decode_filename
 
 
 def parse_args() -> argparse.Namespace:

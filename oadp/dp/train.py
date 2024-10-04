@@ -3,7 +3,7 @@ import importlib
 import pathlib
 
 from todd.configs import PyConfig
-from todd.patches.py import DictAction
+from todd.patches.py_ import DictAction
 
 from ..categories import Categories
 from ..utils import Globals

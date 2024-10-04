@@ -6,7 +6,7 @@ import torch.distributed as dist
 from diffusers import StableDiffusion3Pipeline
 from PIL import Image
 from todd.loggers import logger
-from todd.patches.py import encode_filename
+from todd.patches.py_ import encode_filename
 from todd.patches.torch import get_local_rank, get_rank, get_world_size
 
 from oadp.categories import Categories
