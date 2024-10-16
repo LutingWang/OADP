@@ -69,7 +69,7 @@ val_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file='annotations/lvis_v1_val.1203.json',
+        ann_file='annotations/lvis_v1_minival.1203.json',
         data_prefix=dict(img=''),
         test_mode=True,
         pipeline=test_pipeline,
@@ -80,7 +80,7 @@ test_dataloader = val_dataloader
 
 val_evaluator = dict(
     type='LVISMetric',
-    ann_file=data_root + 'annotations/lvis_v1_val.1203.json',
+    ann_file=data_root + 'annotations/lvis_v1_minival.1203.json',
     metric=['bbox'],
     backend_args=None,
 )

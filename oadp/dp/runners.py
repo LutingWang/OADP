@@ -19,6 +19,8 @@ class DPRunner(Runner):
         if Store.DRY_RUN:
             config.train_dataloader.num_workers = 0
             config.train_dataloader.persistent_workers = False
+            config.val_dataloader.num_workers = 0
+            config.val_dataloader.persistent_workers = False
 
         if config.pop('autocast', False):
             config.optim_wrapper.type = 'AmpOptimWrapper'
