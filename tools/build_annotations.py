@@ -128,6 +128,7 @@ def main() -> None:
 
     lvis_builder = LVISBuilder('data/lvis/annotations')
     lvis_builder.build('lvis_v1_val.json', False)
+    lvis_builder.build('lvis_v1_minival.json', False)
     lvis_builder.build('lvis_v1_train.json', False)
 
 
