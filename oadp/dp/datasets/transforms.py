@@ -21,6 +21,7 @@ from todd.datasets.access_layers import PthAccessLayer
 
 from oadp.oake.blocks.runners import Output as BlockOutput
 from oadp.oake.objects.runners import Output as ObjectOutput
+from oadp.categories import v3det
 from oadp.utils import Globals
 
 from ..registries import DPTransformRegistry
@@ -192,6 +193,19 @@ class V3DetTransform:
 
         key = f'{key}'
         results['image_id'] = key
+        return results
+
+@TRANSFORMS.register_module()
+class Objects365MixedV3DetTransform:
+
+    def __call__(self, results: dict[str, Any]) -> dict[str, Any]:
+        v3det_cate_num = len(v3det.all_)
+        mixed_instance = []
+        for instance in results['instances']:
+            label = instance['bbox_label']
+            instance['bbox_label'] = label + v3det_cate_num
+            mixed_instance.append(instance)
+        results['instances'] = mixed_instance
         return results
 
 class MMLoadOAKEMixin(LoadOAKEMixin[T]):

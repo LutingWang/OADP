@@ -384,3 +384,10 @@ v3det = Categories(
     bases=tuple(mmengine.list_from_file(label_file_path)),
     novels=(),
 )
+
+
+v3det_objects365 = Categories(
+    name='v3det_objects365',
+    bases=v3det.bases + objects365.bases,
+    novels=v3det.novels + objects365.novels,
+)
