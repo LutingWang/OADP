@@ -1,0 +1,61 @@
+{
+
+    "configurations": [
+    {
+        "name": "dp objects365",
+        "type": "debugpy",
+        "request": "launch",
+    // 设置 torchrun 命令的参数
+        "program": "/home/jiao/anaconda3/envs/oadp/lib/python3.11/site-packages/torch/distributed/run.py",
+        "console": "integratedTerminal",
+        "justMyCode": false,
+        "args": [
+            "--nproc_per_node=1",
+            "--nnodes=1",
+            "--master-port=5000",
+            "-m",
+            "oadp.dp.train",
+            "objects365",
+            "configs/dp/ov_object365.py"
+        ],
+    },
+    {
+        "name": "dp v3det",
+        "type": "debugpy",
+        "request": "launch",
+    // 设置 torchrun 命令的参数
+        "program": "/home/jiao/anaconda3/envs/oadp/lib/python3.11/site-packages/torch/distributed/run.py",
+        "console": "integratedTerminal",
+        "justMyCode": false,
+        "args": [
+            "--nproc_per_node=1",
+            "--nnodes=1",
+            "--master-port=5000",
+            "-m",
+            "oadp.dp.train",
+            "v3det",
+            "configs/dp/ov_v3det.py"
+        ],
+    },
+    {
+        "name": "dp mixed",
+        "type": "debugpy",
+        "request": "launch",
+    // 设置 torchrun 命令的参数
+        "program": "/home/jiao/anaconda3/envs/oadp/lib/python3.11/site-packages/torch/distributed/run.py",
+        "console": "integratedTerminal",
+        "justMyCode": false,
+        "args": [
+            "--nproc_per_node=1",
+            "--nnodes=1",
+            "--master-port=5000",
+            "-m",
+            "oadp.dp.train",
+            "mixed",
+            "configs/dp/ov_mixed.py"
+        ],
+    }
+ ]
+
+}
+
