@@ -2,16 +2,21 @@ __all__ = [
     'BaseMixin',
     'CocoDataset',
     'LVISV1Dataset',
+    'Objects365Dataset',
+    'V3DetDataset',
     'DetDataPreprocessor',
 ]
 
 import os
+import os.path as osp
 from typing import Any, Mapping
 
 import todd
 from mmdet.datasets import BaseDetDataset
 from mmdet.datasets import CocoDataset as CocoDataset_
 from mmdet.datasets import LVISV1Dataset as LVISV1Dataset_
+from mmdet.datasets import Objects365V2Dataset as Objects365V2Dataset_
+from mmdet.datasets import V3DetDataset as V3DetDataset_
 from mmdet.models.data_preprocessors import (
     DetDataPreprocessor as DetDataPreprocessor_,
 )
@@ -119,6 +124,80 @@ class LVISV1Dataset(BaseMixin, LVISV1Dataset_):
 
         return valid_data
 
+
+@DATASETS.register_module(force=True)
+class Objects365Dataset(BaseMixin, Objects365V2Dataset_):
+
+    def filter_data(self) -> list[dict[str, Any]]:
+        data = super().filter_data()
+        if not self.should_filter_oake:
+            return data
+
+        valid_keys = {
+            k.removesuffix('.pth')
+            for k in
+            os.listdir('work_dirs/oake/objects365/clip_objects_cuda_train/output')
+            if k.endswith('.pth')
+        }
+
+        keys: dict[str, int] = dict()
+        for i, datum in enumerate(data):
+            key: str = datum['img_path']
+            patch: str = osp.split(osp.split(datum['img_path'])[0])[1]
+            image_name = osp.basename(key)
+            version = image_name.split('_')[1]
+            key = image_name.removesuffix('.jpg')
+            key = f'{version}_{patch}_{key}'
+            keys[key] = i
+
+        invalid_indices = {keys[key] for key in keys.keys() - valid_keys}
+        logger.info(
+            "Filtered %d invalid indices: %s",
+            len(invalid_indices),
+            ', '.join(data[i]['img_path'] for i in invalid_indices),
+        )
+
+        valid_data = [
+            datum for i, datum in enumerate(data) if i not in invalid_indices
+        ]
+
+        return valid_data
+
+@DATASETS.register_module(force=True)
+class V3DetDataset(BaseMixin, V3DetDataset_):
+
+    def filter_data(self) -> list[dict[str, Any]]:
+        data = super().filter_data()
+        if not self.should_filter_oake:
+            return data
+
+        valid_keys = {
+            k.removesuffix('.pth')
+            for k in
+            os.listdir('work_dirs/oake/v3det/clip_objects_cuda/output')
+            if k.endswith('.pth')
+        }
+
+        keys: dict[str, int] = dict()
+        for i, datum in enumerate(data):
+            key: str = datum['img_path']
+            prefix = 'data/v3det/'
+            suffix = '.jpg'
+            key = key.removeprefix(prefix).removesuffix(suffix).replace('/', '_')
+            keys[key] = i
+
+        invalid_indices = {keys[key] for key in keys.keys() - valid_keys}
+        logger.info(
+            "Filtered %d invalid indices: %s",
+            len(invalid_indices),
+            ', '.join(data[i]['img_path'] for i in invalid_indices),
+        )
+
+        valid_data = [
+            datum for i, datum in enumerate(data) if i not in invalid_indices
+        ]
+
+        return valid_data
 
 @MODELS.register_module(force=True)
 class DetDataPreprocessor(DetDataPreprocessor_):

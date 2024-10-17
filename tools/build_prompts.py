@@ -6,7 +6,7 @@ import tqdm
 import todd.tasks.natural_language_processing as nlp
 from todd.models.modules import CLIPText
 
-from oadp.categories import coco, lvis, objects365
+from oadp.categories import coco, lvis, objects365, v3det
 
 
 def vild() -> None:
@@ -97,7 +97,7 @@ def vild() -> None:
     model.eval()
     model.cuda()
 
-    names = sorted(set(coco.all_ + lvis.all_ + objects365.all_))
+    names = sorted(set(coco.all_ + lvis.all_ + objects365.all_ + v3det.all_))
 
     embeddings = []
     with torch.no_grad():

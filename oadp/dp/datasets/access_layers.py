@@ -119,40 +119,60 @@ class LVISObjectAccessLayer(LVISMixin, BaseObjectAccessLayer):
             f'lvis/{self._model}_objects_cuda_train/output/{split}2017_{key}'
         )
 
-class Objects365Mixin(PthAccessLayer[T], ABC):
-
-    def __init__(self, *args, model: str, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._model = model
-
-    @abstractmethod
-    def get_key(self, split: Literal['train', 'val'], key: str) -> str:
-        pass
-
-    def __getitem__(self, key: str) -> T:
-        split, key = key.split('/')
-        key = self.get_key(split, key)
-        return super().__getitem__(key)
-
-
 @DPAccessLayerRegistry.register_()
-class Objects365GlobalAccessLayer(Objects365Mixin, BaseGlobalAccessLayer):
+class Objects365GlobalAccessLayer(LVISMixin, BaseGlobalAccessLayer):
 
     def get_key(self, split: Literal['train', 'val'], key: str) -> str:
         return f'objects365/{self._model}_globals_cuda_{split}/output/{key}'
 
 
 @DPAccessLayerRegistry.register_()
-class Objects365BlockAccessLayer(Objects365Mixin, BaseBlockAccessLayer):
+class Objects365BlockAccessLayer(LVISMixin, BaseBlockAccessLayer):
 
     def get_key(self, split: Literal['train', 'val'], key: str) -> str:
         return f'objects365/{self._model}_blocks_cuda_{split}/output/{key}'
 
 
 @DPAccessLayerRegistry.register_()
-class Objects365ObjectAccessLayer(Objects365Mixin, BaseObjectAccessLayer):
+class Objects365ObjectAccessLayer(LVISMixin, BaseObjectAccessLayer):
 
     def get_key(self, split: Literal['train', 'val'], key: str) -> str:
         return (
             f'objects365/{self._model}_objects_cuda_{split}/output/{key}'
+        )
+
+class V3DetMixin(PthAccessLayer[T], ABC):
+
+    def __init__(self, *args, model: str, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._model = model
+
+    @abstractmethod
+    def get_key(self, key: str) -> str:
+        pass
+
+    def __getitem__(self, key: str) -> T:
+        key = self.get_key(key)
+        return super().__getitem__(key)
+    
+@DPAccessLayerRegistry.register_()
+class V3DetGlobalAccessLayer(V3DetMixin, BaseGlobalAccessLayer):
+
+    def get_key(self, key: str) -> str:
+        return f'v3det/{self._model}_globals_cuda/output/{key}'
+
+
+@DPAccessLayerRegistry.register_()
+class V3DetBlockAccessLayer(V3DetMixin, BaseBlockAccessLayer):
+
+    def get_key(self, key: str) -> str:
+        return f'v3det/{self._model}_blocks_cuda/output/{key}'
+
+
+@DPAccessLayerRegistry.register_()
+class V3DetObjectAccessLayer(V3DetMixin, BaseObjectAccessLayer):
+
+    def get_key(self, key: str) -> str:
+        return (
+            f'v3det/{self._model}_objects_cuda/output/{key}'
         )

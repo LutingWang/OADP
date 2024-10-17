@@ -1,22 +1,22 @@
-categories = 'objects365'
-dataset_type = 'Objects365Dataset'
-data_root = 'data/objects365/'
+categories = 'v3det'
+dataset_type = 'V3DetDataset'
+data_root = 'data/v3det/'
 
 train_pipeline = [
     dict(type='LoadImageFromFile', backend_args=None),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(type='Objects365Transform'),
+    dict(type='V3DetTransform'),
     dict(
         type='MMLoadOAKEGlobal',
-        access_layer=dict(type='Objects365GlobalAccessLayer', model='clip'),
+        access_layer=dict(type='V3DetGlobalAccessLayer', model='clip'),
     ),
     dict(
         type='MMLoadOAKEBlock',
-        access_layer=dict(type='Objects365BlockAccessLayer', model='clip'),
+        access_layer=dict(type='V3DetBlockAccessLayer', model='clip'),
     ),
     dict(
         type='MMLoadOAKEObject',
-        access_layer=dict(type='Objects365ObjectAccessLayer', model='clip'),
+        access_layer=dict(type='V3DetObjectAccessLayer', model='clip'),
     ),
     dict(type='MMAssignOAKEBlockLabels'),
     dict(type='AppendBBoxes'),
@@ -43,8 +43,8 @@ train_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        data_prefix=dict(img='train/'),
-        ann_file='annotations/zhiyuan_objv2_train.json',
+        data_prefix=dict(img=''),
+        ann_file='annotations/v3det_2023_v1_train.json',
         filter_cfg=dict(
             filter_empty_gt=True,
             min_size=32,
@@ -65,18 +65,21 @@ val_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        data_prefix=dict(img='val/'),
-        ann_file='annotations/zhiyuan_objv2_val.json',
+        data_prefix=dict(img=''),
+        ann_file='annotations/v3det_2023_v1_val.json',
         test_mode=True,
         pipeline=test_pipeline,
         backend_args=None,
+        filter_cfg=dict(
+            filter_oake=True,
+        ),
     ),
 )
 test_dataloader = val_dataloader
 
 val_evaluator = dict(
     type='CocoMetric',
-    ann_file=data_root + 'annotations/zhiyuan_objv2_val.json',
+    ann_file=data_root + 'annotations/v3det_2023_v1_val.json',
     metric='bbox',
     format_only=False,
     backend_args=None

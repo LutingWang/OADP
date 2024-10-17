@@ -3,11 +3,13 @@ __all__ = [
     'coco',
     'lvis',
     'objects365',
+    'v3det'
 ]
-
+import os.path
 from dataclasses import dataclass
 from typing_extensions import Self
 
+import mmengine
 
 @dataclass(frozen=True)
 class Categories:
@@ -373,5 +375,12 @@ objects365 = Categories(
         'Durian', 'Okra', 'Lipstick', 'Cosmetics Mirror', 'Curling',
         'Table Tennis '
     ),
+    novels=(),
+)
+
+label_file_path = 'data/v3det/annotations/category_name_13204_v3det_2023_v1.txt'
+v3det = Categories(
+    name='v3det',
+    bases=tuple(mmengine.list_from_file(label_file_path)),
     novels=(),
 )

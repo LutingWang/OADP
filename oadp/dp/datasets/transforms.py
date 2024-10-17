@@ -181,6 +181,19 @@ class Objects365Transform:
         results['image_id'] = key
         return results
 
+@TRANSFORMS.register_module()
+class V3DetTransform:
+
+    def __call__(self, results: dict[str, Any]) -> dict[str, Any]:
+        key: str = results['img_path']
+        prefix = 'data/v3det/'
+        suffix = '.jpg'
+        key = key.removeprefix(prefix).removesuffix(suffix).replace('/', '_')
+
+        key = f'{key}'
+        results['image_id'] = key
+        return results
+
 class MMLoadOAKEMixin(LoadOAKEMixin[T]):
 
     def __init__(self, *args, access_layer: todd.Config, **kwargs) -> None:
