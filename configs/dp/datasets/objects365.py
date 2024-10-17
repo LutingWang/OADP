@@ -1,35 +1,39 @@
 categories = 'objects365'
 dataset_type = 'Objects365V2Dataset'
-data_root = 'data/objects365v2/'
+data_root = 'data/objects365/'
 
 train_pipeline = [
     dict(type='LoadImageFromFile', backend_args=None),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(type='LoadOAKE_Objects365', model='clip'),
+    dict(type='Objects365Transform'),
+    dict(
+        type='MMLoadOAKEGlobal',
+        access_layer=dict(type='Objects365GlobalAccessLayer', model='clip'),
+    ),
+    dict(
+        type='MMLoadOAKEBlock',
+        access_layer=dict(type='Objects365BlockAccessLayer', model='clip'),
+    ),
+    dict(
+        type='MMLoadOAKEObject',
+        access_layer=dict(type='Objects365ObjectAccessLayer', model='clip'),
+    ),
+    dict(type='MMAssignOAKEBlockLabels'),
+    dict(type='AppendBBoxes'),
     dict(
         type='RandomResize',
         scale=[(1330, 640), (1333, 800)],
         keep_ratio=True,
     ),
     dict(type='RandomFlip', prob=0.5),
-    dict(type='PackDetInputs'),
+    dict(type='PackTrainInputs'),
 ]
 test_pipeline = [
     dict(type='LoadImageFromFile', backend_args=None),
     dict(type='Resize', scale=(1333, 800), keep_ratio=True),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(
-        type='PackDetInputs',
-        meta_keys=(
-            'img_id',
-            'img_path',
-            'ori_shape',
-            'img_shape',
-            'scale_factor',
-        ),
-    ),
+    dict(type='PackValInputs'),
 ]
-
 train_dataloader = dict(
     batch_size=2,
     num_workers=2,

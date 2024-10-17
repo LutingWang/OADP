@@ -8,6 +8,9 @@ __all__ = [
     'LVISGlobalAccessLayer',
     'LVISBlockAccessLayer',
     'LVISObjectAccessLayer',
+    'Objects365GlobalAccessLayer',
+    'Objects365BlockAccessLayer',
+    'Objects365ObjectAccessLayer',
 ]
 
 from abc import ABC, abstractmethod
@@ -114,4 +117,42 @@ class LVISObjectAccessLayer(LVISMixin, BaseObjectAccessLayer):
     def get_key(self, split: Literal['train', 'val'], key: str) -> str:
         return (
             f'lvis/{self._model}_objects_cuda_train/output/{split}2017_{key}'
+        )
+
+class Objects365Mixin(PthAccessLayer[T], ABC):
+
+    def __init__(self, *args, model: str, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._model = model
+
+    @abstractmethod
+    def get_key(self, split: Literal['train', 'val'], key: str) -> str:
+        pass
+
+    def __getitem__(self, key: str) -> T:
+        split, key = key.split('/')
+        key = self.get_key(split, key)
+        return super().__getitem__(key)
+
+
+@DPAccessLayerRegistry.register_()
+class Objects365GlobalAccessLayer(Objects365Mixin, BaseGlobalAccessLayer):
+
+    def get_key(self, split: Literal['train', 'val'], key: str) -> str:
+        return f'objects365/{self._model}_globals_cuda_{split}/output/{key}'
+
+
+@DPAccessLayerRegistry.register_()
+class Objects365BlockAccessLayer(Objects365Mixin, BaseBlockAccessLayer):
+
+    def get_key(self, split: Literal['train', 'val'], key: str) -> str:
+        return f'objects365/{self._model}_blocks_cuda_{split}/output/{key}'
+
+
+@DPAccessLayerRegistry.register_()
+class Objects365ObjectAccessLayer(Objects365Mixin, BaseObjectAccessLayer):
+
+    def get_key(self, split: Literal['train', 'val'], key: str) -> str:
+        return (
+            f'objects365/{self._model}_objects_cuda_{split}/output/{key}'
         )

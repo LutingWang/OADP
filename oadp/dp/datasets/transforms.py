@@ -5,7 +5,7 @@ __all__ = [
     'LoadOAKEObject',
     'AssignOAKEBlockLabels',
 ]
-
+import os.path as osp
 import enum
 from abc import ABC, abstractmethod
 from typing import Any, Generic, TypeVar, cast
@@ -163,6 +163,23 @@ class LVISTransform:
 
         return results
 
+@TRANSFORMS.register_module()
+class Objects365Transform:
+
+    def __call__(self, results: dict[str, Any]) -> dict[str, Any]:
+        key: str = results['img_path']
+        patch: str = osp.split(osp.split(results['img_path'])[0])[1]
+
+        assert 'train' in key or 'val' in key
+        split = 'train' if 'train' in key else 'val'
+
+        image_name = osp.basename(key)
+        version = image_name.split('_')[1]
+        key = image_name.removesuffix('.jpg')
+        
+        key = f'{split}/{version}_{patch}_{key}'
+        results['image_id'] = key
+        return results
 
 class MMLoadOAKEMixin(LoadOAKEMixin[T]):
 
