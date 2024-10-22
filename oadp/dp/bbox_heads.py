@@ -10,7 +10,7 @@ from mmdet.registry import MODELS
 from todd.models import LossRegistry as LR
 
 from .classifiers import Classifier
-from .utils import MultilabelTopKRecall
+# from .utils import MultilabelTopKRecall
 
 
 class NotWithRegMixin(BBoxHead):
@@ -24,7 +24,7 @@ class BlockMixin(NotWithRegMixin):
 
     def __init__(self, *args, topk: int, loss: todd.Config, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._multilabel_topk_recall = MultilabelTopKRecall(k=topk)
+        # self._multilabel_topk_recall = MultilabelTopKRecall(k=topk)
         self._loss = LR.build(loss)
 
     def loss(
@@ -34,7 +34,7 @@ class BlockMixin(NotWithRegMixin):
     ) -> dict[str, torch.Tensor]:
         return dict(
             loss_block=self._loss(logits.sigmoid(), targets),
-            recall_block=self._multilabel_topk_recall(logits, targets),
+            # recall_block=self._multilabel_topk_recall(logits, targets),
         )
 
 

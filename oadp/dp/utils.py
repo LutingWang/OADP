@@ -1,46 +1,53 @@
 __all__ = [
-    'MultilabelTopKRecall',
+    # 'MultilabelTopKRecall',
     'NormalizedLinear',
 ]
 
-import sklearn.metrics
+# import sklearn
 import torch
 import torch.nn.functional as F
 from torch import nn
 
 
-class MultilabelTopKRecall(nn.Module):
+# class MultilabelTopKRecall(nn.Module):
 
-    def __init__(self, *args, k: int, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._k = k
+#     def __init__(self, *args, k: int, **kwargs) -> None:
+#         super().__init__(*args, **kwargs)
+#         self._k = k
+#         self.evaluator = Engine(self.process_function)
+#         self.macro_recall = Recall(average=True)
+#         self.macro_recall.attach(self.evaluator, 'recall')
 
-    def forward(
-        self,
-        logits: torch.Tensor,
-        targets: torch.Tensor,
-    ) -> torch.Tensor:
-        r"""Compute the multilabel top-K recall.
+#     def process_function(self, engine, batch):
+#         y_pred, y = batch
+#         return y_pred, y
 
-        Args:
-            logits: :math:`bs \times K`, float.
-            targets: :math:`bs \times K`, bool.
+#     def forward(
+#         self,
+#         logits: torch.Tensor,
+#         targets: torch.Tensor,
+#     ) -> torch.Tensor:
+#         r"""Compute the multilabel top-K recall.
 
-        Returns:
-            One element tensor representing the recall.
-        """
-        _, indices = logits.topk(self._k)
-        preds = torch.zeros_like(targets).scatter(1, indices, 1)
-        # labels showing up at least once
-        labels, = torch.where(targets.sum(0))
-        recall = sklearn.metrics.recall_score(
-            targets.cpu().numpy(),
-            preds.cpu().numpy(),
-            labels=labels.cpu().numpy(),
-            average='macro',
-            zero_division=0,
-        )
-        return logits.new_tensor(recall * 100)
+#         Args:
+#             logits: :math:`bs \times K`, float.
+#             targets: :math:`bs \times K`, bool.
+
+#         Returns:
+#             One element tensor representing the recall.
+#         """
+#         _, indices = logits.topk(self._k)
+#         preds = torch.zeros_like(targets).scatter(1, indices, 1)
+#         # labels showing up at least once
+#         labels, = torch.where(targets.sum(0))
+#         recall = sklearn.metrics.recall_score(
+#             targets.cpu().numpy(),
+#             preds.cpu().numpy(),
+#             labels=labels.cpu().numpy(),
+#             average='macro',
+#             zero_division=0,
+#         )
+#         return logits.new_tensor(recall * 100)
 
 
 class NormalizedLinear(nn.Linear):

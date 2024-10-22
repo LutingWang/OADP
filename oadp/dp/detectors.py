@@ -18,7 +18,7 @@ from torch import nn
 
 from ..utils import Globals
 from .roi_heads import OADPRoIHead
-from .utils import MultilabelTopKRecall
+# from .utils import MultilabelTopKRecall
 
 SelfDistiller = kd.distillers.SelfDistiller
 StudentMixin = kd.distillers.StudentMixin
@@ -35,7 +35,7 @@ class GlobalHead(nn.Module):
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self._multilabel_topk_recall = MultilabelTopKRecall(k=topk)
+        # self._multilabel_topk_recall = MultilabelTopKRecall(k=topk)
         self._classifier = MODELS.build(classifier)
         self._loss = LossRegistry.build(loss)
 
@@ -59,7 +59,7 @@ class GlobalHead(nn.Module):
             targets[i, label] = True
         return dict(
             loss_global=self._loss(logits.sigmoid(), targets),
-            recall_global=self._multilabel_topk_recall(logits, targets),
+            # recall_global=self._multilabel_topk_recall(logits, targets),
         )
 
 
