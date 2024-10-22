@@ -175,10 +175,9 @@ class Objects365Transform:
         split = 'train' if 'train' in key else 'val'
 
         image_name = osp.basename(key)
-        version = image_name.split('_')[1]
         key = image_name.removesuffix('.jpg')
         
-        key = f'{split}/{version}_{patch}_{key}'
+        key = f'{split}/{patch}_{key}'
         results['image_id'] = key
         return results
 

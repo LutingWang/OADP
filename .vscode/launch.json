@@ -16,7 +16,7 @@
             "-m",
             "oadp.dp.train",
             "objects365",
-            "configs/dp/ov_object365.py"
+            "configs/dp/ov_objects365.py"
         ],
     },
     {
