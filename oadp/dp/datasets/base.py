@@ -145,9 +145,8 @@ class Objects365Dataset(BaseMixin, Objects365V2Dataset_):
             key: str = datum['img_path']
             patch: str = osp.split(osp.split(datum['img_path'])[0])[1]
             image_name = osp.basename(key)
-            version = image_name.split('_')[1]
             key = image_name.removesuffix('.jpg')
-            key = f'{version}_{patch}_{key}'
+            key = f'{patch}_{key}'
             keys[key] = i
 
         invalid_indices = {keys[key] for key in keys.keys() - valid_keys}
