@@ -7,20 +7,21 @@ from lvis.lvis import LVIS
 
 from mmengine.dataset import BaseDataset
 from mmengine.registry import DATASETS, TRANSFORMS
-from mmengine.structures import BaseDataElement
+
+from exps.muti_label.globals import cur_cates
 
 @DATASETS.register_module()
 class LVISDataset(BaseDataset):
-    def __init__(self, *args, categories, **kwargs):
-        self.categories = categories
-        super().__init__(*args, **kwargs)
 
     def parse_data_info(self, raw_data_info):
         raw_ann_info = raw_data_info['raw_ann_info']
         raw_img_info = raw_data_info['raw_img_info']
+
+        # print(raw_img_info)
+        # print([cur_cates[ann['category_id']-1] for ann in raw_ann_info])
         # to one-hot
         category_ids = torch.unique(torch.tensor([ann['category_id'] for ann in raw_ann_info])) - 1
-        cate_one_hot = torch.eye(len(self.categories))[category_ids].sum(dim=0)
+        cate_one_hot = torch.eye(len(cur_cates))[category_ids].sum(dim=0)
 
         return {
             "img_path": os.path.join(self.data_root, raw_img_info['file_name']),
@@ -43,7 +44,7 @@ class LVISDataset(BaseDataset):
             raw_ann_info = self.lvis.load_anns(ann_ids)
 
             if len(raw_ann_info) == 0:
-                print(f"Image {img_id} has no annotations, skipped.")
+                # print(f"Image {img_id} has no annotations, skipped.")
                 continue
 
             parsed_data_info = self.parse_data_info({
