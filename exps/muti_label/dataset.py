@@ -4,6 +4,7 @@ import os
 import numpy as np
 from PIL import Image
 from lvis.lvis import LVIS
+from pycocotools.coco import COCO
 
 from mmengine.dataset import BaseDataset
 from mmengine.registry import DATASETS, TRANSFORMS
@@ -56,6 +57,55 @@ class LVISDataset(BaseDataset):
             data_list.append(parsed_data_info)
 
         del self.lvis
+        
+        return data_list
+    
+@DATASETS.register_module()
+class COCODatasets(BaseDataset):
+
+    def parse_data_info(self, raw_data_info):
+        raw_ann_info = raw_data_info['raw_ann_info']
+        raw_img_info = raw_data_info['raw_img_info']
+
+        # print(raw_img_info)
+        # print([cur_cates[ann['category_id']-1] for ann in raw_ann_info])
+        # to one-hot
+        category_ids = torch.unique(torch.tensor([self.cat2label[ann['category_id']] for ann in raw_ann_info]))
+        cate_one_hot = torch.eye(len(cur_cates))[category_ids].sum(dim=0)
+
+        return {
+            "img_path": os.path.join(self.data_prefix['img_path'], raw_img_info['file_name']),
+            "gt_label": cate_one_hot,
+        }
+
+    def load_data_list(self) -> list[dict]:
+
+        self.coco = COCO(self.ann_file)
+        self.cat_ids = self.coco.getCatIds(catNms=cur_cates)
+        self.cat2label = {cat_id: i for i, cat_id in enumerate(self.cat_ids)}
+        img_ids = self.coco.getImgIds()
+        data_list = []
+
+        for img_id in img_ids:
+            raw_img_info = self.coco.loadImgs([img_id])[0]
+            raw_img_info['img_id'] = img_id
+
+            ann_ids = self.coco.getAnnIds(imgIds=[img_id])
+            raw_ann_info = self.coco.loadAnns(ann_ids)
+
+            if len(raw_ann_info) == 0:
+                # print(f"Image {img_id} has no annotations, skipped.")
+                continue
+
+            parsed_data_info = self.parse_data_info({
+                'raw_ann_info':
+                raw_ann_info,
+                'raw_img_info':
+                raw_img_info
+            })
+            data_list.append(parsed_data_info)
+
+        del self.coco
         
         return data_list
 
