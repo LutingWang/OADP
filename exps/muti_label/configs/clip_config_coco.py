@@ -2,7 +2,7 @@ _base_ = ['base.py']
 
 val_dataset = dict(
     type='COCODatasets',
-    data_root='data/coco2017',
+    data_root='data/coco',
     data_prefix=dict(
         img_path='val2017',
     ),
@@ -15,7 +15,7 @@ val_dataset = dict(
 )
 
 val_dataloader = dict(
-    batch_size=32,
+    batch_size=64,
     dataset=val_dataset,
     sampler=dict(type='DefaultSampler', shuffle=False),
     collate_fn=dict(type='default_collate')

@@ -1,11 +1,12 @@
 import clip
 import torch
 import os
-import numpy as np
 from PIL import Image
 from lvis.lvis import LVIS
 from pycocotools.coco import COCO
+from ram import get_transform
 
+from mmengine.structures.base_data_element import BaseDataElement
 from mmengine.dataset import BaseDataset
 from mmengine.registry import DATASETS, TRANSFORMS
 
@@ -72,7 +73,8 @@ class COCODatasets(BaseDataset):
         # to one-hot
         category_ids = torch.unique(torch.tensor([self.cat2label[ann['category_id']] for ann in raw_ann_info]))
         cate_one_hot = torch.eye(len(cur_cates))[category_ids].sum(dim=0)
-
+        if (cate_one_hot == 0).all():
+            print(f"Image {raw_img_info['img_id']} has no annotations, skipped.")
         return {
             "img_path": os.path.join(self.data_prefix['img_path'], raw_img_info['file_name']),
             "gt_label": cate_one_hot,
@@ -123,11 +125,24 @@ class CLIPTransforms:
     def __call__(self, data: dict) -> tuple[torch.Tensor, torch.Tensor]:
         data['img'] = self.clip_transforms(data['img'])
         return data
-    
+
+@TRANSFORMS.register_module()
+class RAMTransforms:
+    def __init__(self) -> None:
+        self.transform = get_transform(image_size=384)
+
+    def __call__(self, data: dict) -> dict:
+        data['img'] = self.transform(data['img'])
+        return data
+
+
 @TRANSFORMS.register_module()
 class PackData:
     def __call__(self, data: dict) -> dict:
         packed_results = {}
-        packed_results['data_samples'] = data['gt_label']
+        packed_results['data_samples'] = BaseDataElement(
+            metainfo=dict(img_path=data['img_path']),
+            gt_label=data['gt_label'],
+        )
         packed_results['batch_inputs'] = data['img']
         return packed_results

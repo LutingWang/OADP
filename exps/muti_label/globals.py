@@ -259,4 +259,4 @@ coco_cates = [
     'scissors', 'teddy bear', 'hair drier', 'toothbrush'
 ]
 
-cur_cates = coco_cates
+cur_cates = lvis_cates

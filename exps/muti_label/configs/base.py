@@ -13,7 +13,7 @@ val_evaluator = [
 
 val_dataset = dict(
     type='LVISDataset',
-    data_root='data/lvis',
+    data_root='data/lvis_v1',
     ann_file='annotations/lvis_v1_val.json',
     pipeline=[
         dict(type='LoadImage'),
@@ -30,5 +30,9 @@ val_dataloader = dict(
 )
 
 work_dir = 'work_dirs/'
-launcher = 'pytorch'
+# launcher = 'pytorch'
 log_processor = dict(window_size=1)
+visualizer_cfg = dict(type='Visualizer',
+                    #   name='vis',
+                    #   save_dir='temp_dir',
+                      vis_backends=[dict(type='WandbVisBackend')])
