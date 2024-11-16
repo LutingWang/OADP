@@ -22,8 +22,11 @@ class LVISDataset(BaseDataset):
         # print(raw_img_info)
         # print([cur_cates[ann['category_id']-1] for ann in raw_ann_info])
         # to one-hot
-        category_ids = torch.unique(torch.tensor([ann['category_id'] for ann in raw_ann_info])) - 1
-        cate_one_hot = torch.eye(len(cur_cates))[category_ids].sum(dim=0)
+        if len(raw_ann_info) == 0:
+            cate_one_hot = torch.zeros(len(cur_cates))
+        else:
+            category_ids = torch.unique(torch.tensor([ann['category_id'] for ann in raw_ann_info])) - 1
+            cate_one_hot = torch.eye(len(cur_cates))[category_ids].sum(dim=0)
 
         return {
             "img_path": os.path.join(self.data_root, raw_img_info['file_name']),
@@ -45,9 +48,9 @@ class LVISDataset(BaseDataset):
             ann_ids = self.lvis.get_ann_ids(img_ids=[img_id])
             raw_ann_info = self.lvis.load_anns(ann_ids)
 
-            if len(raw_ann_info) == 0:
-                # print(f"Image {img_id} has no annotations, skipped.")
-                continue
+            # if len(raw_ann_info) == 0:
+            #     # print(f"Image {img_id} has no annotations, skipped.")
+            #     continue
 
             parsed_data_info = self.parse_data_info({
                 'raw_ann_info':

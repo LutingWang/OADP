@@ -191,8 +191,8 @@ class RAMModel(nn.Module):
             img_path = img_meta['img_path']
             if img_path not in self.ram_pred_result:
                 print(f"Image path {img_path} not found in RAM prediction results")
-                ram_cls_score.append(np.ones((1, cls_score.shape[1])))
-                raise ValueError(f"Image path {img_path} not found in RAM prediction results")
+                ram_cls_score.append(np.ones((cls_score.shape[1] - 1, )))
+                # raise ValueError(f"Image path {img_path} not found in RAM prediction results")
             else:
                 ram_cls_score.append(self.ram_pred_result[img_path])
         ram_cls_score = np.concatenate(ram_cls_score, axis=0)
@@ -203,8 +203,8 @@ class RAMModel(nn.Module):
         ram_cls_score = repeat(ram_cls_score, 'c -> b c', b=num_box).sigmoid()
         ram_cls_score_with_bg = torch.cat([ram_cls_score, background_score], dim=1).to(cls_score.device)
 
-        return cls_score * ram_cls_score_with_bg
-    
+        return (cls_score.softmax(-1) * ram_cls_score_with_bg).log()
+
     
 @MODELS.register_module()
 class RAMEnsembleOADPRoIHead(OADPRoIHead):
