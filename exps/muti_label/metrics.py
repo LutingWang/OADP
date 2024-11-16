@@ -6,6 +6,7 @@ import mmcv
 from mmengine.evaluator import BaseMetric
 from mmengine.registry import METRICS
 from mmengine.visualization import Visualizer
+from mmengine.dist import collect_results
 
 from exps.muti_label.globals import cur_cates
 
@@ -67,7 +68,8 @@ class MutiLabelMetric(BaseMetric):
         
         result = {
             'pred': pred_label.cpu().numpy(),
-            'gt': gt_label.cpu().numpy()
+            'gt': gt_label.cpu().numpy(),
+            'img_path': [sample.img_path for sample in data_samples[0]['data_samples']]
         }
         self.results.append(result)
 
@@ -79,8 +81,15 @@ class MutiLabelMetric(BaseMetric):
         preds = np.concatenate([res['pred'] for res in results])
         gts = np.concatenate([res['gt'] for res in results])
         mAP = self.get_mAP(gts, preds)
-        # # log the classification report
-        results =  {
-            'mAP': mAP,
-        }
-        return results
+
+
+        pred_results = {}
+        for batch in results:
+            batch_imgs = batch['img_path']
+            batch_preds = batch['pred']
+            for img, pred in zip(batch_imgs, batch_preds):
+                pred_results[img] = pred
+        torch.save(pred_results, 'pred_results.pth')
+        
+        
+        return {'mAP': mAP}

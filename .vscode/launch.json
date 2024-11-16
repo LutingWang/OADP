@@ -61,6 +61,30 @@
                 "mixed",
                 "configs/dp/ov_mixed.py"
             ],
+        },
+        {
+            "name": "lvis test",
+            "type": "debugpy",
+            "request": "launch",
+            // 设置 torchrun 命令的参数
+            "program": "/data/yhq/anaconda3/envs/mmdet3/lib/python3.11/site-packages/torch/distributed/run.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYDEVD_DISABLE_FILE_VALIDATION": "1",
+            },
+            "args": [
+                "--master-port=1234",
+                "--nproc_per_node=1",
+                "--nnodes=1",
+                "--master-port=1234",
+                "-m",
+                "oadp.dp.test",
+                "ov_lvis",
+                "configs/dp/ram_lvis.py",
+                "--load-model-from=data/vaild_ckpt/v3det_pretrain/epoch_24.pth",
+                "--visual=xxx"
+            ],
         }
     ]
 }

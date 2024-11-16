@@ -2,8 +2,8 @@ _base_ = ['base.py']
 
 val_dataset = dict(
     type='LVISDataset',
-    data_root='data/lvis_v1',
-    ann_file='annotations/lvis_v1_val.json',
+    data_root='data/lvis',
+    ann_file='annotations/lvis_v1_minival.1203.json',
     pipeline=[
         dict(type='LoadImage'),
         dict(type='RAMTransforms'),
@@ -21,7 +21,7 @@ val_dataloader = dict(
 model = dict(
     type='RAMModel',
     model_path='pretrained/ram/ram_plus_swin_large_14m.pth',
-    llm_tag_des='data/lvis_v1/annotations/openset_label_embedding.pth'
+    llm_tag_des='data/lvis/annotations/openset_label_embedding.pth'
 )
 
 val_evaluator = [

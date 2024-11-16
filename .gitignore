@@ -166,3 +166,4 @@ cython_debug/
 /work_dirs*
 
 /oadp/prompts/utils/ram/*.json
+.dist_test/

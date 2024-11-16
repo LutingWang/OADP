@@ -7,9 +7,14 @@ from typing import cast
 
 import todd
 import torch
+import numpy as np
+import torch.nn as nn
+from einops import repeat
 from mmdet.models import BaseRoIExtractor, StandardRoIHead
 from mmdet.registry import MODELS
 from mmdet.structures.bbox import bbox2roi
+from mmdet.utils import ConfigType, InstanceList
+from mmdet.models.utils import empty_instances
 
 from ..utils import Globals
 from .bbox_heads import BlockMixin, ObjectMixin
@@ -164,3 +169,105 @@ class OADPRoIHead(ViLDEnsembleRoIHead):
         logits = self._block_forward(x, rois)
         losses = self._block_head.loss(logits[:, :-1], torch.cat(targets))
         return losses
+
+
+@MODELS.register_module()
+class RAMModel(nn.Module):
+    def __init__(
+        self, 
+        ram_pred: str,
+    ) -> None:
+        super().__init__()
+        self.ram_pred_result = torch.load(ram_pred)
+
+    @torch.no_grad()
+    def forward(
+        self, 
+        cls_score: torch.Tensor,
+        batch_img_metas: list[dict]
+    ) -> torch.Tensor:
+        ram_cls_score = []
+        for img_meta in batch_img_metas: # bs = 1
+            img_path = img_meta['img_path']
+            if img_path not in self.ram_pred_result:
+                print(f"Image path {img_path} not found in RAM prediction results")
+                ram_cls_score.append(np.ones((1, cls_score.shape[1])))
+                raise ValueError(f"Image path {img_path} not found in RAM prediction results")
+            else:
+                ram_cls_score.append(self.ram_pred_result[img_path])
+        ram_cls_score = np.concatenate(ram_cls_score, axis=0)
+        ram_cls_score = torch.from_numpy(ram_cls_score) # (1, num_classes)
+        
+        num_box, _ = cls_score.shape
+        background_score = torch.ones((num_box, 1))
+        ram_cls_score = repeat(ram_cls_score, 'c -> b c', b=num_box).sigmoid()
+        ram_cls_score_with_bg = torch.cat([ram_cls_score, background_score], dim=1).to(cls_score.device)
+
+        return cls_score * ram_cls_score_with_bg
+    
+    
+@MODELS.register_module()
+class RAMEnsembleOADPRoIHead(OADPRoIHead):
+    def __init__(self, *args,  classifier_model: todd.Config, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.classifier_model = MODELS.build(classifier_model)
+
+    def predict_bbox(self,
+                     x: tuple[torch.Tensor],
+                     batch_img_metas: list[dict],
+                     rpn_results_list: InstanceList,
+                     rcnn_test_cfg: ConfigType,
+                     rescale: bool = False) -> InstanceList:
+        
+        proposals = [res.bboxes for res in rpn_results_list]
+        rois = bbox2roi(proposals)
+
+        if rois.shape[0] == 0:
+            return empty_instances(
+                batch_img_metas,
+                rois.device,
+                task_type='bbox',
+                box_type=self.bbox_head.predict_box_type,
+                num_classes=self.bbox_head.num_classes,
+                score_per_cls=rcnn_test_cfg is None)
+
+        bbox_results = self._bbox_forward(x, rois, batch_img_metas)
+
+        # split batch bbox prediction back to each image
+        cls_scores = bbox_results['cls_score']
+        bbox_preds = bbox_results['bbox_pred']
+        num_proposals_per_img = tuple(len(p) for p in proposals)
+        rois = rois.split(num_proposals_per_img, 0)
+        cls_scores = cls_scores.split(num_proposals_per_img, 0)
+
+        # some detector with_reg is False, bbox_preds will be None
+        if bbox_preds is not None:
+            # TODO move this to a sabl_roi_head
+            # the bbox prediction of some detectors like SABL is not Tensor
+            if isinstance(bbox_preds, torch.Tensor):
+                bbox_preds = bbox_preds.split(num_proposals_per_img, 0)
+            else:
+                bbox_preds = self.bbox_head.bbox_pred_split(
+                    bbox_preds, num_proposals_per_img)
+        else:
+            bbox_preds = (None, ) * len(proposals)
+
+        result_list = self.bbox_head.predict_by_feat(
+            rois=rois,
+            cls_scores=cls_scores,
+            bbox_preds=bbox_preds,
+            batch_img_metas=batch_img_metas,
+            rcnn_test_cfg=rcnn_test_cfg,
+            rescale=rescale)
+        return result_list
+
+    def _bbox_forward(
+        self,
+        x: list[torch.Tensor],
+        rois: torch.Tensor,
+        batch_img_metas: list[dict],
+    ) -> dict[str, torch.Tensor]:
+        bbox_results = super()._bbox_forward(x, rois)
+        cls_score = bbox_results['cls_score']
+        bbox_results['cls_score'] = self.classifier_model(cls_score, batch_img_metas)
+        return bbox_results
