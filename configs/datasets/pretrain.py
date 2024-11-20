@@ -1,3 +1,4 @@
+root = '/mnt/data1/wlt/workspace/OADP/'
 split = '_mini'
 # split = ''
 train_batch_size_per_gpu = 2
@@ -107,15 +108,15 @@ obj365v1_train = dict(
     type='MultiModalDataset',
     dataset=dict(
         type='YOLOv5Objects365V2Dataset',
-        data_root='data/objects365v2/',
+        data_root=f'{root}data/objects365v2/',
         ann_file=f'annotations/zhiyuan_objv2_train{split}.json',
         data_prefix=dict(img='train/'),
         filter_cfg=dict(filter_empty_gt=False, min_size=32)),
-    class_text_path='data/texts/obj365v2_class_texts.json',
+    class_text_path=f'{root}data/texts/obj365v2_class_texts.json',
     pipeline=train_pipeline_stage1)
 
 mixgrounding_train = dict(type='YOLOv5MixedGroundingDataset',
-                        data_root='data/mixed_grounding/',
+                        data_root=f'{root}data/mixed_grounding/',
                         ann_file=f'annotations/final_mixed_train_no_coco{split}.json',
                         data_prefix=dict(img='images/'),
                         filter_cfg=dict(filter_empty_gt=False, min_size=32),
@@ -123,7 +124,7 @@ mixgrounding_train = dict(type='YOLOv5MixedGroundingDataset',
 
 flickr_train = dict(
     type='YOLOv5MixedGroundingDataset',
-    data_root='data/flickr/',
+    data_root=f'{root}data/flickr/',
     ann_file=f'annotations/final_flickr_separateGT_train{split}.json',
     data_prefix=dict(img='images/'),
     filter_cfg=dict(filter_empty_gt=True, min_size=32),
@@ -144,13 +145,13 @@ val_dataset = dict(
     type='MultiModalDataset',
     dataset=dict(
         type='YOLOv5LVISV1Dataset',
-        data_root='data/lvis/',
+        data_root=f'{root}data/lvis/',
         test_mode=True,
         ann_file=f'annotations/lvis_v1_minival_inserted_image_name{split}.json',
         data_prefix=dict(img=''),
         batch_shapes_cfg=None
     ),
-    class_text_path='data/texts/lvis_v1_class_texts.json',
+    class_text_path=f'{root}data/texts/lvis_v1_class_texts.json',
     pipeline=val_pipeline
 )
 
@@ -173,6 +174,6 @@ val_dataloader = dict(
 
 val_evaluator = dict(
     type='mmdet.LVISMetric',
-    ann_file=f'data/lvis/annotations/lvis_v1_minival_inserted_image_name{split}.json',
+    ann_file=f'{root}data/lvis/annotations/lvis_v1_minival_inserted_image_name{split}.json',
     metric='bbox'
 )
