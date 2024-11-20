@@ -1,4 +1,5 @@
-set_mode = '_mini'
+# split = '_mini'
+split = ''
 train_batch_size_per_gpu = 2
 test_batch_size_per_gpu = 1
 
@@ -93,12 +94,13 @@ val_pipeline = [
         type='mmyolo.LetterResize',
         scale=img_scale,
         allow_scale_up=False,
-        pad_val=dict(img=114)),
+        pad_val=dict(img=114),
+    ),
     dict(type='LoadAnnotations', with_bbox=True, _scope_='mmdet'),
-    dict(
-        type='mmdet.PackDetInputs',
-        meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
-                   'scale_factor', 'pad_param'))
+    dict(type='LoadText'),
+    dict(type='mmdet.PackDetInputs',
+         meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
+                    'scale_factor', 'pad_param', 'texts'))
 ]
 
 obj365v1_train = dict(
@@ -106,7 +108,7 @@ obj365v1_train = dict(
     dataset=dict(
         type='YOLOv5Objects365V2Dataset',
         data_root='data/objects365v2/',
-        ann_file=f'annotations/zhiyuan_objv2_train{set_mode}.json',
+        ann_file=f'annotations/zhiyuan_objv2_train{split}.json',
         data_prefix=dict(img='train/'),
         filter_cfg=dict(filter_empty_gt=False, min_size=32)),
     class_text_path='data/texts/obj365v2_class_texts.json',
@@ -114,7 +116,7 @@ obj365v1_train = dict(
 
 mixgrounding_train = dict(type='YOLOv5MixedGroundingDataset',
                         data_root='data/mixed_grounding/',
-                        ann_file=f'annotations/final_mixed_train_no_coco{set_mode}.json',
+                        ann_file=f'annotations/final_mixed_train_no_coco{split}.json',
                         data_prefix=dict(img='images/'),
                         filter_cfg=dict(filter_empty_gt=False, min_size=32),
                         pipeline=train_pipeline_stage1)
@@ -122,7 +124,7 @@ mixgrounding_train = dict(type='YOLOv5MixedGroundingDataset',
 flickr_train = dict(
     type='YOLOv5MixedGroundingDataset',
     data_root='data/flickr/',
-    ann_file=f'annotations/final_flickr_separateGT_train{set_mode}.json',
+    ann_file=f'annotations/final_flickr_separateGT_train{split}.json',
     data_prefix=dict(img='images/'),
     filter_cfg=dict(filter_empty_gt=True, min_size=32),
     pipeline=train_pipeline_stage1)
@@ -144,7 +146,7 @@ val_dataset = dict(
         type='YOLOv5LVISV1Dataset',
         data_root='data/lvis/',
         test_mode=True,
-        ann_file='annotations/lvis_v1_minival_inserted_image_name_mini.json',
+        ann_file=f'annotations/lvis_v1_minival_inserted_image_name{split}.json',
         data_prefix=dict(img=''),
         batch_shapes_cfg=None
     ),
@@ -171,6 +173,6 @@ val_dataloader = dict(
 
 val_evaluator = dict(
     type='mmdet.LVISMetric',
-    ann_file='data/lvis/annotations/lvis_v1_minival_inserted_image_name_mini.json',
+    ann_file=f'data/lvis/annotations/lvis_v1_minival_inserted_image_name{split}.json',
     metric='bbox'
 )
