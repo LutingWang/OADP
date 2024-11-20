@@ -11,6 +11,13 @@ cls_predictor_cfg = dict(
 model = dict(
     type='OADP',
     roi_head=dict(
-        bbox_head=dict(cls_predictor_cfg=cls_predictor_cfg),
+        bbox_head=dict(
+            cls_predictor_cfg=cls_predictor_cfg,
+            reg_class_agnostic=True,
+        ),
     ),
+    test_cfg=dict(rcnn=dict(
+        score_thr=0.0,
+        max_per_img=300,
+    )),
 )

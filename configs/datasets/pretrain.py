@@ -1,5 +1,5 @@
-# split = '_mini'
-split = ''
+split = '_mini'
+# split = ''
 train_batch_size_per_gpu = 2
 test_batch_size_per_gpu = 1
 
