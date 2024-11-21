@@ -4,4 +4,5 @@ openmim
 mmcv==2.0.0
 mmdet
 mmyolo
+einops
 git+https://github.com/lvis-dataset/lvis-api.git

@@ -134,8 +134,8 @@ train_dataset = dict(
     type='ConcatDataset',
     datasets=[
         obj365v1_train, 
-        # mixgrounding_train, 
-        # flickr_train
+        mixgrounding_train, 
+        flickr_train
     ],
     ignore_keys=['classes', 'palette']
 )
@@ -177,3 +177,16 @@ val_evaluator = dict(
     ann_file=f'{root}data/lvis/annotations/lvis_v1_minival_inserted_image_name{split}.json',
     metric='bbox'
 )
+
+
+custom_hooks = [
+    dict(type='EMAHook',
+         ema_type='ExpMomentumEMA',
+         momentum=0.0001,
+         update_buffers=True,
+         strict_load=False,
+         priority=49),
+    dict(type='mmdet.PipelineSwitchHook',
+         switch_epoch=11,
+         switch_pipeline=train_pipeline_stage2)
+]

@@ -82,6 +82,7 @@ class OADPClassifier(BaseModule):
         self.text_model = MODELS.build(text_model)
         self._linear = NormalizedLinear(in_features, self.text_model.out_dim)
         self.bg_embedding = nn.Parameter(torch.zeros(1, self.text_model.out_dim))
+        nn.init.xavier_uniform_(self.bg_embedding)
 
     @property
     def texts_feat(self) -> torch.Tensor:
@@ -91,9 +92,7 @@ class OADPClassifier(BaseModule):
         return torch.cat([texts_feat, bg_embedding], dim=1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        texts_feat_t = rearrange(self.texts_feat, 'b n c -> b c n')
-        b, _, _ = texts_feat_t.shape
-        roi_feat = rearrange(x, '(b n) c -> b n c', b=b)
-        x = self._linear(roi_feat)
-        y = torch.matmul(x, texts_feat_t)
-        return rearrange(y, 'b n c -> (b n) c')
+        roi_feat = rearrange(x, '(b n) c -> b n c', b=len(Globals.texts))
+        roi_feat = self._linear(roi_feat)
+        y = torch.einsum('b n c, b k c -> b n k', roi_feat, self.texts_feat)
+        return rearrange(y, 'b n k -> (b n) k')
