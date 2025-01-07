@@ -1,16 +1,14 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
-import logging
 import os
 import os.path as osp
 
-from mmdet.utils import setup_cache_size_limit_of_dynamo
 from mmengine.config import Config, DictAction
-from mmengine.logging import print_log
+from mmengine.registry import RUNNERS
 from mmengine.runner import Runner
 
-from mmyolo.registry import RUNNERS
-from mmyolo.utils import is_metainfo_lower
+from mmdet.utils import setup_cache_size_limit_of_dynamo
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
@@ -21,6 +19,10 @@ def parse_args():
         action='store_true',
         default=False,
         help='enable automatic-mixed-precision training')
+    parser.add_argument(
+        '--auto-scale-lr',
+        action='store_true',
+        help='enable automatically scaling LR.')
     parser.add_argument(
         '--resume',
         nargs='?',
@@ -64,8 +66,6 @@ def main():
 
     # load config
     cfg = Config.fromfile(args.config)
-    # replace the ${key} with the value of cfg.key
-    # cfg = replace_cfg_vals(cfg)
     cfg.launcher = args.launcher
     if args.cfg_options is not None:
         cfg.merge_from_dict(args.cfg_options)
@@ -81,18 +81,20 @@ def main():
 
     # enable automatic-mixed-precision training
     if args.amp is True:
-        optim_wrapper = cfg.optim_wrapper.type
-        if optim_wrapper == 'AmpOptimWrapper':
-            print_log(
-                'AMP training is already enabled in your config.',
-                logger='current',
-                level=logging.WARNING)
+        cfg.optim_wrapper.type = 'AmpOptimWrapper'
+        cfg.optim_wrapper.loss_scale = 'dynamic'
+
+    # enable automatically scaling LR
+    if args.auto_scale_lr:
+        if 'auto_scale_lr' in cfg and \
+                'enable' in cfg.auto_scale_lr and \
+                'base_batch_size' in cfg.auto_scale_lr:
+            cfg.auto_scale_lr.enable = True
         else:
-            assert optim_wrapper == 'OptimWrapper', (
-                '`--amp` is only supported when the optimizer wrapper type is '
-                f'`OptimWrapper` but got {optim_wrapper}.')
-            cfg.optim_wrapper.type = 'AmpOptimWrapper'
-            cfg.optim_wrapper.loss_scale = 'dynamic'
+            raise RuntimeError('Can not find "auto_scale_lr" or '
+                               '"auto_scale_lr.enable" or '
+                               '"auto_scale_lr.base_batch_size" in your'
+                               ' configuration file.')
 
     # resume is determined in this priority: resume from > auto_resume
     if args.resume == 'auto':
@@ -101,9 +103,6 @@ def main():
     elif args.resume is not None:
         cfg.resume = True
         cfg.load_from = args.resume
-
-    # Determine whether the custom metainfo fields are all lowercase
-    is_metainfo_lower(cfg)
 
     # build the runner from config
     if 'runner_type' not in cfg:

@@ -163,3 +163,7 @@ cython_debug/
 data
 pretrained
 work_dirs
+ckpt/*
+*.hope
+*.sh
+trash/*

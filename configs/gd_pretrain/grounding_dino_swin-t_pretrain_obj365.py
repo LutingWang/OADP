@@ -2,10 +2,10 @@ _base_ = [
     '../_base_/datasets/coco_detection.py',
     '../_base_/schedules/schedule_1x.py', '../_base_/default_runtime.py'
 ]
-server_root = '/mnt/data3/yhq/workspace/OADP/'
+server_root = '/mnt/dolphinfs/hdd_pool/docker/user/hadoop-mtcv/weiziyu/109/OADP/'
 
-pretrained = server_root + 'swin_tiny_patch4_window7_224.pth'
-lang_model_name = 'bert-base-uncased'
+pretrained = server_root + 'ckpt/swin_tiny_patch4_window7_224.pth'
+lang_model_name = "/mnt/dolphinfs/hdd_pool/docker/user/hadoop-mtcv/weiziyu/Checkpoints/"+'bert-base-uncased'
 
 model = dict(
     type='GroundingDINO',
@@ -201,7 +201,7 @@ coco_od_dataset = dict(
 
 train_dataloader = dict(
     _delete_=True,
-    batch_size=4,
+    batch_size=4 * 2,
     num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),

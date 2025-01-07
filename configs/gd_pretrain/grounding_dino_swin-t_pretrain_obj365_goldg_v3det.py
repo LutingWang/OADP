@@ -1,10 +1,9 @@
 _base_ = 'grounding_dino_swin-t_pretrain_obj365.py'
-server_root = '/mnt/data3/yhq/workspace/OADP/'
-
+server_root = '/mnt/dolphinfs/hdd_pool/docker/user/hadoop-mtcv/weiziyu/109/OADP/'
 o365v1_od_dataset = dict(
     type='ODVGDataset',
-    data_root= server_root+'data/objects365v1/',
-    ann_file='o365v1_train_odvg.json',
+    data_root=server_root+'data/objects365v1/',
+    ann_file='objects365_train_od.json',
     label_map_file='o365v1_label_map.json',
     data_prefix=dict(img='train/'),
     filter_cfg=dict(filter_empty_gt=False),
@@ -76,7 +75,7 @@ v3d_train_pipeline = [
         tokenizer_name=_base_.lang_model_name,
         num_sample_negative=85,
         # change this
-        label_map_file='data/V3Det/annotations/v3det_2023_v1_label_map.json',
+        label_map_file=server_root+'data/V3Det/annotations/v3det_2023_v1_label_map.json',
         max_tokens=256),
     dict(
         type='PackDetInputs',
