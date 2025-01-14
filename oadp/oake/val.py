@@ -41,7 +41,7 @@ def main() -> None:
 
     if not todd.Store.TRAIN_WITH_VAL_DATASET:
         validate(args, config, True)
-    validate(args, config, False)
+    # validate(args, config, False)
 
 
 def validate(
