@@ -5,10 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "yolo debug",
+            "name": "oake debug",
             "type": "debugpy",
             "request": "launch",
-            "program": "/mnt/data1/wlt/miniconda3/envs/yolo/lib/python3.10/site-packages/torch/distributed/run.py",
+            "program": "/data/yhq/anaconda3/envs/mmdet3/lib/python3.11/site-packages/torch/distributed/run.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "env": {
@@ -18,8 +18,12 @@
                 "--master-port=1234",
                 "--nproc_per_node=1",
                 "--nnodes=1",
-                "tools/train.py",
-                "configs/exps/oadp_pretrain_1x.py",
+                "-m",
+                "model.oake.val",
+                "oake/coco/clip_globals_cuda",
+                "configs/oake/clip_globals_cuda.py",
+                "--config-options",
+                "dataset::COCO"
             ],
         }
     ]
