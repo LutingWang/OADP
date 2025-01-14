@@ -19,7 +19,7 @@
                 "--nproc_per_node=1",
                 "--nnodes=1",
                 "-m",
-                "model.oake.val",
+                "oadp.oake.val",
                 "oake/coco/clip_globals_cuda",
                 "configs/oake/clip_globals_cuda.py",
                 "--config-options",
