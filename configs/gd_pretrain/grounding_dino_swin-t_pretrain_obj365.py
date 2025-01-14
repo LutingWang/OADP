@@ -201,7 +201,7 @@ coco_od_dataset = dict(
 
 train_dataloader = dict(
     _delete_=True,
-    batch_size=4 * 2,
+    batch_size=4*2,
     num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
@@ -226,20 +226,25 @@ optim_wrapper = dict(
         }))
 
 # learning policy
-max_epochs = 30
+iter_per_epoch = 12196
+max_iter = 30 * iter_per_epoch
+
 param_scheduler = [
     dict(type='LinearLR', start_factor=0.1, by_epoch=False, begin=0, end=1000),
     dict(
         type='MultiStepLR',
         begin=0,
-        end=max_epochs,
-        by_epoch=True,
-        milestones=[19, 26],
+        end=max_iter,
+        by_epoch=False,
+        milestones=[19 * iter_per_epoch, 26 * iter_per_epoch],
         gamma=0.1)
 ]
 
 train_cfg = dict(
-    type='EpochBasedTrainLoop', max_epochs=max_epochs, val_interval=1)
+    _delete_=True,
+    type='IterBasedTrainLoop',
+    max_iters=max_iter,
+    val_interval=iter_per_epoch)
 
 # NOTE: `auto_scale_lr` is for automatically scaling LR,
 # USER SHOULD NOT CHANGE ITS VALUES.
@@ -247,3 +252,4 @@ train_cfg = dict(
 auto_scale_lr = dict(base_batch_size=64)
 
 default_hooks = dict(visualization=dict(type='GroundingVisualizationHook'))
+custom_hooks = [dict(type='CheckpointHook', by_epoch=False, interval=iter_per_epoch)]
