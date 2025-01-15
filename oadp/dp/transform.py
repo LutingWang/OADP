@@ -19,14 +19,19 @@ class LoadFeature(BaseTransform):
         block_feature_path = osp.join(self.block_features_dir, key + '.pth')
         global_feature_path = osp.join(self.global_features_dir, key + '.pth')
         object_feature_path = osp.join(self.object_features_dir, key + '.pth')
-        if osp.exists(block_feature_path) and \
-            osp.exists(global_feature_path) and \
-            osp.exists(object_feature_path):
+        print(block_feature_path)
+        if osp.exists(block_feature_path):
             results['blocks_features'] = torch.load(block_feature_path, map_location='cpu')
-            results['globals_features'] = torch.load(global_feature_path, map_location='cpu')
-            results['objects_features'] = torch.load(object_feature_path, map_location='cpu')
         else:
             results['blocks_features'] = None
+
+        if osp.exists(global_feature_path):
+            results['globals_features'] = torch.load(global_feature_path, map_location='cpu')
+        else:
             results['globals_features'] = None
+
+        if osp.exists(object_feature_path):
+            results['objects_features'] = torch.load(object_feature_path, map_location='cpu')
+        else:
             results['objects_features'] = None
         return results

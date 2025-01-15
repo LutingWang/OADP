@@ -89,3 +89,24 @@ class BaseBlockDataset(V3DetGlobalDataset):
 @OAKEDatasetRegistry.register_()
 class V3DetBlockDataset(BaseBlockDataset):
     pass
+
+@OAKEDatasetRegistry.register_()
+class Objects365v1BlockDataset(BaseBlockDataset):
+    DATA_ROOT = 'data/objects365v1'
+    ANNOTATIONS_FILE = 'objects365_train_od.json'
+    IMAGE_ROOT = 'train'
+    LABEL_MAP = 'o365v1_label_map.json'
+
+@OAKEDatasetRegistry.register_()
+class FlikerBlockDataset(BaseBlockDataset):
+    DATA_ROOT = 'data/flickr30k_entities'
+    ANNOTATIONS_FILE = 'final_flickr_separateGT_train_vg.json'
+    IMAGE_ROOT = 'flickr30k_images'
+    LABEL_MAP = None
+
+@OAKEDatasetRegistry.register_()
+class GQABlockDataset(BaseBlockDataset):
+    DATA_ROOT = 'data/gqa'
+    ANNOTATIONS_FILE = 'final_mixed_train_no_coco_vg.json'
+    IMAGE_ROOT = 'images'
+    LABEL_MAP = None

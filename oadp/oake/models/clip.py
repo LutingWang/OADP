@@ -113,7 +113,7 @@ class ExpandedCLIPViT(BaseCLIPViT):
         )
 
         x = x + position_embedding
-        x = self._norm_pre(x)
+        x = self._pre_norm(x)
         _, obj = self._blocks(x, x[:, [0]], masks=masks)
         obj = self._norm(obj)
 

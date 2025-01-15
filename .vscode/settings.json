@@ -8,5 +8,8 @@
         "segm",
         "soco",
         "vild"
-    ]
+    ],
+    
+    "python.analysis.exclude": ["work_dirs*", "**/__pycache__", ".git", "data", "ckpt", "cache", "pretrained", "trash"]
+    
 }

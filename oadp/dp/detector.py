@@ -12,6 +12,7 @@ from mmdet.models.detectors.grounding_dino import GroundingDINO
 class DPGroundingDino(GroundingDINO):
     def __init__(self, *args, bbox_roi_extractor, **kwargs):
         super(DPGroundingDino, self).__init__(*args, **kwargs)
+        # self.dp_w = 0.1
         self.bbox_roi_extractor = MODELS.build(bbox_roi_extractor)
         self.feature_conv = nn.Conv2d(
             in_channels=256, 
@@ -25,24 +26,35 @@ class DPGroundingDino(GroundingDINO):
         rois, embedings_gt = [], []
         for i, data_samples in enumerate(batch_data_samples):
             # get rois
-            if data_samples.blocks_features is None:
+            tensor = []
+            if data_samples.blocks_features is not None:
+                block_tensor = data_samples.blocks_features['bboxes'].to_tensor()
+                tensor.append(block_tensor)
+                embedings_gt.append(data_samples.blocks_features['embeddings'])
+            elif data_samples.objects_features is not None:
+                object_tensor = data_samples.objects_features['bboxes'].to_tensor()
+                tensor.append(object_tensor)
+                embedings_gt.append(data_samples.objects_features['tensors'])
+            
+            if len(tensor) == 0:
                 continue
-            block_tensor = data_samples.blocks_features['bboxes'].to_tensor()
-            object_tensor = data_samples.objects_features['bboxes'].to_tensor()
-            tensor = torch.cat([block_tensor, object_tensor], dim=0)
+            tensor = torch.cat(tensor, dim=0)
             num, _ = tensor.shape
             index = torch.full((num,), i, dtype=torch.long)
             rois.append(torch.cat([index.unsqueeze(1), tensor], dim=1).to(torch.int32))
-            # get embeddings
-            embedings_gt.append(data_samples.blocks_features['embeddings'])
-            embedings_gt.append(data_samples.objects_features['tensors'])
-        rois = torch.cat(rois, dim=0)
-        embedings_gt = torch.cat(embedings_gt, dim=0)
-        roi_features = self.bbox_roi_extractor(visual_features, rois) # (N, 256, 7, 7)
-        roi_features_cov = self.feature_conv(roi_features.cuda()).squeeze() # (N, 512)
-        # L1 loss
-        L1_loss = nn.L1Loss()
-        loss = L1_loss(roi_features_cov, embedings_gt.cuda())
+        assert len(rois) > 0
+        if len(rois) == 0:
+            roi = torch.zeros(1, 256, 7, 7, device='cuda')
+            roi_features_cov = self.feature_conv(roi).squeeze()
+            loss = roi_features_cov.mean() * 0.0
+        else:
+            rois = torch.cat(rois, dim=0)
+            embedings_gt = torch.cat(embedings_gt, dim=0)
+            roi_features = self.bbox_roi_extractor(visual_features, rois) # (N, 256, 7, 7)
+            roi_features_cov = self.feature_conv(roi_features.cuda()).squeeze() # (N, 512)
+            # L1 loss
+            L1_loss = nn.L1Loss()
+            loss = L1_loss(roi_features_cov, embedings_gt.cuda())
         return {'block_distillation_loss': loss}
     
     def global_distillation_loss(self, visual_features: Tensor, batch_data_samples: Tensor) -> dict:
@@ -53,8 +65,6 @@ class DPGroundingDino(GroundingDINO):
         losses = self.rpn_distillation_loss(visual_features, batch_data_samples)
         # global distillation loss
         return losses
-
-
 
     def loss(self, batch_inputs: Tensor,
              batch_data_samples: SampleList) -> Union[dict, list]:

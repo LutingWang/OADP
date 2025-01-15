@@ -1,4 +1,9 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import sys
+sys.path.append('/mnt/dolphinfs/hdd_pool/docker/user/hadoop-mtcv/weiziyu/109/OADP')
+import todd
+import oadp.dp
+
 import argparse
 import os
 import os.path as osp
