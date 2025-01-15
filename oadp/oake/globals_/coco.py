@@ -22,7 +22,7 @@ class COCOGlobalDataset(GlobalDataset, COCODataset):
 
 @OAKEDatasetRegistry.register_()
 class V3DetGlobalDataset(ODVGDataset):
-    DATA_ROOT = 'data/v3det'
+    DATA_ROOT = 'data/V3Det'
     ANNOTATIONS_FILE = 'annotations/v3det_2023_v1_train_od_test.json'
     IMAGE_ROOT = ''
     LABEL_MAP = 'annotations/v3det_2023_v1_label_map.json'
@@ -39,5 +39,5 @@ class V3DetGlobalDataset(ODVGDataset):
         img_path = data['img_path']
         image = convert_rgb(Image.open(img_path))
         tensor = self._transforms(image)
-        key = data['filename'].replace('images/', '').replace('.jpg', '').replace('/','-')
+        key = data['filename'].replace('.jpg', '').replace('/','-')
         return T(id_=key, image=tensor, annotations=data['instances'])

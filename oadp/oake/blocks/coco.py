@@ -82,7 +82,7 @@ class BaseBlockDataset(V3DetGlobalDataset):
     def __getitem__(self, index: int) -> Batch:
         filename, image, _ = self._getitem(index)
         bboxes, blocks = self._partition(image)
-        key = filename.replace('images/', '').replace('.jpg', '').replace('/','-')
+        key = filename.replace('.jpg', '').replace('/','-')
         return Batch(id_=key, bboxes=bboxes, blocks=blocks)
 
 

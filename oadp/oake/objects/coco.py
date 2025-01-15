@@ -70,7 +70,7 @@ class BaseObjectDataset(V3DetGlobalDataset):
 
         bboxes = bboxes[indices]
         crops, masks = self.runner.expand_transform(image, bboxes)
-        key = filename.replace('images/', '').replace('.jpg', '').replace('/', '-')
+        key = filename.replace('.jpg', '').replace('/', '-')
         return Batch(
             id_=key,
             bboxes=bboxes,
