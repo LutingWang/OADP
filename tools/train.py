@@ -95,11 +95,12 @@ def main():
             cfg.auto_scale_lr.enable = True
         else:
             raise RuntimeError('Can not find "auto_scale_lr" or '
-                               '"auto_scale_lr.enable" or '
+                               '"auto_scaleargs.resume_lr.enable" or '
                                '"auto_scale_lr.base_batch_size" in your'
                                ' configuration file.')
 
     # resume is determined in this priority: resume from > auto_resume
+
     if args.resume == 'auto':
         cfg.resume = True
         cfg.load_from = None
