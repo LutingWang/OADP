@@ -12,7 +12,7 @@ from mmdet.models.detectors.grounding_dino import GroundingDINO
 class DPGroundingDino(GroundingDINO):
     def __init__(self, *args, bbox_roi_extractor, **kwargs):
         super(DPGroundingDino, self).__init__(*args, **kwargs)
-        # self.dp_w = 0.1
+        self.dp_w = 10
         self.bbox_roi_extractor = MODELS.build(bbox_roi_extractor)
         self.feature_conv = nn.Conv2d(
             in_channels=256, 
@@ -55,7 +55,7 @@ class DPGroundingDino(GroundingDINO):
             # L1 loss
             L1_loss = nn.L1Loss()
             loss = L1_loss(roi_features_cov, embedings_gt.cuda())
-        return {'block_distillation_loss': loss}
+        return {'block_distillation_loss': self.dp_w * loss}
     
     def global_distillation_loss(self, visual_features: Tensor, batch_data_samples: Tensor) -> dict:
         pass

@@ -9,9 +9,9 @@ class CocoMetric(BaseCocoMetric):
     
     def evaluate(self, *args, **kwargs):
         if self.collect_dir is None:
-            random_num: torch.Tensor = torch.randint(100000, (1,1))
+            random_num: torch.Tensor = torch.randint(100000, (1,1), device='cuda')
             dist.broadcast(random_num, 0)
             self.collect_dir = f'/mnt/dolphinfs/hdd_pool/docker/user/hadoop-mtcv/weiziyu/109/OADP/{random_num}'
             os.makedirs(self.collect_dir, exist_ok=True)
             
-        super().evaluate(*args, **kwargs)
+        return super().evaluate(*args, **kwargs)

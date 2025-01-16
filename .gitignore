@@ -168,3 +168,4 @@ ckpt/*
 *.sh
 trash/*
 cache/*
+oake/*
