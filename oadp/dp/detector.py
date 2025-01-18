@@ -12,7 +12,7 @@ from mmdet.models.detectors.grounding_dino import GroundingDINO
 class DPGroundingDino(GroundingDINO):
     def __init__(self, *args, bbox_roi_extractor, **kwargs):
         super(DPGroundingDino, self).__init__(*args, **kwargs)
-        self.dp_w = 10
+        self.dp_w = 50
         self.bbox_roi_extractor = MODELS.build(bbox_roi_extractor)
         self.feature_conv = nn.Conv2d(
             in_channels=256, 
