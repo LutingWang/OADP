@@ -49,10 +49,6 @@ class LoRALinear(nn.Module):
         nn.init.zeros_(self.lora_up.weight)
 
         self.original_layer = original_layer
-    
-    @property
-    def weight(self):
-        return self.original_layer.weight
 
     @property
     def bias(self):
@@ -99,7 +95,8 @@ class LoRAModel(BaseModule):
                  alpha: int = 1,
                  rank: int = 0,
                  drop_rate: float = 0.,
-                 targets: List[dict] = list()):
+                 targets: List[dict] = list(),
+                 black_list: List[str] = list()):
 
         super().__init__()
         self.module = module
@@ -107,10 +104,11 @@ class LoRAModel(BaseModule):
         self.rank = rank
         self.drop_rate = drop_rate
 
-        assert len(targets) != 0, \
-            'The length of target layers should not be 0.'
+        # assert len(targets) != 0, \
+        #     'The length of target layers should not be 0.'
 
         self.targets = targets
+        self.black_list = black_list
 
         self.applied = False
         self.apply_lora()
@@ -122,31 +120,35 @@ class LoRAModel(BaseModule):
         self._set_lora_trainable()
         self._register_state_dict_hooks()
 
+    def is_block_list(self, module_name: str):
+        for black in self.black_list:
+            if re.fullmatch(black, module_name) or \
+                    module_name.endswith(black):
+                print(f'Block {module_name}')
+                return True
+        return False
+
     def apply_lora(self):
         """Apply LoRA to target layers."""
         module_names = [k for k, _ in self.module.named_modules()]
         for module_name in module_names:
-            for target in self.targets:
-                target_name = target['type']
-                target_alpha = target.get('alpha', self.alpha)
-                target_rank = target.get('rank', self.rank)
-                target_drop_rate = target.get('drop_rate', self.drop_rate)
+            # for target in self.targets:
+            #     target_name = target['type']
+            #     target_alpha = target.get('alpha', self.alpha)
+            #     target_rank = target.get('rank', self.rank)
+            #     target_drop_rate = target.get('drop_rate', self.drop_rate)
+            # print(module_name)
+            if not self.is_block_list(module_name):
+                current_module = self.module.get_submodule(module_name)
+                if isinstance(current_module, nn.Linear):
+                    print_log(
+                        f'Set LoRA for {module_name} ',
+                        logger='current')
 
-                if re.fullmatch(target_name, module_name) or \
-                        module_name.endswith(target_name):
-                    current_module = self.module.get_submodule(module_name)
-                    if isinstance(current_module, nn.Linear):
-                        print_log(
-                            f'Set LoRA for {module_name} '
-                            f'with alpha: {target_alpha}, '
-                            f'rank: {target_rank}, '
-                            f'drop rate: {target_drop_rate}',
-                            logger='current')
-
-                        self._replace_module(module_name, current_module,
-                                             target_alpha, target_rank,
-                                             target_drop_rate)
-                        self.applied = True
+                    self._replace_module(module_name, current_module,
+                                            self.alpha, self.rank,
+                                            self.drop_rate)
+                    self.applied = True
 
     def _replace_module(self, module_name: str, current_module: nn.Module,
                         alpha: int, rank: int, drop_rate: float):

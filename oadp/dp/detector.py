@@ -34,7 +34,8 @@ class DPGroundingDino(GroundingDINO):
             self.encoder,
             alpha=8,
             rank=4,
-            targets=[dict(type='proj')]
+            # targets=[dict(type='*')],
+            black_list=['output_proj', 'out_proj']
         )
         self.encoder_outputs_dict = None
         self.distill_visual_encoder = distill_visual_encoder
