@@ -7,10 +7,15 @@ from mmdet.registry import MODELS
 from mmdet.structures import OptSampleList, SampleList
 from mmdet.models.detectors.grounding_dino import GroundingDINO
 
+from .lora import LoRAModel
 
 @MODELS.register_module()
 class DPGroundingDino(GroundingDINO):
-    def __init__(self, *args, bbox_roi_extractor, **kwargs):
+    def __init__(self, *args, 
+                bbox_roi_extractor, 
+                distill_visual_encoder=False,
+                distill_dino_encoder=True,
+                **kwargs):
         super(DPGroundingDino, self).__init__(*args, **kwargs)
         self.dp_w = 50
         self.bbox_roi_extractor = MODELS.build(bbox_roi_extractor)
@@ -21,6 +26,19 @@ class DPGroundingDino(GroundingDINO):
             stride=7, 
             padding=0
         )
+        # 把模型权重全都冻结
+        for param in self.parameters():
+            param.requires_grad = False
+        
+        self.encoder = LoRAModel(
+            self.encoder,
+            alpha=8,
+            rank=4,
+            targets=[dict(type='proj')]
+        )
+        self.encoder_outputs_dict = None
+        self.distill_visual_encoder = distill_visual_encoder
+        self.distill_dino_encoder = distill_dino_encoder
 
     def rpn_distillation_loss(self, visual_features: Tensor, batch_data_samples: Tensor) -> dict:
         rois, embedings_gt = [], []
@@ -48,6 +66,13 @@ class DPGroundingDino(GroundingDINO):
             roi_features_cov = self.feature_conv(roi).squeeze()
             loss = roi_features_cov.mean() * 0.0
         else:
+            if self.distill_dino_encoder:
+                all_dim = [x*y for x, y in self.visual_feature_dim]
+                permute_feat = visual_features.permute(0, 2, 1)
+                bs, c, _ = permute_feat.shape
+                split_tensors = torch.split(permute_feat, all_dim, dim=2)
+                visual_features = [tensor.view(bs, c, x, y) for tensor, 
+                                    (x, y) in zip(split_tensors, self.visual_feature_dim)]
             rois = torch.cat(rois, dim=0)
             embedings_gt = torch.cat(embedings_gt, dim=0)
             roi_features = self.bbox_roi_extractor(visual_features, rois) # (N, 256, 7, 7)
@@ -65,6 +90,32 @@ class DPGroundingDino(GroundingDINO):
         losses = self.rpn_distillation_loss(visual_features, batch_data_samples)
         # global distillation loss
         return losses
+
+    def forward_encoder(self, feat: Tensor, feat_mask: Tensor,
+                        feat_pos: Tensor, spatial_shapes: Tensor,
+                        level_start_index: Tensor, valid_ratios: Tensor,
+                        text_dict: Dict) -> Dict:
+        text_token_mask = text_dict['text_token_mask']
+        memory, memory_text = self.encoder(
+            query=feat,
+            query_pos=feat_pos,
+            key_padding_mask=feat_mask,  # for self_attn
+            spatial_shapes=spatial_shapes,
+            level_start_index=level_start_index,
+            valid_ratios=valid_ratios,
+            # for text encoder
+            memory_text=text_dict['embedded'],
+            text_attention_mask=~text_token_mask,
+            position_ids=text_dict['position_ids'],
+            text_self_attention_masks=text_dict['masks'])
+        encoder_outputs_dict = dict(
+            memory=memory,
+            memory_mask=feat_mask,
+            spatial_shapes=spatial_shapes,
+            memory_text=memory_text,
+            text_token_mask=text_token_mask)
+        self.encoder_outputs_dict = encoder_outputs_dict
+        return encoder_outputs_dict
 
     def loss(self, batch_inputs: Tensor,
              batch_data_samples: SampleList) -> Union[dict, list]:
@@ -141,12 +192,18 @@ class DPGroundingDino(GroundingDINO):
                     len(positive_map), 1)
 
         visual_features = self.extract_feat(batch_inputs)
-        distillation_loss = self.visual_distillation_loss(
-            visual_features, batch_data_samples)
         head_inputs_dict = self.forward_transformer(visual_features, text_dict,
                                                     batch_data_samples)
 
         losses = self.bbox_head.loss(
             **head_inputs_dict, batch_data_samples=batch_data_samples)
+
+        if self.distill_visual_encoder:
+            distillation_loss = self.visual_distillation_loss(
+                visual_features, batch_data_samples)
+        elif self.distill_dino_encoder:
+            self.visual_feature_dim = [list(feat.shape)[-2:] for feat in visual_features]
+            distillation_loss = self.visual_distillation_loss(
+                self.encoder_outputs_dict['memory'], batch_data_samples)
         losses.update(distillation_loss)
         return losses
