@@ -2,6 +2,7 @@ _base_ = '../gd_pretrain/grounding_dino_swin-t_pretrain_obj365.py'
 server_root = '/data/yhq/OADP/'
 lang_model_name = 'google-bert/bert-base-uncased'
 pretrained = server_root + 'pretrained/swin_tiny_patch4_window7_224.pth'
+load_from = server_root + 'pretrained/grounding_dino_swin-t_pretrain_obj365_goldg_v3det_20231218_095741-e316e297.pth'
 
 model = dict(
     type='DPGroundingDino',
@@ -121,3 +122,6 @@ train_dataloader = dict(
         # o365v1_od_dataset, flickr30k_dataset, gqa_dataset, v3det_dataset
         v3det_dataset
     ]))
+test_dataloader = val_dataloader = None
+test_cfg = val_cfg = None
+val_evaluator = test_evaluator = None
