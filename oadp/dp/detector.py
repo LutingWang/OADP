@@ -7,7 +7,8 @@ from mmdet.registry import MODELS
 from mmdet.structures import OptSampleList, SampleList
 from mmdet.models.detectors.grounding_dino import GroundingDINO
 
-from .lora import LoRAModel
+from loralib import mark_only_lora_as_trainable
+from .lora import replace_linear_with_lora
 
 @MODELS.register_module()
 class DPGroundingDino(GroundingDINO):
@@ -26,20 +27,13 @@ class DPGroundingDino(GroundingDINO):
             stride=7, 
             padding=0
         )
-        # 把模型权重全都冻结
-        for param in self.parameters():
-            param.requires_grad = False
         
-        self.encoder = LoRAModel(
-            self.encoder,
-            alpha=8,
-            rank=4,
-            # targets=[dict(type='*')],
-            black_list=['output_proj', 'out_proj']
-        )
+        self.encoder = replace_linear_with_lora(self.encoder)
         self.encoder_outputs_dict = None
         self.distill_visual_encoder = distill_visual_encoder
         self.distill_dino_encoder = distill_dino_encoder
+
+        mark_only_lora_as_trainable(self)
 
     def rpn_distillation_loss(self, visual_features: Tensor, batch_data_samples: Tensor) -> dict:
         rois, embedings_gt = [], []
