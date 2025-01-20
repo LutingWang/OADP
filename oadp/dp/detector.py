@@ -28,7 +28,7 @@ class DPGroundingDino(GroundingDINO):
             padding=0
         )
         
-        self.encoder = replace_linear_with_lora(self.encoder)
+        self.encoder = replace_linear_with_lora(self.encoder, alpha=8, rank=4, blacklist=['out_proj'])
         self.encoder_outputs_dict = None
         self.distill_visual_encoder = distill_visual_encoder
         self.distill_dino_encoder = distill_dino_encoder
