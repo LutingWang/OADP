@@ -29,11 +29,9 @@ class DPGroundingDino(GroundingDINO):
         mark_only_lora_as_trainable(self)
 
         self.feature_conv = nn.Sequential(
-            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1)
+            nn.Conv2d(in_channels=256, out_channels=128, kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, stride=2, padding=1)
         )
 
     def rpn_distillation_loss(self, visual_features: Tensor, batch_data_samples: Tensor) -> dict:
