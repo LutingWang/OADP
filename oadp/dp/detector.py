@@ -20,20 +20,21 @@ class DPGroundingDino(GroundingDINO):
         super(DPGroundingDino, self).__init__(*args, **kwargs)
         self.dp_w = 50
         self.bbox_roi_extractor = MODELS.build(bbox_roi_extractor)
-        self.feature_conv = nn.Conv2d(
-            in_channels=256, 
-            out_channels=512, 
-            kernel_size=7, 
-            stride=7, 
-            padding=0
-        )
         
-        self.encoder = replace_linear_with_lora(self.encoder, alpha=8, rank=4, blacklist=['out_proj'])
+        self.encoder = replace_linear_with_lora(self.encoder, alpha=128, rank=64, blacklist=['out_proj'])
         self.encoder_outputs_dict = None
         self.distill_visual_encoder = distill_visual_encoder
         self.distill_dino_encoder = distill_dino_encoder
 
         mark_only_lora_as_trainable(self)
+
+        self.feature_conv = nn.Sequential(
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1)
+        )
 
     def rpn_distillation_loss(self, visual_features: Tensor, batch_data_samples: Tensor) -> dict:
         rois, embedings_gt = [], []
