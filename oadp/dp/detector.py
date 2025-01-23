@@ -9,11 +9,14 @@ from mmdet.models.detectors.grounding_dino import GroundingDINO
 
 from loralib import mark_only_lora_as_trainable
 from .lora import replace_linear_with_lora
+from .moe import replace_linear_with_moe, freeze_module, unfreeze_module, print_all_trainbale_param
 
 @MODELS.register_module()
 class DPGroundingDino(GroundingDINO):
     def __init__(self, *args, 
-                bbox_roi_extractor, 
+                bbox_roi_extractor,
+                use_moe=True,
+                use_lora=False,
                 distill_visual_encoder=False,
                 distill_dino_encoder=True,
                 **kwargs):
@@ -21,18 +24,30 @@ class DPGroundingDino(GroundingDINO):
         self.dp_w = 50
         self.bbox_roi_extractor = MODELS.build(bbox_roi_extractor)
         
-        self.encoder = replace_linear_with_lora(self.encoder, alpha=128, rank=64, blacklist=['out_proj'])
         self.encoder_outputs_dict = None
         self.distill_visual_encoder = distill_visual_encoder
         self.distill_dino_encoder = distill_dino_encoder
 
-        mark_only_lora_as_trainable(self)
+        if use_lora:
+            self.encoder = replace_linear_with_lora(self.encoder, alpha=128, rank=64, blacklist=['out_proj'])
+            mark_only_lora_as_trainable(self)
+        
+        if use_moe:
+            self.register_load_state_dict_post_hook(self._load_moe_weights)
 
         self.feature_conv = nn.Sequential(
             nn.Conv2d(in_channels=256, out_channels=128, kernel_size=3, stride=2, padding=1),
             nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=2, padding=1),
             nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, stride=2, padding=1)
         )
+
+    def _load_moe_weights(self, module, incompatible_keys):
+        print(f"Loading MoE weights for {module.__class__.__name__}")
+        replace_linear_with_moe(self.encoder, in_features=256, linear_name_pattern='ffn', num_experts=3, topk=2)
+        freeze_module(module)
+        unfreeze_module(module.encoder, white_list=['ffn', 'feature_conv'])
+        print("MoE weights loaded successfully")
+
 
     def rpn_distillation_loss(self, visual_features: Tensor, batch_data_samples: Tensor) -> dict:
         rois, embedings_gt = [], []
@@ -200,4 +215,5 @@ class DPGroundingDino(GroundingDINO):
             distillation_loss = self.visual_distillation_loss(
                 self.encoder_outputs_dict['memory'], batch_data_samples)
         losses.update(distillation_loss)
+        print(losses)
         return losses
