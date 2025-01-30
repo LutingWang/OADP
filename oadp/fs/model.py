@@ -1,0 +1,1 @@
+from mmdet.models.detectors.base import BaseDetector
