@@ -5,6 +5,13 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "oake debug",
             "type": "debugpy",
             "request": "launch",
@@ -45,6 +52,45 @@
                 "tools/train.py",
                 "configs/dp/dp_o365_goldg_v3det_test.py",
             ],
-        }
+        },
+        {
+            "name": "pretrain test debug",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/data/yhq/anaconda3/envs/mmdet3/lib/python3.11/site-packages/torch/distributed/run.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYDEVD_DISABLE_FILE_VALIDATION": "1",
+                "CUDA_VISIBLE_DEVICES": "3",
+            },
+            "args": [
+                "--master-port=1237",
+                "--nproc_per_node=1",
+                "--nnodes=1",
+                "tools/test.py",
+                "configs/evaluation/lvis_eval.py",
+                "pretrained/grounding_dino_swin-t_pretrain_obj365_goldg_v3det_20231218_095741-e316e297.pth"
+            ],
+        },        
+        {
+            "name": "fs debug",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/data/yhq/anaconda3/envs/mmdet3/lib/python3.11/site-packages/torch/distributed/run.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYDEVD_DISABLE_FILE_VALIDATION": "1",
+                "CUDA_VISIBLE_DEVICES": "0",
+            },
+            "args": [
+                "--master-port=1234",
+                "--nproc_per_node=1",
+                "--nnodes=1",
+                "tools/train.py",
+                "configs/fs/fs.py",
+            ],
+        },
     ]
 }

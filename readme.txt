@@ -20,3 +20,9 @@ auto_torchrun -m oadp.oake.val /mnt/dolphinfs/hdd_pool/docker/user/hadoop-mtcv/w
 
 
 auto_torchrun tools/train.py configs/dp/dp_o365_goldg_v3det.py --work-dir=/mnt/dolphinfs/hdd_pool/docker/user/hadoop-mtcv/weiziyu/109/OADP/work_dirs/dp_finetune
+
+
+wget https://openaipublic.azureedge.net/clip/models/40d365715913c9da98579312b702a82c18be219cc2a73407c4526f58eba950af/ViT-B-32.pt
+
+
+
