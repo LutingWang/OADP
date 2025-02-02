@@ -1,21 +1,21 @@
 import torch
 import torch.nn as nn
 from torch import Tensor
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Union
 
 from mmdet.registry import MODELS
-from mmdet.structures import OptSampleList, SampleList
+from mmdet.structures import SampleList
 from mmdet.models.detectors.grounding_dino import GroundingDINO
 
 from loralib import mark_only_lora_as_trainable
 from .lora import replace_linear_with_lora
-from .moe import replace_linear_with_moe, freeze_module, unfreeze_module, print_all_trainbale_param
+from .moe import replace_linear_with_moe, freeze_module, unfreeze_moe_module
 
 @MODELS.register_module()
 class DPGroundingDino(GroundingDINO):
     def __init__(self, *args, 
                 bbox_roi_extractor,
-                use_moe=True,
+                moe_cfg=None,
                 use_lora=False,
                 distill_visual_encoder=False,
                 distill_dino_encoder=True,
@@ -32,7 +32,10 @@ class DPGroundingDino(GroundingDINO):
             self.encoder = replace_linear_with_lora(self.encoder, alpha=128, rank=64, blacklist=['out_proj'])
             mark_only_lora_as_trainable(self)
         
-        if use_moe:
+        if moe_cfg:
+            self.expert_num = moe_cfg['expert_num']
+            self.topk = moe_cfg['topk']
+            self.moe_inputs_dim = moe_cfg['inputs_dim']
             self.register_load_state_dict_post_hook(self._load_moe_weights)
 
         self.feature_conv = nn.Sequential(
@@ -43,9 +46,14 @@ class DPGroundingDino(GroundingDINO):
 
     def _load_moe_weights(self, module, incompatible_keys):
         print(f"Loading MoE weights for {module.__class__.__name__}")
-        replace_linear_with_moe(self.encoder, in_features=256, linear_name_pattern='ffn', num_experts=3, topk=2)
+        replace_linear_with_moe(module.encoder, 
+                                in_features=self.moe_inputs_dim, 
+                                linear_name_pattern='ffn', 
+                                num_experts=self.expert_num, 
+                                topk=self.topk)
         freeze_module(module)
-        unfreeze_module(module.encoder, white_list=['ffn', 'feature_conv'])
+        unfreeze_moe_module(module.encoder)
+        module.feature_conv.requires_grad = True
         print("MoE weights loaded successfully")
 
 
@@ -215,5 +223,4 @@ class DPGroundingDino(GroundingDINO):
             distillation_loss = self.visual_distillation_loss(
                 self.encoder_outputs_dict['memory'], batch_data_samples)
         losses.update(distillation_loss)
-        print(losses)
         return losses

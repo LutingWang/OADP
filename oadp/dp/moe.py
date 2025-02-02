@@ -1,22 +1,22 @@
 import re
+import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-def unfreeze_module(module: nn.Module,
-                  white_list: list[str]):
-    # unfreeze all parameters in the white list
-    for name, child in module.named_children():
-        if name in white_list:
-            for param in child.parameters():
-                param.requires_grad = True
-        else:
-            unfreeze_module(child, white_list)
+def unfreeze_moe_module(module: nn.Module):
+    if isinstance(module, MoE):
+        module.set_requires_grad(True)
+    else:
+        for name, child in module.named_children():
+            unfreeze_moe_module(child)
+
 
 def freeze_module(module: nn.Module):
     # freeze all parameters
     for param in module.parameters():
         param.requires_grad = False
+
 
 
 def print_all_trainbale_param(module: nn.Module):
@@ -64,10 +64,20 @@ class MoE(nn.Module):
                 num_experts: int, 
                 k: int):
         super(MoE, self).__init__()
-        self.experts = nn.ModuleList([expert_model for _ in range(num_experts)])
+        self.experts = []
+        for _ in range(num_experts):
+            new_expert = copy.deepcopy(expert_model)
+            self.experts.append(new_expert)
+        self.experts = nn.ModuleList(self.experts)
         self.router = Router(input_dim, num_experts, k)
         self.device = next(expert_model.parameters()).device
         self.router.to(self.device)
+
+    def set_requires_grad(self, requires_grad: bool):
+        for expert in self.experts[1:]:
+            for param in expert.parameters():
+                param.requires_grad = requires_grad
+        self.router.requires_grad_(requires_grad)
 
     def forward(self, x):
         indices, scores = self.router(x)
