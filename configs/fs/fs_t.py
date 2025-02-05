@@ -30,7 +30,7 @@ train_dataloader = dict(
 
 
 model = dict(
-    type='FewShotModelCLIP',
+    type='FewShotModel',
     language_model_cfg=dict(
         type='BertModel',
         name=lang_model_name,
@@ -41,6 +41,14 @@ model = dict(
         add_pooling_layer=False,
     ),
     clip_model_path='pretrained/clip/ViT-B-32.pt',
+    vision_agg_cfg=dict(
+        type='VisualAggregatorT',
+        max_shots=10,
+        d_model=512,
+        layers=12,
+        heads=8,
+    ),
+    loss_type='l2',
     projector_type='mlp2x_gelu'
 )
 

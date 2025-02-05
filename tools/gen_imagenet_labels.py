@@ -26,7 +26,7 @@ def gen_labels(data_root: str, output_path: str, debug: bool = False):
     dirs = list(os.listdir(data_root))
 
     if debug:
-        dirs = dirs[:5]
+        dirs = dirs[:16]
     
     # list all the images
     for i, dir_name in enumerate(tqdm(dirs)):
@@ -47,5 +47,5 @@ def gen_labels(data_root: str, output_path: str, debug: bool = False):
 
 if __name__ == "__main__":
     gen_labels("data/imagenet21k/images", 
-               "data/imagenet21k/annotations/imagenet21k_labels.json",
-               debug=False)
+               "data/imagenet21k/annotations/imagenet21k_labels_test.json",
+               debug=True)
