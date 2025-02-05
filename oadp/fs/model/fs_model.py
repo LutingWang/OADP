@@ -1,27 +1,82 @@
 import torch
-import clip
-from clip.clip import _tokenizer
 import torch.nn as nn
-from mmdet.registry import MODELS, DATASETS
-from mmdet.datasets.base_det_dataset import BaseDataset
+import clip
+import clip.model
+from clip.clip import _tokenizer
+from mmdet.registry import MODELS
 from mmengine.model import BaseModel
-from mmengine.fileio import join_path, load
 
-@DATASETS.register_module()
-class ImageNet21KDataset(BaseDataset):
-    def load_data_list(self):
-        annotations = load(self.ann_file)
-        data_list = []
-        for data_info in annotations['categories']:
-            imgs_path = [join_path(self.data_prefix['img'], img) for img in data_info['images']]
-            data_info['img_path'] = imgs_path
-            data_info['text'] = data_info['name']
-            data_list.append(data_info)
-        return data_list
+from .projector import VisionProjector
+from .visual_agg import VisualAggregatorT
+
+class ContrastiveLoss(nn.Module):
+    def __init__(self, temperature=0.07):
+        super().__init__()
+        self.temperature = temperature
+        self.cross_entropy = nn.CrossEntropyLoss()
+    
+    def forward(self, image_embeds, text_embeds):
+        logits = torch.matmul(image_embeds, text_embeds.T) / self.temperature
+        labels = torch.arange(len(image_embeds), device=image_embeds.device)
+        loss_i = self.cross_entropy(logits, labels)
+        loss_t = self.cross_entropy(logits.T, labels)
+        return (loss_i + loss_t) / 2
 
 
 @MODELS.register_module()
 class FewShotModel(BaseModel):
+    def __init__(self, 
+            language_model_cfg:dict,
+            clip_model_path:str,
+            vision_agg_cfg:dict,
+            projector_type:str, 
+            loss_type:str
+        ) -> None:
+        super().__init__()
+        self.language_model = MODELS.build(language_model_cfg)
+        self.language_dim = self.language_model.language_backbone.body.language_dim
+
+        self.clip_model, _ = clip.load(clip_model_path)
+        self.visual_agg: VisualAggregatorT = MODELS.build(vision_agg_cfg)
+        self.visual_dim = self.visual_agg.d_model
+
+        self.vision_projector = VisionProjector(self.visual_dim, self.language_dim, projector_type)
+        
+        self.loss = ContrastiveLoss()
+
+        # freeze all the parameters
+        for param in self.parameters():
+            param.requires_grad = False
+
+        # unfreeze the parameters of the clip text encoder
+        for param in self.visual_agg.parameters():
+            param.requires_grad = True
+        for param in self.vision_projector.parameters():
+            param.requires_grad = True
+
+
+        if loss_type == "contrastive":
+            self.loss = ContrastiveLoss()
+        elif loss_type == "l1":
+            self.loss = nn.L1Loss()
+        elif loss_type == "l2":
+            self.loss = nn.MSELoss()
+        else:
+            raise ValueError(f"Unsupported loss type: {loss_type}")
+        
+    def forward(self, inputs, texts, shots, mode):
+        if mode == "loss":
+            image_feats = self.clip_model.encode_image(inputs)
+            image_feats = self.visual_agg(image_feats, shots)
+            text_feats = self.language_model(texts)['embedded'].sum(dim=1)
+            image_feats_align = self.vision_projector(image_feats)
+            loss = {"loss": self.loss(image_feats_align, text_feats)}
+            return loss
+
+
+
+@MODELS.register_module()
+class FewShotModelCLIP(BaseModel):
     def __init__(self, language_model, clip_model_path) -> None:
         super().__init__()
         self.bert_model_cfg = language_model

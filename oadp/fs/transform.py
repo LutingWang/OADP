@@ -101,3 +101,10 @@ class PackFsData(BaseTransform):
             "texts": results['text'],
             "shots": results['shots']
         }
+
+
+@TRANSFORMS.register_module()
+class InsertLvisFsInputs(BaseTransform):
+    def __init__(self, exemplar_path: str) -> None:
+        exemplar = json.load(open(exemplar_path, "r"))
+        self.exemplar_dict = exemplar_dict
