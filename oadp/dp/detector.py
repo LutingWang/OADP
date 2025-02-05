@@ -18,7 +18,7 @@ class DPGroundingDino(GroundingDINO):
                 moe_cfg=None,
                 use_lora=False,
                 distill_visual_encoder=False,
-                distill_dino_encoder=True,
+                distill_dino_encoder=False,
                 **kwargs):
         super(DPGroundingDino, self).__init__(*args, **kwargs)
         self.dp_w = 50
