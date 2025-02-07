@@ -1,5 +1,5 @@
 import torch
-
+import copy
 
 def extract_fs_model_weights(grounding_dino_path, clip_model_path, output_path):
     grounding_dino = torch.load(grounding_dino_path, map_location="cpu")
@@ -47,7 +47,7 @@ def insert_ov_moe(grounding_dino_path, output_path, expert_num, insert_model='en
                 parts = key.split('.')
                 ffnn_index = parts.index('ffn')
                 new_parts = parts[:ffnn_index + 1] + ['experts', f'{i}'] + parts[ffnn_index + 1:]
-                new_state_dict['.'.join(new_parts)] = value
+                new_state_dict['.'.join(new_parts)] = copy.deepcopy(value)
         else:
             new_state_dict[key] = value
     grounding_dino_state_dict['state_dict'] = new_state_dict
