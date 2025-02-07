@@ -100,8 +100,8 @@ class MoE(nn.Module):
         # 初始化输出
         batch_size = x.size(0)
         output = torch.zeros_like(x)
-        cnt = 0
         for b in range(batch_size):
+            cnt = 0
             for i in range(num_experts):
                 expert_idx = indices[b, :]
                 if i in expert_idx:
