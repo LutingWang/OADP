@@ -131,4 +131,3 @@ test_dataloader = val_dataloader = None
 test_cfg = val_cfg = None
 val_evaluator = test_evaluator = None
 custom_hooks = [dict(type='CheckpointHook', by_epoch=False, interval=1)]
-find_unused_parameters = True

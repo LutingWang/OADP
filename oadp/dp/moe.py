@@ -100,9 +100,11 @@ class MoE(nn.Module):
         # 初始化输出
         batch_size = x.size(0)
         output = torch.zeros_like(x)
-        for i in range(self.router.k):
-            expert_idx = indices[:, i]
-            score = scores[:, i].unsqueeze(-1)
-            for b in range(batch_size):
-                output[b] += score[b] * self.experts[expert_idx[b]](x[b])
+        for b in range(batch_size):
+            for i in range(num_experts):
+                expert_idx = indices[b, :]
+                if i in expert_idx:
+                    output[b] += scores[b, i] * self.experts[i](x[b])
+                else:
+                    output[b] += 0 * self.experts[i](x[b]) # dummy
         return output
