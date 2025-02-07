@@ -9,7 +9,7 @@ from mmdet.models.detectors.grounding_dino import GroundingDINO
 
 from loralib import mark_only_lora_as_trainable
 from .lora import replace_linear_with_lora
-from .moe import replace_linear_with_moe, freeze_module, unfreeze_moe_module
+from .moe import replace_linear_with_moe, freeze_module, mark_only_moe_as_trainable
 
 @MODELS.register_module()
 class DPGroundingDino(GroundingDINO):
@@ -27,35 +27,28 @@ class DPGroundingDino(GroundingDINO):
         self.encoder_outputs_dict = None
         self.distill_visual_encoder = distill_visual_encoder
         self.distill_dino_encoder = distill_dino_encoder
+        freeze_module(self)
 
         if use_lora:
             self.encoder = replace_linear_with_lora(self.encoder, alpha=128, rank=64, blacklist=['out_proj'])
             mark_only_lora_as_trainable(self)
-        
+
         if moe_cfg:
-            self.expert_num = moe_cfg['expert_num']
-            self.topk = moe_cfg['topk']
-            self.moe_inputs_dim = moe_cfg['inputs_dim']
-            self.register_load_state_dict_post_hook(self._load_moe_weights)
+            replace_linear_with_moe(self.encoder, 
+                                    in_features=moe_cfg['inputs_dim'], 
+                                    linear_name_pattern='ffn', 
+                                    num_experts=moe_cfg['expert_num'], 
+                                    topk=moe_cfg['topk'])
+            mark_only_moe_as_trainable(self.encoder)
 
-        self.feature_conv = nn.Sequential(
-            nn.Conv2d(in_channels=256, out_channels=128, kernel_size=3, stride=2, padding=1),
-            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=2, padding=1),
-            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, stride=2, padding=1)
-        )
-
-    def _load_moe_weights(self, module, incompatible_keys):
-        print(f"Loading MoE weights for {module.__class__.__name__}")
-        replace_linear_with_moe(module.encoder, 
-                                in_features=self.moe_inputs_dim, 
-                                linear_name_pattern='ffn', 
-                                num_experts=self.expert_num, 
-                                topk=self.topk)
-        freeze_module(module)
-        unfreeze_moe_module(module.encoder)
-        module.feature_conv.requires_grad = True
-        print("MoE weights loaded successfully")
-
+        # add distillation head
+        if self.distill_visual_encoder or self.distill_dino_encoder:
+            self.visual_feature_dim = None
+            self.feature_conv = nn.Sequential(
+                nn.Conv2d(in_channels=256, out_channels=128, kernel_size=3, stride=2, padding=1),
+                nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=2, padding=1),
+                nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, stride=2, padding=1)
+            )
 
     def rpn_distillation_loss(self, visual_features: Tensor, batch_data_samples: Tensor) -> dict:
         rois, embedings_gt = [], []
@@ -218,9 +211,10 @@ class DPGroundingDino(GroundingDINO):
         if self.distill_visual_encoder:
             distillation_loss = self.visual_distillation_loss(
                 visual_features, batch_data_samples)
+            losses.update(distillation_loss)
         elif self.distill_dino_encoder:
             self.visual_feature_dim = [list(feat.shape)[-2:] for feat in visual_features]
             distillation_loss = self.visual_distillation_loss(
                 self.encoder_outputs_dict['memory'], batch_data_samples)
-        losses.update(distillation_loss)
+            losses.update(distillation_loss)
         return losses

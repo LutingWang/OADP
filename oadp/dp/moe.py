@@ -4,12 +4,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-def unfreeze_moe_module(module: nn.Module):
+def mark_only_moe_as_trainable(module: nn.Module):
     if isinstance(module, MoE):
         module.set_requires_grad(True)
     else:
         for name, child in module.named_children():
-            unfreeze_moe_module(child)
+            mark_only_moe_as_trainable(child)
 
 
 def freeze_module(module: nn.Module):

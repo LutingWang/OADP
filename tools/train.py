@@ -102,10 +102,11 @@ def main():
                                ' configuration file.')
 
     # resume is determined in this priority: resume from > auto_resume
-
     if args.resume == 'auto':
-        cfg.resume = True
-        cfg.load_from = None
+        last_checkpoint = osp.join(cfg.work_dir, 'last_checkpoint')
+        if osp.exists(last_checkpoint):
+            cfg.resume = True
+            cfg.load_from = None
     elif args.resume is not None:
         cfg.resume = True
         cfg.load_from = args.resume

@@ -1,8 +1,8 @@
 _base_ = [
-    '../_base_/datasets/coco_detection.py',
+    './coco_detection.py',
     '../_base_/schedules/schedule_1x.py', '../_base_/default_runtime.py'
 ]
-server_root = '/mnt/dolphinfs/hdd_pool/docker/user/hadoop-mtcv/weiziyu/109/OADP'
+server_root = '/data/yhq/OADP/'
 
 pretrained = server_root + 'ckpt/swin_tiny_patch4_window7_224.pth'
 lang_model_name = "pretrained/google-bert/bert-base-uncased"
