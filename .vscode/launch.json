@@ -50,7 +50,7 @@
                 "--nproc_per_node=1",
                 "--nnodes=1",
                 "tools/train.py",
-                "configs/dp/dp_o365_goldg_v3det_test.py",
+                "configs/test/dp_o365_goldg_v3det_test.py",
                 "--resume"
             ],
         },

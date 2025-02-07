@@ -1,4 +1,4 @@
-_base_ = './gd_pretrain/grounding_dino_swin-t_pretrain_obj365.py'
+_base_ = './grounding_dino_swin-t_pretrain_obj365.py'
 server_root = '/data/yhq/OADP/'
 lang_model_name = 'pretrained/google-bert/bert-base-uncased'
 pretrained = server_root + 'pretrained/swin_tiny_patch4_window7_224.pth'
@@ -131,3 +131,4 @@ test_dataloader = val_dataloader = None
 test_cfg = val_cfg = None
 val_evaluator = test_evaluator = None
 custom_hooks = [dict(type='CheckpointHook', by_epoch=False, interval=1)]
+find_unused_parameters = True

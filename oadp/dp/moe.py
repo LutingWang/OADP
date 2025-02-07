@@ -11,6 +11,13 @@ def mark_only_moe_as_trainable(module: nn.Module):
         for name, child in module.named_children():
             mark_only_moe_as_trainable(child)
 
+def extract_moe_aux_loss(module: nn.Module, w: float=0.1, aux_loss={}, prefix="moe_aux_"):
+    from .moe import MoE
+    if isinstance(module, MoE):
+        aux_loss[prefix] = module.aux_loss * w
+    for name, child in module.named_children():
+        extract_moe_aux_loss(child, w, aux_loss, prefix + name + "_")
+    return aux_loss
 
 def freeze_module(module: nn.Module):
     # freeze all parameters
@@ -81,6 +88,15 @@ class MoE(nn.Module):
 
     def forward(self, x):
         indices, scores = self.router(x)
+        num_experts = len(self.experts)
+        # 计算辅助损失（负载均衡）
+        expert_counts = torch.zeros(num_experts, device=x.device)
+        for idx in indices.view(-1):
+            expert_counts[idx] += 1
+        expert_frac = expert_counts / expert_counts.sum()
+        uniform_frac = torch.ones_like(expert_frac) / num_experts
+        self.aux_loss = F.mse_loss(expert_frac, uniform_frac)
+
         # 初始化输出
         batch_size = x.size(0)
         output = torch.zeros_like(x)

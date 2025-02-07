@@ -9,7 +9,7 @@ from mmdet.models.detectors.grounding_dino import GroundingDINO
 
 from loralib import mark_only_lora_as_trainable
 from .lora import replace_linear_with_lora
-from .moe import replace_linear_with_moe, freeze_module, mark_only_moe_as_trainable
+from .moe import replace_linear_with_moe, freeze_module, mark_only_moe_as_trainable, extract_moe_aux_loss
 
 @MODELS.register_module()
 class DPGroundingDino(GroundingDINO):
@@ -27,6 +27,7 @@ class DPGroundingDino(GroundingDINO):
         self.encoder_outputs_dict = None
         self.distill_visual_encoder = distill_visual_encoder
         self.distill_dino_encoder = distill_dino_encoder
+        self.use_moe = moe_cfg is not None
         freeze_module(self)
 
         if use_lora:
@@ -217,4 +218,7 @@ class DPGroundingDino(GroundingDINO):
             distillation_loss = self.visual_distillation_loss(
                 self.encoder_outputs_dict['memory'], batch_data_samples)
             losses.update(distillation_loss)
+        if self.use_moe:
+            aux_loss = extract_moe_aux_loss(self.encoder)
+            losses.update(aux_loss)
         return losses

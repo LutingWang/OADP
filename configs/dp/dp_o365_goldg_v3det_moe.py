@@ -185,3 +185,4 @@ auto_scale_lr = dict(base_batch_size=64)
 
 default_hooks = dict(visualization=dict(type='GroundingVisualizationHook'))
 custom_hooks = [dict(type='CheckpointHook', by_epoch=False, interval=iter_per_epoch)]
+find_unused_parameters = True
