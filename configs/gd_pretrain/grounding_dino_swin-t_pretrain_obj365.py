@@ -5,7 +5,7 @@ _base_ = [
 server_root = '/mnt/dolphinfs/hdd_pool/docker/user/hadoop-mtcv/weiziyu/109/OADP'
 
 pretrained = server_root + 'ckpt/swin_tiny_patch4_window7_224.pth'
-lang_model_name = "pretrained/google-bert/bert-base-uncased"
+lang_model_name = "/mnt/dolphinfs/hdd_pool/docker/user/hadoop-mtcv/weiziyu/Checkpoints/bert-base-uncased"
 
 model = dict(
     type='GroundingDINO',
