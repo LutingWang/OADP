@@ -13,14 +13,14 @@ train_pipeline = [
 imagenet21k = dict(
     type='ImageNet21KDataset',
     data_root=server_root+'data/imagenet21k/',
-    ann_file='annotations/imagenet21k_labels.json',
+    ann_file='annotations/imagenet21k_labels_test.json',
     data_prefix=dict(img='images/'),
     filter_cfg=dict(filter_empty_gt=True, min_size=32),
     pipeline=train_pipeline
 )
 
 train_dataloader = dict(
-    batch_size=32,
+    batch_size=4,
     num_workers=6,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
@@ -30,14 +30,14 @@ train_dataloader = dict(
 
 
 model = dict(
-    type='FewShotModel',
+    type='FewShotModelBert',
     language_model_cfg=dict(
         type='BertModel',
         name=lang_model_name,
         max_tokens=256,
         pad_to_max=False,
         use_sub_sentence_represent=True,
-        special_tokens_list=['[CLS]', '[SEP]', '.', '?'],
+        special_tokens_list=['[CLS]', '[SEP]', '.', '?', '[image]'],
         add_pooling_layer=False,
     ),
     clip_model_path='pretrained/clip/ViT-B-32.pt',
@@ -48,7 +48,7 @@ model = dict(
         layers=12,
         heads=8,
     ),
-    loss_type='contrastive',
+    loss_type='l2',
     projector_type='mlp2x_gelu'
 )
 
@@ -76,11 +76,11 @@ visualizer = dict(
     type="Visualizer",
     vis_backends=[
         dict(type="TensorboardVisBackend"),
-        dict(type='WandbVisBackend',
-         init_kwargs=dict(
-            project='OADP',
-            name='fs-t-contrastive',
-         ))
+        # dict(type='WandbVisBackend',
+        #  init_kwargs=dict(
+        #     project='OADP',
+        #     name='fs-t-contrastive',
+        #  ))
     ],
 )
 # https://docs.wandb.ai/ref/python/init/

@@ -4,10 +4,12 @@ import clip
 import clip.model
 from clip.clip import _tokenizer
 from mmdet.registry import MODELS
+from mmdet.models.language_models import BertModel
+from transformers import BertModel as HFBertModel
 from mmengine.model import BaseModel
 
 from .projector import VisionProjector
-from .visual_agg import VisualAggregatorT
+from .visual_agg import VisualAggregatorT, QFormer
 
 class ContrastiveLoss(nn.Module):
     def __init__(self, temperature=0.07):
@@ -45,6 +47,8 @@ class FewShotModel(BaseModel):
         self.loss = ContrastiveLoss()
 
         # freeze all the parameters
+        self.language_model = self.language_model.eval()
+        self.clip_model = self.clip_model.eval()
         for param in self.parameters():
             param.requires_grad = False
 
@@ -92,6 +96,8 @@ class FewShotModelCLIP(BaseModel):
         self.loss = nn.L1Loss()
 
         # freeze all the parameters
+        self.language_model = self.language_model.eval()
+        self.clip_model = self.clip_model.eval()
         for param in self.parameters():
             param.requires_grad = False
 
@@ -142,4 +148,70 @@ class FewShotModelCLIP(BaseModel):
             text_feats = self.bert_model(texts)['embedded'].sum(dim=1)
             aggregate_feature_align = self.visual2text_projector(aggregate_feature.type(text_feats.dtype))
             loss = {"loss": self.loss(aggregate_feature_align, text_feats)}
+            return loss
+
+
+@MODELS.register_module()
+class FewShotModelBert(BaseModel):
+    def __init__(self, 
+            language_model_cfg:dict,
+            clip_model_path:str,
+            vision_agg_cfg:dict,
+            projector_type:str, 
+            loss_type:str
+        ) -> None:
+        super().__init__()
+        self.language_model: BertModel = MODELS.build(language_model_cfg)
+        self.language_dim = self.language_model.language_backbone.body.language_dim
+
+        self.clip_model, _ = clip.load(clip_model_path)
+        self.visual_agg: VisualAggregatorT = MODELS.build(vision_agg_cfg)
+        self.visual_dim = self.visual_agg.d_model
+
+        self.vision_projector = VisionProjector(self.visual_dim, self.language_dim, projector_type)
+        
+        self.loss = ContrastiveLoss()
+
+        # freeze all the parameters
+        self.language_model = self.language_model.eval()
+        self.clip_model = self.clip_model.eval()
+        for param in self.parameters():
+            param.requires_grad = False
+
+        # unfreeze the parameters of the clip text encoder
+        for param in self.visual_agg.parameters():
+            param.requires_grad = True
+        for param in self.vision_projector.parameters():
+            param.requires_grad = True
+
+        if loss_type == "contrastive":
+            self.loss = ContrastiveLoss()
+        elif loss_type == "l1":
+            self.loss = nn.L1Loss()
+        elif loss_type == "l2":
+            self.loss = nn.MSELoss()
+        else:
+            raise ValueError(f"Unsupported loss type: {loss_type}")
+
+    def image_bert_forward(self, image_feats):
+        self.bert_model: HFBertModel = self.language_model.language_backbone.body.model
+        outputs = self.bert_model(
+            inputs_embeds=image_feats.unsqueeze(1), # [batch_size, seq_length, embed_dim]
+            output_hidden_states=True,
+        )
+        encoded_layers = outputs.hidden_states[1:]
+        features = torch.stack(encoded_layers[-1:], 1).mean(1)
+        return features.squeeze(1)
+
+    def text_bert_forward(self, texts):
+        return self.language_model(texts)['embedded'].sum(dim=1)
+
+    def forward(self, inputs, texts, shots, mode):
+        if mode == "loss":
+            image_feats = self.clip_model.encode_image(inputs)
+            image_feats = self.visual_agg(image_feats, shots)
+            image_feats_align = self.vision_projector(image_feats)
+            image_bert_outputs = self.image_bert_forward(image_feats_align)
+            text_feats = self.text_bert_forward(texts)
+            loss = {"loss": self.loss(image_bert_outputs, text_feats)}
             return loss
