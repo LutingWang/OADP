@@ -18,7 +18,13 @@ def wnid_to_classname(wnid):
     return synset.lemma_names()  # 返回类名（可能是多个）
 
 
-def gen_labels(data_root: str, output_path: str, debug: bool = False):
+def gen_labels(data_root: str, 
+               output_path: str, 
+               output_label_path:str=None, 
+               output_label2images_path:str=None,
+               debug: bool = False):
+    label_map = {}
+    label2images = {}
     annotations = {
         "categories": [],
         "images": [],
@@ -41,11 +47,23 @@ def gen_labels(data_root: str, output_path: str, debug: bool = False):
             "wnid": dir_name,
             "images": images,
         })
+        label_map[dir_name] = class_name
+        label2images[dir_name] = images
     
     with open(output_path, "w") as f:
         json.dump(annotations, f, indent=4)
 
+    if output_label_path is not None:
+        with open(output_label_path, "w") as f:
+            json.dump(label_map, f, indent=4)    
+
+    if output_label2images_path is not None:
+        with open(output_label2images_path, "w") as f:
+            json.dump(label2images, f, indent=4)
+
 if __name__ == "__main__":
     gen_labels("data/imagenet21k/images", 
-               "data/imagenet21k/annotations/imagenet21k_labels_test.json",
-               debug=True)
+               "data/imagenet21k/annotations/imagenet21k_labels.json",
+                "data/imagenet21k/annotations/imagenet21k_label_map.json",
+                "data/imagenet21k/annotations/imagenet21k_label2images.json",
+               debug=False)

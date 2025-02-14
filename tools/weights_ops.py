@@ -1,7 +1,7 @@
 import torch
 import copy
 
-def extract_fs_model_weights(grounding_dino_path, clip_model_path, output_path):
+def dino2fsmodel(grounding_dino_path, clip_model_path, output_path):
     grounding_dino = torch.load(grounding_dino_path, map_location="cpu")
     clip_model = torch.load(clip_model_path, map_location="cpu")
 
@@ -18,25 +18,27 @@ def extract_fs_model_weights(grounding_dino_path, clip_model_path, output_path):
 
     torch.save(fs_model, output_path)
 
-def merge_fs_weights(grounding_dino_path, fs_model_path, output_path):
+def dino2fsdino(grounding_dino_path, clip_model_path, output_path):
     grounding_dino = torch.load(grounding_dino_path, map_location="cpu")
-    fs_model = torch.load(fs_model_path, map_location="cpu")
+    clip_model = torch.load(clip_model_path, map_location="cpu")
 
     grounding_dino_state_dict = grounding_dino['state_dict']
-    fs_model_state_dict = fs_model['state_dict']
+    clip_model_state_dict = clip_model.state_dict()
 
-    grounding_dino_fs = {}
+    fs_model = {}
     for key, value in grounding_dino_state_dict.items():
-        if not key.startswith('language_model'):
-            grounding_dino_fs[key] = value
-    
-    for key, value in fs_model_state_dict.items():
-        if key.startswith('bert_model'):
-            grounding_dino_fs[key] = value
+        if key.startswith('language_model'):
+            fs_model[f'fs_model.{key}'] = value
+        else:
+            fs_model[key] = value
 
-    torch.save(grounding_dino_state_dict, output_path)
+    for key, value in clip_model_state_dict.items():
+        fs_model[f'fs_model.clip_model.{key}'] = value
 
-def insert_ov_moe(grounding_dino_path, output_path, expert_num, insert_model='encoder'):
+    grounding_dino['state_dict'] = fs_model
+    torch.save(grounding_dino, output_path)
+
+def dino2moe(grounding_dino_path, output_path, expert_num, insert_model='encoder'):
     grounding_dino = torch.load(grounding_dino_path, map_location="cpu")
     grounding_dino_state_dict = grounding_dino['state_dict']
 
@@ -50,8 +52,8 @@ def insert_ov_moe(grounding_dino_path, output_path, expert_num, insert_model='en
                 new_state_dict['.'.join(new_parts)] = copy.deepcopy(value)
         else:
             new_state_dict[key] = value
-    grounding_dino_state_dict['state_dict'] = new_state_dict
-    torch.save(grounding_dino_state_dict, output_path)
+    grounding_dino['state_dict'] = new_state_dict
+    torch.save(grounding_dino, output_path)
 
 def weights_diff(weights_path_a, weights_path_b):
     a_model = torch.load(weights_path_a, map_location="cpu")
@@ -68,9 +70,11 @@ def weights_diff(weights_path_a, weights_path_b):
 
 if __name__ == "__main__":
     grounding_dino_path = 'pretrained/grounding_dino_swin-t_pretrain_obj365_goldg_v3det_20231218_095741-e316e297.pth'
-    output_path = 'pretrained/grounding_dino_swin-t_pretrain_obj365_goldg_v3det_moe.pth'
-    gt_path = 'work_dirs/dp_o365_goldg_v3det_test/iter_1.pth'
-    insert_ov_moe(grounding_dino_path, output_path, expert_num=4)
+    output_path = 'pretrained/grounding_dino_swin-t_pretrain_obj365_goldg_v3det_fs.pth'
+    gt_path = 'work_dirs/fs_detector/iter_1.pth'
+    clip_model_path = 'pretrained/clip/ViT-B-32.pt'
+    # dino2moe(grounding_dino_path, output_path, expert_num=4)
+    dino2fsdino(grounding_dino_path, clip_model_path, output_path)
     weights_diff(gt_path, output_path)
 
 

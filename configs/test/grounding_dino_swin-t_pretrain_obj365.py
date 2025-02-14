@@ -4,7 +4,7 @@ _base_ = [
 ]
 server_root = '/data/yhq/OADP/'
 
-pretrained = server_root + 'ckpt/swin_tiny_patch4_window7_224.pth'
+pretrained = server_root + 'pretrained/swin_tiny_patch4_window7_224.pth'
 lang_model_name = "pretrained/google-bert/bert-base-uncased"
 
 model = dict(

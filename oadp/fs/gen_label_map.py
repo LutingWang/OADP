@@ -6,6 +6,7 @@ from torch.utils.data import Dataset
 
 from oadp.fs.llama import Chatbot, Captioner, Summarizer, MutiCaptioner
 from mmdet.datasets.lvis import LVISV1Dataset
+import uuid
 
 def get_crop(img, bb, context=0.0, square=True):
     x1, y1, w, h = bb
@@ -64,9 +65,48 @@ class CropDataset(Dataset):
         chosen_anns = self.exemplar_dict[idx]
         crops = [run_crop(ann, self.paths) for ann in chosen_anns]
         return crops
+
+def gen_test_datasets(output_dir: str) -> None:
+    exemplar_dict = json.load(open('data/mmovod-samples/lvis_image_exemplar_dict_K-005_author.json'))
+    path_dict = {
+        "imagenet21k": "data/imagenet21k/images",
+        "visual_genome": "data/VisualGenome",
+        "lvis": "data/lvis",
+    }
+    dataset = CropDataset(exemplar_dict, path_dict)
+    annotations = {}
+    lvis_categories = LVISV1Dataset.METAINFO['classes']
+    label_map = {}
+    for idx, category in enumerate(lvis_categories):
+        label_map[idx] = {
+            "samples_id": idx,
+            "name": category
+        }
+    for idx, images in enumerate(tqdm(dataset)):
+        # Create a subfolder for the current index if it doesn't exist
+        subfolder = os.path.join(output_dir, "images", str(idx))
+        os.makedirs(subfolder, exist_ok=True)
+        
+        # Get the original annotation list for the current index
+        images_path= []
+        for j, image in enumerate(images):
+            filename = f"{uuid.uuid4().hex}.jpg"
+            save_path = os.path.join(subfolder, filename)
+            image.save(save_path)
+            images_path.append(save_path)
+        
+        annotations[idx] = images_path
     
+    ann_file_path = os.path.join(output_dir, "annotations.json")
+    with open(ann_file_path, "w") as f:
+        json.dump(annotations, f)
+    
+    label_map_path = "data/lvis/annotations/mmovod_label_map.json"
+    with open(label_map_path, "w") as f:
+        json.dump(label_map, f)    
+
 def single_summarize_label_map() -> None:
-    exemplar_dict = json.load(open('data/samples/lvis_image_exemplar_dict_K-005_author.json'))
+    exemplar_dict = json.load(open('data/mmovod-samples/lvis_image_exemplar_dict_K-005_author.json'))
     path_dict = {
         "imagenet21k": "data/imagenet21k",
         "visual_genome": "data/VisualGenome",
@@ -83,11 +123,11 @@ def single_summarize_label_map() -> None:
         print(summary)
         cls = refine_label_map(summary)
         few_shot_label_map.append(cls)
-    with open('data/samples/lvis_single_summarize_label_map.json', 'w') as f:
+    with open('data/mmovod-samples/lvis_single_summarize_label_map.json', 'w') as f:
         json.dump(few_shot_label_map, f)
 
 def multi_summarize_label_map() -> None:
-    exemplar_dict = json.load(open('data/samples/lvis_image_exemplar_dict_K-005_author.json'))
+    exemplar_dict = json.load(open('data/mmovod-samples/lvis_image_exemplar_dict_K-005_author.json'))
     path_dict = {
         "imagenet21k": "data/imagenet21k",
         "visual_genome": "data/VisualGenome",
@@ -101,7 +141,7 @@ def multi_summarize_label_map() -> None:
         caption = captioner(images)
         cls = refine_label_map(caption)
         few_shot_label_map.append(cls)
-    with open('data/samples/lvis_multi_summarize_label_map.json', 'w') as f:
+    with open('data/mmovod-samples/lvis_multi_summarize_label_map.json', 'w') as f:
         json.dump(few_shot_label_map, f)
 
 def refine_label_map(caption: str) -> str:
@@ -137,6 +177,7 @@ def compare_label_map(label_map_path: str) -> None:
 
 
 if __name__ == '__main__':
-    single_summarize_label_map()
+    gen_test_datasets("data/mmovod-samples")
+    # single_summarize_label_map()
     # multi_summarize_label_map()
     # refine_label_map_sapce('data/samples/lvis_single_summarize_label_map.json')

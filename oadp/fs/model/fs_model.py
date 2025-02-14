@@ -35,7 +35,7 @@ class FewShotModel(BaseModel):
             loss_type:str
         ) -> None:
         super().__init__()
-        self.language_model = MODELS.build(language_model_cfg)
+        self.language_model: BertModel = MODELS.build(language_model_cfg)
         self.language_dim = self.language_model.language_backbone.body.language_dim
 
         self.clip_model, _ = clip.load(clip_model_path)
@@ -58,7 +58,6 @@ class FewShotModel(BaseModel):
         for param in self.vision_projector.parameters():
             param.requires_grad = True
 
-
         if loss_type == "contrastive":
             self.loss = ContrastiveLoss()
         elif loss_type == "l1":
@@ -68,14 +67,14 @@ class FewShotModel(BaseModel):
         else:
             raise ValueError(f"Unsupported loss type: {loss_type}")
         
-    def forward(self, inputs, texts, shots, mode):
+    def forward(self, inputs, texts, shots, mode="loss"):
         if mode == "loss":
             image_feats = self.clip_model.encode_image(inputs)
             image_feats = self.visual_agg(image_feats, shots)
             text_feats = self.language_model(texts)['embedded'].sum(dim=1)
             image_feats_align = self.vision_projector(image_feats)
             loss = {"loss": self.loss(image_feats_align, text_feats)}
-            return loss
+            return loss, image_feats_align
 
 
 
