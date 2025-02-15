@@ -54,12 +54,21 @@ class FsGroundingDINO(GroundingDINO):
             text_token_mask = torch.ones(bs, num_classes, dtype=torch.bool).to(device)
             text_token_mask[:, n_samples:] = False # padding mask
             position_ids = torch.zeros(num_classes).repeat(bs, 1).to(device)
-            return {
-                'embedded': embedded, # [bs, num_classes, visual_dim]
-                'masks': masks, # [bs, num_classes, num_classes]
-                'position_ids': position_ids, # [bs, num_classes]
-                'text_token_mask': text_token_mask, # [bs, num_classes]
-            }, align_loss
+            if self.training:
+                return {
+                    'embedded': embedded, # [bs, num_classes, visual_dim]
+                    'masks': masks, # [bs, num_classes, num_classes]
+                    'position_ids': position_ids, # [bs, num_classes]
+                    'text_token_mask': text_token_mask, # [bs, num_classes]
+                }, align_loss
+            else:
+                return [{
+                    'embedded': embedded, # [bs, num_classes, visual_dim]
+                    'masks': masks, # [bs, num_classes, num_classes]
+                    'position_ids': position_ids, # [bs, num_classes]
+                    'text_token_mask': text_token_mask, # [bs, num_classes]
+                    'token_positive_map': {j+1: [j] for j in range(n_samples)},
+                }]
         else: # when testing the number of classes is greater than the number of samples
             # Calculate number of chunks needed by splitting the second dimension into pieces of size num_classes
             num_chunks = (embedded.shape[1] + num_classes - 1) // num_classes
@@ -77,10 +86,10 @@ class FsGroundingDINO(GroundingDINO):
                     chunk = torch.cat([chunk, pad], dim=1)
                     token_mask = torch.ones(bs, num_classes, dtype=torch.bool, device=chunk.device)
                     token_mask[:, cur_len:] = False
-                    token_positive_map = {j: j for j in range(cur_len)}
+                    token_positive_map = {j+1: [j] for j in range(cur_len)}
                 else:
                     token_mask = torch.ones(bs, num_classes, dtype=torch.bool, device=chunk.device)
-                    token_positive_map = {j: j for j in range(num_classes)}
+                    token_positive_map = {j+1: [j] for j in range(num_classes)}
 
                 masks = torch.eye(num_classes, dtype=torch.bool, device=chunk.device).unsqueeze(0).repeat(bs, 1, 1)
                 position_ids = torch.zeros(bs, num_classes, device=chunk.device)
@@ -93,7 +102,7 @@ class FsGroundingDINO(GroundingDINO):
                     'token_positive_map': token_positive_map,
                 })
 
-            return result
+                return result
 
     def loss(self, batch_inputs: Tensor,
              batch_data_samples: SampleList) -> Union[dict, list]:
@@ -121,9 +130,8 @@ class FsGroundingDINO(GroundingDINO):
         return losses
 
     def predict(self, batch_inputs, batch_data_samples, rescale: bool = True):
-        chuncked_ref_dict, _ = self.extract_fs_features(batch_data_samples, batch_inputs.device)
+        chuncked_ref_dict = self.extract_fs_features(batch_data_samples, batch_inputs.device)
         visual_features = self.extract_feat(batch_inputs)
-
         # predict the instances for each chunk
         count = 0
         results_list = []

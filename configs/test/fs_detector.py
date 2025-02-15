@@ -116,16 +116,29 @@ test_pipeline = [
         type='SampleRefImages',
         min_imgs=5,
         max_imgs=5,
-        label_map_path=_base_.server_root+'data/lvis/annotations/mmovod_label_map.json',
-        samples_data_root=_base_.server_root+'data/mmovod-samples/images',
-        samples_label_map=_base_.server_root+'data/mmovod-samples/annotations.json'
+        label_map_path=_base_.server_root+'data/coco/annotations/coco_imagenet_label_map_new.json',
+        samples_data_root=_base_.server_root+'data/imagenet21k/images',
+        samples_label_map=_base_.server_root+'data/imagenet21k/annotations/imagenet21k_label2images.json'
     ),
+    dict(type='ClipTransform', in_key='ref_images', out_key='ref_images'),
     dict(
         type='PackDetInputs',
         meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
-                   'scale_factor', 'text', 'custom_entities',
-                   'tokens_positive'))
+                    'scale_factor', 'text', 'ref_images', 'n_images', 'n_samples'))
 ]
 
+
+val_dataloader = dict(
+    dataset=dict(
+        pipeline=test_pipeline,
+        ann_file='annotations/instances_val2017_imagenet.json',
+        ))
+test_dataloader = val_dataloader
+
+# numpy < 1.24.0
+val_evaluator = dict(
+    ann_file=_base_.server_root+'data/coco/'+
+    'annotations/instances_val2017_imagenet.json')
+test_evaluator = val_evaluator
 
 custom_hooks = [dict(type='CheckpointHook', by_epoch=False, interval=1)]

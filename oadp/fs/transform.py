@@ -120,17 +120,15 @@ class SampleRefImages(BaseTransform):
     def __init__(self, 
         min_imgs: int,
         max_imgs: int,
-        max_sample_num: int, 
         label_map_path: str,
         samples_data_root: str,
         samples_label_map: str,
-        sample_negatives: bool = True
+        max_sample_num: int|None = None,
     ) -> None:
         self.min_imgs = min_imgs
         self.max_imgs = max_imgs
         self.max_sample_num = max_sample_num
         self.samples_data_root = samples_data_root
-        self.sample_negatives = sample_negatives
         self.samples_label_map = json.load(open(samples_label_map, "r")) # samples_id -> image_path
         self.label_map = json.load(open(label_map_path, "r")) # cate_id -> samples_id
 
@@ -152,7 +150,7 @@ class SampleRefImages(BaseTransform):
         # get positive labels
         positive_labels = set([str(label) for label in gt_labels])
         # get nagative labels
-        if len(positive_labels) < self.max_sample_num:
+        if len(positive_labels) <= self.max_sample_num:
             nagative_labels = list(set(self.label_map.keys()) - positive_labels)
             assert self.max_sample_num < len(nagative_labels)
             nagative_sample_num = self.max_sample_num - len(positive_labels)
@@ -183,13 +181,12 @@ class SampleRefImages(BaseTransform):
         # get the positive label index
         label_remap_dict = {}
         for i, pos_label in enumerate(gt_labels):
-            for j, label in enumerate(labels):
-                if int(label) == pos_label:
-                    positive_maps[i, j] = 1
-                    label_remap_dict[int(label)] = j
-                    break
-        if len(gt_labels) > 0:
-            gt_labels = np.vectorize(lambda x: label_remap_dict[x])(gt_labels)
+            j = labels.index(str(pos_label))
+            positive_maps[i, j] = 1
+            label_remap_dict[pos_label] = j
+
+        assert len(gt_labels) > 0  
+        gt_labels = np.vectorize(lambda x: label_remap_dict[x])(gt_labels)
         return positive_maps, gt_labels
 
     def transform(self, results: dict) -> dict:
@@ -198,14 +195,15 @@ class SampleRefImages(BaseTransform):
         if isinstance(gt_bboxes, BaseBoxes):
             gt_bboxes = gt_bboxes.tensor
         gt_labels = results['gt_bboxes_labels']
-        if self.sample_negatives:
+        if self.max_sample_num is not None:
             # get sampled labels
             gt_labels, sampled_labels, gt_bboxes = self.sample_num_samples(gt_bboxes, gt_labels)
             # shuffle and reindex
             positive_maps, gt_labels = self.shuffle_reindex(sampled_labels, gt_labels)
         else:
             positive_maps = None
-            sampled_labels = gt_labels
+            sampled_labels = list(self.label_map.keys())
+            self.max_sample_num = len(self.label_map)
         # sample images
         ref_images, n_images, text = self.sample_ref_images(sampled_labels)
         # add info to results

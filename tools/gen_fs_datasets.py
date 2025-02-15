@@ -31,14 +31,9 @@ def extract_label_map(dataset_name):
         label_map = {}
         for i, name in enumerate(class_name):
             label_map[str(i)] = name
-        
-        dataset_2 = LVISDataset
-        class_1 = [clean_name(name) for name in dataset.METAINFO['classes']]
-        class_2 = [clean_name(name) for name in dataset_2.METAINFO['classes']]
-        print(f"len: {len(set(class_1) & set(class_2))}")
 
     if dataset_name == "lvis":
-        mmovod_fs = json.load(open("data/samples/lvis_image_exemplar_dict_K-005_author.json", "r"))
+        mmovod_fs = json.load(open("data/mmovod-samples/lvis_image_exemplar_dict_K-005_author.json", "r"))
         label_map_new = {}
         for i, exps in enumerate(mmovod_fs):
             for exp in exps:
@@ -76,7 +71,7 @@ def gen_imagent_fs_datasets(imagenet_label_map:str, datasets='objects365'):
                 print("debug")
             datasets2imagenet[i] = {
                 "name": label,
-                "imagenet_id": imagenet_label2wnid[label]
+                "samples_id": imagenet_label2wnid[label]
             }
             print(f"{label} -> {imagenet_label2wnid[label]}")
     
@@ -85,9 +80,44 @@ def gen_imagent_fs_datasets(imagenet_label_map:str, datasets='objects365'):
     with open(f"data/{datasets}/annotations/{datasets.lower()}_imagenet_label_map.json", "w") as f:
         json.dump(datasets2imagenet, f, indent=4)
 
+def coco_in_imagenet():
+    coco_annotations = json.load(open("data/coco/annotations/instances_val2017.json", "r")) # 
+    coco_imagenet_map = json.load(open("data/coco/annotations/coco_imagenet_label_map.json", "r")) # coco id -> name
+    
+    categort_map = {}
+    for cat in coco_annotations['categories']:
+        categort_map[cat['id']] = cat['name']
+    coco_imagenet_categories = [v['name'] for v in coco_imagenet_map.values()]
+    coco_imagenet_categories = set(coco_imagenet_categories)
+
+    # Select categories from coco_annotations that are in coco_imagenet_categories
+    selected_categories = [cat for cat in coco_annotations['categories'] if cat['name'] in coco_imagenet_categories]
+    
+    # Get the set of selected category IDs
+    selected_category_ids = set(cat['id'] for cat in selected_categories)
+    
+    # Filter annotations that belong to the selected categories
+    selected_annotations = [ann for ann in coco_annotations['annotations'] if ann['category_id'] in selected_category_ids]
+    
+    # Directly update the original coco_annotations keys
+    coco_annotations['categories'] = selected_categories
+    coco_annotations['annotations'] = selected_annotations
+    
+    # Overwrite the file with the modified data using the new file name
+    with open("data/coco/annotations/instances_val2017_imagenet.json", "w") as f:
+        json.dump(coco_annotations, f, indent=4)
+    
+    coco_imagenet_map_new = {}
+    for idx, (_, value) in enumerate(coco_imagenet_map.items()):
+        coco_imagenet_map_new[str(idx)] = value
+    with open("data/coco/annotations/coco_imagenet_label_map_new.json", "w") as f:
+        json.dump(coco_imagenet_map_new, f, indent=4)
+
+    print(f"Updated coco_annotations: {len(selected_categories)} categories and {len(selected_annotations)} annotations.")
 
 if __name__ == '__main__':
     label_map_path = "data/imagenet21k/annotations/imagenet21k_label_map.json"
     # gen_imagent_fs_datasets(label_map_path, 'V3Det')
     # gen_imagent_fs_datasets(label_map_path, 'coco')
-    gen_imagent_fs_datasets(label_map_path, 'lvis')
+    # gen_imagent_fs_datasets(label_map_path, 'lvis')
+    coco_in_imagenet()
