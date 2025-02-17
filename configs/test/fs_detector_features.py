@@ -1,5 +1,5 @@
-_base_ = '../gd_pretrain/grounding_dino_swin-t_pretrain_obj365.py'
-load_from = _base_.server_root + 'pretrained/grounding_dino_swin-t_pretrain_obj365_goldg_v3det_20231218_095741-e316e297.pth'
+_base_ = './grounding_dino_swin-t_pretrain_obj365.py'
+# load_from = _base_.server_root + 'pretrained/grounding_dino_swin-t_pretrain_obj365_goldg_v3det_20231218_095741-e316e297.pth'
 
 model = dict(
     type='FsGroundingDINO',
@@ -94,24 +94,24 @@ v3det_dataset = dict(
     return_classes=True,
     backend_args=None)
 
-v3d_train_pipeline[-2]['label_map_path'] = 'data/temp/objects365_imagenet_label_map.json'
-o365v1_pipeline = v3d_train_pipeline
+# v3d_train_pipeline[-2]['label_map_path'] = 'data/temp/objects365_imagenet_label_map.json'
+# o365v1_pipeline = v3d_train_pipeline
 
-o365v1_od_dataset = dict(
-    type='FsODVGDataset',
-    data_root=_base_.server_root+'data/objects365v1/',
-    ann_file='o365v1_train_odvg.json',
-    label_map_file='o365v1_label_map.json',
-    data_prefix=dict(img='train/'),
-    filter_cfg=dict(filter_empty_gt=False),
-    pipeline=o365v1_pipeline,
-    return_classes=True,
-    backend_args=None)
+# o365v1_od_dataset = dict(
+#     type='FsODVGDataset',
+#     data_root=_base_.server_root+'data/objects365v1/',
+#     ann_file='o365v1_train_odvg.json',
+#     label_map_file='o365v1_label_map.json',
+#     data_prefix=dict(img='train/'),
+#     filter_cfg=dict(filter_empty_gt=False),
+#     pipeline=o365v1_pipeline,
+#     return_classes=True,
+#     backend_args=None)
 
 train_dataloader = dict(
     batch_size=2,
     dataset=dict(datasets=[
-        o365v1_od_dataset, v3det_dataset
+        v3det_dataset
     ]))
 
 test_pipeline = [

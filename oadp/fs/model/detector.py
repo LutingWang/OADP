@@ -19,7 +19,7 @@ class FsGroundingDINO(GroundingDINO):
         super().__init__(*args, **kwargs)
         self.language_model = None
         self.fs_model: FewShotModel = MODELS.build(fs_model_cfg)
-        self.fs_model_mode = "images" if use_features else "features"
+        self.fs_model_mode = "features" if use_features else "images"
         # freeze fs_model language model and clip model
         for param in self.fs_model.language_model.parameters():
             param.requires_grad = False

@@ -109,7 +109,7 @@
                 "--nproc_per_node=1",
                 "--nnodes=1",
                 "tools/train.py",
-                "configs/test/fs_detector.py",
+                "configs/test/fs_detector_features.py",
             ],
         },
         {
