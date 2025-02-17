@@ -1,8 +1,9 @@
-_base_ = './grounding_dino_swin-t_pretrain_obj365.py'
-# load_from = _base_.server_root + 'pretrained/grounding_dino_swin-t_pretrain_obj365_goldg_v3det_20231218_095741-e316e297.pth'
+_base_ = '../gd_pretrain/grounding_dino_swin-t_pretrain_obj365.py'
+load_from = _base_.server_root + 'pretrained/grounding_dino_swin-t_pretrain_obj365_goldg_v3det_20231218_095741-e316e297.pth'
 
 model = dict(
     type='FsGroundingDINO',
+    use_features=True,
     fs_model_cfg=dict(
         type='FewShotModel',
         language_model_cfg=dict(
@@ -72,7 +73,6 @@ v3d_train_pipeline = [
         samples_data_root=_base_.server_root+'data/imagenet-21k-subset',
         samples_label_map=_base_.server_root+'data/imagenet21k/annotations/imagenet21k_label2images.json'
     ),
-    dict(type='ClipTransform', in_key='ref_images', out_key='ref_images'),
     dict(
         type='PackDetInputs',
         meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
@@ -94,13 +94,25 @@ v3det_dataset = dict(
     return_classes=True,
     backend_args=None)
 
+v3d_train_pipeline[-2]['label_map_path'] = 'data/temp/objects365_imagenet_label_map.json'
+o365v1_pipeline = v3d_train_pipeline
+
+o365v1_od_dataset = dict(
+    type='FsODVGDataset',
+    data_root=_base_.server_root+'data/objects365v1/',
+    ann_file='o365v1_train_odvg.json',
+    label_map_file='o365v1_label_map.json',
+    data_prefix=dict(img='train/'),
+    filter_cfg=dict(filter_empty_gt=False),
+    pipeline=o365v1_pipeline,
+    return_classes=True,
+    backend_args=None)
+
 train_dataloader = dict(
     batch_size=2,
     dataset=dict(datasets=[
-        # o365v1_od_dataset, flickr30k_dataset, gqa_dataset, v3det_dataset
-        v3det_dataset
+        o365v1_od_dataset, v3det_dataset
     ]))
-
 
 test_pipeline = [
     dict(
@@ -141,4 +153,25 @@ val_evaluator = dict(
     'annotations/instances_val2017_imagenet.json')
 test_evaluator = val_evaluator
 
-custom_hooks = [dict(type='CheckpointHook', by_epoch=False, interval=1)]
+
+# learning policy
+iter_per_epoch = 12196
+max_iter = 2 * iter_per_epoch
+
+param_scheduler = [
+    dict(type='LinearLR', start_factor=0.1, by_epoch=False, begin=0, end=1000),
+]
+
+train_cfg = dict(
+    _delete_=True,
+    type='IterBasedTrainLoop',
+    max_iters=max_iter,
+    val_interval=iter_per_epoch)
+
+# NOTE: `auto_scale_lr` is for automatically scaling LR,
+# USER SHOULD NOT CHANGE ITS VALUES.
+# base_batch_size = (16 GPUs) x (2 samples per GPU)
+auto_scale_lr = dict(base_batch_size=64)
+
+default_hooks = dict(visualization=dict(type='GroundingVisualizationHook'))
+custom_hooks = [dict(type='CheckpointHook', by_epoch=False, interval=iter_per_epoch)]

@@ -15,11 +15,11 @@ from .fs_model import FewShotModel
 
 @MODELS.register_module()
 class FsGroundingDINO(GroundingDINO):
-    def __init__(self, fs_model_cfg, *args, **kwargs):
+    def __init__(self, fs_model_cfg, use_features, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.language_model = None
         self.fs_model: FewShotModel = MODELS.build(fs_model_cfg)
-
+        self.fs_model_mode = "images" if use_features else "features"
         # freeze fs_model language model and clip model
         for param in self.fs_model.language_model.parameters():
             param.requires_grad = False
@@ -36,7 +36,7 @@ class FsGroundingDINO(GroundingDINO):
             shots.extend([data_sample.n_images] * data_sample.n_samples)
             texts.extend(data_sample.text)
         ref_images_cat = torch.stack(ref_images_cat, dim=0).to(device)
-        align_loss, image_feats = self.fs_model(ref_images_cat, texts, shots)
+        align_loss, image_feats = self.fs_model(ref_images_cat, texts, shots, self.fs_model_mode)
         image_feats = self.text_feat_map(image_feats) # [bs * n_samples, visual_dim]
 
         # align output with text model and padding to num_classes

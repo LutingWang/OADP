@@ -124,13 +124,34 @@ class SampleRefImages(BaseTransform):
         samples_data_root: str,
         samples_label_map: str,
         max_sample_num: int|None = None,
+        sample_feature: bool = True
     ) -> None:
         self.min_imgs = min_imgs
         self.max_imgs = max_imgs
         self.max_sample_num = max_sample_num
         self.samples_data_root = samples_data_root
+        self.sample_feature = sample_feature
         self.samples_label_map = json.load(open(samples_label_map, "r")) # samples_id -> image_path
         self.label_map = json.load(open(label_map_path, "r")) # cate_id -> samples_id
+
+    def sample_ref_images_feature(self, labels) -> list:
+        n_images = random.randint(self.min_imgs, self.max_imgs)
+        ref_images = []
+        text = []
+        for label in labels:
+            sample_id = self.label_map[label]["samples_id"]
+            cate_name = self.label_map[label]["name"]
+            features_path = f"{os.path.join(self.samples_data_root, sample_id)}.pth"
+            features = torch.load(features_path, map_location='cpu')
+            clip_features = features["clip_features"]
+            dino_features = features["dino_features"]
+            cat_features = torch.cat([clip_features, dino_features], dim=1)
+            image_ids = torch.randint(0, cat_features.size(0), (n_images,))
+            random_features = cat_features[image_ids]
+            ref_images.extend(random_features)
+            text.append(cate_name)
+        return ref_images, n_images, text
+
 
     def sample_ref_images(self, labels) -> list:
         n_images = random.randint(self.min_imgs, self.max_imgs)
@@ -171,8 +192,7 @@ class SampleRefImages(BaseTransform):
             vaild_positive_labels = kept_positive_labels
             gt_bboxes = gt_bboxes[keep_box_index]
 
-        return kept_gt_labels, vaild_positive_labels + nagative_labels, gt_bboxes
-        
+        return kept_gt_labels, vaild_positive_labels + nagative_labels, gt_bboxes        
 
     def shuffle_reindex(self, labels, gt_labels):
         random.shuffle(labels)
@@ -205,7 +225,10 @@ class SampleRefImages(BaseTransform):
             sampled_labels = list(self.label_map.keys())
             self.max_sample_num = len(self.label_map)
         # sample images
-        ref_images, n_images, text = self.sample_ref_images(sampled_labels)
+        if self.sample_feature:
+            ref_images, n_images, text = self.sample_ref_images_feature(sampled_labels)
+        else:
+            ref_images, n_images, text = self.sample_ref_images(sampled_labels)
         # add info to results
         results['ref_images'] = ref_images
         results['n_images'] = n_images

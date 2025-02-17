@@ -33,15 +33,12 @@ def extract_label_map(dataset_name):
             label_map[str(i)] = name
 
     if dataset_name == "lvis":
-        mmovod_fs = json.load(open("data/mmovod-samples/lvis_image_exemplar_dict_K-005_author.json", "r"))
-        label_map_new = {}
-        for i, exps in enumerate(mmovod_fs):
-            for exp in exps:
-                if exp['dataset'] == "imagenet21k" or exp['dataset'] == "visual_genome":
-                    label_map_new[i] = exp['file_name']
-        print(f"len: {len(mmovod_fs)}")
-        print(f"len: {len(label_map_new)}")
-        return label_map_new
+        dataset = LVISDataset
+        meta_info = dataset.METAINFO
+        class_name = meta_info['classes']
+        label_map = {}
+        for i, name in enumerate(class_name):
+            label_map[str(i)] = name
 
     if dataset_name == "V3Det":
         json_path = "data/V3Det/annotations/v3det_2023_v1_label_map.json"
@@ -77,7 +74,7 @@ def gen_imagent_fs_datasets(imagenet_label_map:str, datasets='objects365'):
     
     print(f"overall len: {len(datasets2imagenet)}")
 
-    with open(f"data/{datasets}/annotations/{datasets.lower()}_imagenet_label_map.json", "w") as f:
+    with open(f"data/temp/{datasets.lower()}_imagenet_label_map.json", "w") as f:
         json.dump(datasets2imagenet, f, indent=4)
 
 def coco_in_imagenet():
@@ -117,7 +114,8 @@ def coco_in_imagenet():
 
 if __name__ == '__main__':
     label_map_path = "data/imagenet21k/annotations/imagenet21k_label_map.json"
-    # gen_imagent_fs_datasets(label_map_path, 'V3Det')
-    # gen_imagent_fs_datasets(label_map_path, 'coco')
-    # gen_imagent_fs_datasets(label_map_path, 'lvis')
-    coco_in_imagenet()
+    gen_imagent_fs_datasets(label_map_path, 'objects365')
+    gen_imagent_fs_datasets(label_map_path, 'V3Det')
+    gen_imagent_fs_datasets(label_map_path, 'coco')
+    gen_imagent_fs_datasets(label_map_path, 'lvis')
+    # coco_in_imagenet()

@@ -67,15 +67,16 @@ class FewShotModel(BaseModel):
         else:
             raise ValueError(f"Unsupported loss type: {loss_type}")
         
-    def forward(self, inputs, texts, shots, mode="loss"):
-        if mode == "loss":
+    def forward(self, inputs, texts, shots, mode="images"):
+        if mode == "images":
             image_feats = self.clip_model.encode_image(inputs)
-            image_feats = self.visual_agg(image_feats, shots)
-            text_feats = self.language_model(texts)['embedded'].sum(dim=1)
-            image_feats_align = self.vision_projector(image_feats)
-            loss = {"loss": self.loss(image_feats_align, text_feats)}
-            return loss, image_feats_align
-
+        if mode == "features":
+            image_feats = inputs
+        image_feats = self.visual_agg(image_feats, shots)
+        text_feats = self.language_model(texts)['embedded'].sum(dim=1)
+        image_feats_align = self.vision_projector(image_feats)
+        loss = {"loss": self.loss(image_feats_align, text_feats)}
+        return loss, image_feats_align
 
 
 @MODELS.register_module()
