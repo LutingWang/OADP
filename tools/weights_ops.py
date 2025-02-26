@@ -18,12 +18,12 @@ def dino2fsmodel(grounding_dino_path, clip_model_path, output_path):
 
     torch.save(fs_model, output_path)
 
-def dino2fsdino(grounding_dino_path, clip_model_path, output_path):
+def dino2fsdino(grounding_dino_path, output_path):
     grounding_dino = torch.load(grounding_dino_path, map_location="cpu")
-    clip_model = torch.load(clip_model_path, map_location="cpu")
+    # clip_model = torch.load(clip_model_path, map_location="cpu")
 
     grounding_dino_state_dict = grounding_dino['state_dict']
-    clip_model_state_dict = clip_model.state_dict()
+    # clip_model_state_dict = clip_model.state_dict()
 
     fs_model = {}
     for key, value in grounding_dino_state_dict.items():
@@ -32,8 +32,8 @@ def dino2fsdino(grounding_dino_path, clip_model_path, output_path):
         else:
             fs_model[key] = value
 
-    for key, value in clip_model_state_dict.items():
-        fs_model[f'fs_model.clip_model.{key}'] = value
+    # for key, value in clip_model_state_dict.items():
+    #     fs_model[f'fs_model.clip_model.{key}'] = value
 
     grounding_dino['state_dict'] = fs_model
     torch.save(grounding_dino, output_path)
@@ -69,13 +69,13 @@ def weights_diff(weights_path_a, weights_path_b):
 
 
 if __name__ == "__main__":
-    grounding_dino_path = 'pretrained/grounding_dino_swin-t_pretrain_obj365_goldg_v3det_20231218_095741-e316e297.pth'
-    output_path = 'pretrained/grounding_dino_swin-t_pretrain_obj365_goldg_v3det_fs.pth'
-    gt_path = 'work_dirs/fs_detector/iter_1.pth'
-    clip_model_path = 'pretrained/clip/ViT-B-32.pt'
+    grounding_dino_path = 'data/huggingface/mm_grounding_dino/grounding_dino_swin-t_pretrain_obj365_goldg_grit9m_v3det_20231204_095047-b448804b.pth'
+    output_path = 'data/huggingface/mm_grounding_dino/grounding_dino_swin-t_pretrain_obj365_goldg_grit9m_v3det_20231204_095047-b448804b_fs.pth'
+    # gt_path = 'work_dirs/fs_detector/iter_1.pth'
+    # clip_model_path = 'pretrained/clip/ViT-B-32.pt'
     # dino2moe(grounding_dino_path, output_path, expert_num=4)
-    dino2fsdino(grounding_dino_path, clip_model_path, output_path)
-    weights_diff(gt_path, output_path)
+    dino2fsdino(grounding_dino_path, output_path)
+    # weights_diff(gt_path, output_path)
 
 
 

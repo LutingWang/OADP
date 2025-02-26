@@ -22,11 +22,10 @@ class GroudingDINOF(GroundingDINO):
 
 @MODELS.register_module()
 class FsGroundingDINO(GroundingDINO):
-    def __init__(self, fs_model_cfg, use_features, *args, **kwargs):
+    def __init__(self, fs_model_cfg, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.language_model = None
         self.fs_model: FewShotModel = MODELS.build(fs_model_cfg)
-        self.fs_model_mode = "features" if use_features else "images"
         # freeze fs_model language model and clip model
         self.backbone.requires_grad_(False)
         self.neck.requires_grad_(False)
@@ -38,10 +37,10 @@ class FsGroundingDINO(GroundingDINO):
         texts = []
         for data_sample in batch_data_samples:
             ref_images_cat.extend(data_sample.ref_images)
-            shots.extend([data_sample.n_images] * data_sample.n_samples)
+            shots.extend([data_sample.n_shots] * data_sample.n_samples)
             texts.extend(data_sample.ref_labels)
-        ref_images_cat = torch.stack(ref_images_cat, dim=0).to(device)
-        align_loss, image_feats = self.fs_model(ref_images_cat, texts, shots, self.fs_model_mode)
+        ref_images_cat = torch.cat(ref_images_cat, dim=0).to(device)
+        align_loss, image_feats = self.fs_model(ref_images_cat, texts, shots, to_bert=True)
         image_feats = self.text_feat_map(image_feats) # [bs * n_samples, visual_dim]
 
         # align output with text model and padding to num_classes

@@ -78,7 +78,7 @@ v3d_train_pipeline = [
         meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
                    'scale_factor', 'flip', 'flip_direction', 'text',
                    'custom_entities', 'tokens_positive', 'dataset_mode',
-                   'ref_images', 'n_images', 'n_samples'),)
+                   'ref_images', 'n_shots', 'n_samples'),)
 ]
 
 v3det_dataset = dict(
@@ -136,7 +136,7 @@ test_pipeline = [
     dict(
         type='PackDetInputs',
         meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
-                    'scale_factor', 'text', 'ref_images', 'n_images', 'n_samples'))
+                    'scale_factor', 'text', 'ref_images', 'n_shots', 'n_samples'))
 ]
 
 

@@ -135,7 +135,7 @@ class SampleRefImages(BaseTransform):
         self.label_map = json.load(open(label_map_path, "r")) # cate_id -> samples_id
 
     def sample_ref_images_feature(self, labels) -> list:
-        n_images = random.randint(self.min_imgs, self.max_imgs)
+        n_shots = random.randint(self.min_imgs, self.max_imgs)
         ref_images = []
         text = []
         for label in labels:
@@ -146,26 +146,26 @@ class SampleRefImages(BaseTransform):
             clip_features = features["clip_features"]
             dino_features = features["dino_features"]
             cat_features = torch.cat([clip_features, dino_features], dim=1)
-            image_ids = torch.randint(0, cat_features.size(0), (n_images,))
+            image_ids = torch.randint(0, cat_features.size(0), (n_shots,))
             random_features = cat_features[image_ids]
             ref_images.extend(random_features)
             text.append(cate_name)
-        return ref_images, n_images, text
+        return ref_images, n_shots, text
 
 
     def sample_ref_images(self, labels) -> list:
-        n_images = random.randint(self.min_imgs, self.max_imgs)
+        n_shots = random.randint(self.min_imgs, self.max_imgs)
         ref_images = []
         text = []
         for label in labels:
             label_images =self.samples_label_map[self.label_map[label]["samples_id"]]
             cate_name = self.label_map[label]["name"]
-            random_images = random.choices(label_images, k=n_images)
+            random_images = random.choices(label_images, k=n_shots)
             images = [Image.open(os.path.join(self.samples_data_root, image_path)) 
                       for image_path in random_images]
             ref_images.extend(images)
             text.append(cate_name)
-        return ref_images, n_images, text
+        return ref_images, n_shots, text
 
     def sample_num_samples(self, gt_bboxes, gt_labels):
         # get positive labels
@@ -226,15 +226,99 @@ class SampleRefImages(BaseTransform):
             self.max_sample_num = len(self.label_map)
         # sample images
         if self.sample_feature:
-            ref_images, n_images, text = self.sample_ref_images_feature(sampled_labels)
+            ref_images, n_shots, text = self.sample_ref_images_feature(sampled_labels)
         else:
-            ref_images, n_images, text = self.sample_ref_images(sampled_labels)
+            ref_images, n_shots, text = self.sample_ref_images(sampled_labels)
         # add info to results
         results['ref_images'] = ref_images
-        results['n_images'] = n_images
+        results['n_shots'] = n_shots
         results['n_samples'] = self.max_sample_num
         results['text'] = text
         results['tokens_positive'] = positive_maps
         results['gt_bboxes'] = gt_bboxes
         results['gt_bboxes_labels'] = gt_labels
+        return results
+
+
+@TRANSFORMS.register_module()
+class SampleRefImagesVG(BaseTransform):
+    def __init__(self, 
+        min_imgs: int,
+        max_imgs: int,
+        label_map_path: str,
+        samples_data_root: str,
+        num_classes: int = 256,
+        training: bool = True
+    ) -> None:
+        self.min_imgs = min_imgs
+        self.max_imgs = max_imgs
+        self.num_classes = num_classes
+        self.samples_data_root = samples_data_root
+        self.label_map = json.load(open(os.path.join(samples_data_root, label_map_path), "r"))
+        self.training = training
+
+    def sample_ref_images_feature(self, labels: list[str]) -> list:
+        n_shots = random.randint(self.min_imgs, self.max_imgs)
+        ref_images = []
+        for label in labels:
+            sample_paths = list(self.label_map[label].keys())
+            # Randomly sample n_shots paths from sample_paths
+            assert n_shots <= len(sample_paths)
+            sampled_paths = random.sample(sample_paths, n_shots)
+            cat_features = []
+            for sample_path in sampled_paths:
+                # Use pth_helprt to load the features from the sample path
+                features = self.pth_helper(sample_path)
+                cat_features.append(features)
+            ref_images.append(torch.cat(cat_features, dim=0))
+        return ref_images, n_shots
+    
+    def pth_helper(self, image_path: str):
+        # Assume image_path is 'data/imagenet-21k/n11908549/n11908549_2429.JPEG'
+        # We extract the folder name and image id.
+        base_name = os.path.basename(image_path)            # n11908549_2429.JPEG
+        folder_name = os.path.basename(os.path.dirname(image_path))  # n11908549
+        image_id = os.path.splitext(base_name)[0]             # n11908549_2429
+
+        # Build the path to the .pth file, e.g., 'data/imagenet-21k/n11908549/n11908549.pth'
+        pth_path = os.path.join(self.samples_data_root, "features", f"{folder_name}.pth")
+        # Load the .pth file features
+        features = torch.load(pth_path, map_location='cpu')
+        index = features['ids'].index(image_id)
+        clip_features = features['clip_features'][index].unsqueeze(0)
+        dino_features = features['dino_features'][index].unsqueeze(0)
+        return torch.cat([clip_features, dino_features], dim=1)
+    
+    def get_positive_map(self, gt_labels: torch.Tensor):
+        positive_maps = torch.zeros((len(gt_labels), self.num_classes), dtype=torch.float32)
+        for i, pos_label in enumerate(gt_labels):
+            positive_maps[i, i] = 1
+        return positive_maps
+
+    def transform(self, results: dict) -> dict:
+        # get gt_boxes and gt_labels
+        gt_bboxes = results['gt_bboxes']
+        gt_labels = results['gt_bboxes_labels']
+        phrases_dict = results['phrases']
+        # sample labels
+        sampled_labels = []
+        sorted_gt_labels = sorted(set(gt_labels))
+        for label in sorted_gt_labels:
+            label_elem = phrases_dict[label]['phrase']
+            if isinstance(label_elem, list):
+                sampled_labels.append(random.choice(label_elem))
+            else:
+                sampled_labels.append(label_elem)
+        # sample ref images
+        ref_images, n_shots = self.sample_ref_images_feature(sampled_labels)
+        positive_maps = self.get_positive_map(gt_labels)
+        # add info to results
+        results['ref_images'] = ref_images
+        results['ref_labels'] = sampled_labels
+        results['n_shots'] = n_shots
+        results['n_samples'] = len(set(gt_labels))
+        
+        results['gt_bboxes'] = gt_bboxes
+        results['gt_bboxes_labels'] = gt_labels
+        results['tokens_positive'] = positive_maps
         return results
