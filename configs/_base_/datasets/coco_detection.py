@@ -1,7 +1,6 @@
 # dataset settings
 dataset_type = 'CocoDataset'
-server_root = '/mnt/dolphinfs/hdd_pool/docker/user/hadoop-mtcv/weiziyu/109/OADP'
-data_root = server_root + 'data/coco/'
+data_root = 'data/coco/'
 
 # Example to use different file client
 # Method 1: simply set the data root and let the file I/O module
