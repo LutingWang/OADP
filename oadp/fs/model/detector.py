@@ -43,20 +43,31 @@ class FsGroundingDINO(GroundingDINO):
         align_loss, image_feats = self.fs_model(ref_images_cat, texts, shots, to_bert=True)
         image_feats = self.text_feat_map(image_feats) # [bs * n_samples, visual_dim]
 
-        # align output with text model and padding to num_classes
-        n_samples = batch_data_samples[0].n_samples
+        # split the batch with variable n_samples per sample
+        n_samples_list = [ds.n_samples for ds in batch_data_samples]
+        max_n = max(n_samples_list)
+        # split image_feats into a list based on each sample's n_samples
+        splits = torch.split(image_feats, n_samples_list, dim=0)
+        embedded_list = []
+        for feats, ns in zip(splits, n_samples_list):
+            # pad each sample's features to the maximum n_samples if needed
+            if ns < max_n:
+                pad = torch.zeros(max_n - ns, feats.shape[1], device=feats.device, dtype=feats.dtype)
+                feats = torch.cat([feats, pad], dim=0)
+            embedded_list.append(feats.unsqueeze(0))
+        embedded = torch.cat(embedded_list, dim=0)  # shape (bs, max_n, visual_dim)
+        # align output with text model and pad to num_classes
         bs = len(batch_data_samples)
         num_classes = self.bbox_head.num_classes
-        embedded = rearrange(image_feats, '(b n) s -> b n s', n=n_samples)
-        # when trainning the model, the number of classes is less than the number of samples
         if embedded.shape[1] <= num_classes:
-            pad = torch.zeros(embedded.shape[0], num_classes - embedded.shape[1], embedded.shape[2],
-                              device=embedded.device, dtype=embedded.dtype)
-            embedded = torch.cat([embedded, pad], dim=1)
+            pad_tensor = torch.zeros(bs, num_classes - embedded.shape[1], embedded.shape[2],
+                                     device=embedded.device, dtype=embedded.dtype)
+            embedded = torch.cat([embedded, pad_tensor], dim=1)
             # create masks and position_ids
             masks = torch.eye(num_classes, dtype=torch.bool).repeat(bs, 1, 1).to(device)
             text_token_mask = torch.ones(bs, num_classes, dtype=torch.bool).to(device)
-            text_token_mask[:, n_samples:] = False # padding mask
+            for i, ns in enumerate(n_samples_list):
+                text_token_mask[i, ns:] = False  # padding mask
             position_ids = torch.zeros(num_classes).repeat(bs, 1).to(device)
             if self.training:
                 return {
@@ -113,12 +124,6 @@ class FsGroundingDINO(GroundingDINO):
         ref_dict, align_loss = self.extract_fs_features(batch_data_samples, batch_inputs.device)
         for i, data_samples in enumerate(batch_data_samples):
             positive_map = data_samples.tokens_positive
-            # padding to num_classes
-            num_classes = self.bbox_head.num_classes
-            if positive_map.shape[0] < num_classes:
-                pad = torch.zeros(positive_map.shape[0], num_classes - positive_map.shape[1],
-                              device=positive_map.device, dtype=positive_map.dtype)
-                positive_map = torch.cat([positive_map, pad], dim=1)
             # create masks and position_ids
             data_samples.gt_instances.positive_maps = positive_map.to(batch_inputs.device) # [num_instance, num_classes]
             text_token_mask = ref_dict['text_token_mask'][i]
@@ -131,6 +136,7 @@ class FsGroundingDINO(GroundingDINO):
                                                   batch_data_samples)
         losses = self.bbox_head.loss(
             **head_inputs_dict, batch_data_samples=batch_data_samples)
+        print(losses)
         return losses
 
     def predict(self, batch_inputs, batch_data_samples, rescale: bool = True):
