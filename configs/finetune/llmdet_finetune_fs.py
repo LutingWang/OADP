@@ -126,7 +126,7 @@ cat_datasets = [v3det_dataset] if debug else [coco2017_train_dataset, flickr30k_
 train_dataloader = dict(
     _delete_=True,
     batch_size=2,
-    num_workers=6,
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     batch_sampler=dict(type='AspectRatioBatchSampler'),

@@ -13,7 +13,7 @@ from mmdet.registry import MODELS
 from .fs_model import FewShotModel
 
 @MODELS.register_module()
-class GroudingDINOF(GroundingDINO):
+class GroundingDINOF(GroundingDINO):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.backbone.requires_grad_(False)
