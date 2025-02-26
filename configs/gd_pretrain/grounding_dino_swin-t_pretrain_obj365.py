@@ -3,7 +3,7 @@ _base_ = [
     '../_base_/schedules/schedule_1x.py', '../_base_/default_runtime.py'
 ]
 
-pretrained = None
+
 lang_model_name = 'data/huggingface/bert-base-uncased/'
 
 model = dict(
@@ -44,7 +44,7 @@ model = dict(
         with_cp=True,
         convert_weights=True,
         frozen_stages=-1,
-        init_cfg=dict(type='Pretrained', checkpoint=pretrained)),
+    ),
     neck=dict(
         type='ChannelMapper',
         in_channels=[192, 384, 768],
