@@ -12,6 +12,13 @@ from mmdet.registry import MODELS
 
 from .fs_model import FewShotModel
 
+@MODELS.register_module()
+class GroudingDINOF(GroundingDINO):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.backbone.requires_grad_(False)
+        self.neck.requires_grad_(False)
+
 
 @MODELS.register_module()
 class FsGroundingDINO(GroundingDINO):
@@ -21,10 +28,8 @@ class FsGroundingDINO(GroundingDINO):
         self.fs_model: FewShotModel = MODELS.build(fs_model_cfg)
         self.fs_model_mode = "features" if use_features else "images"
         # freeze fs_model language model and clip model
-        for param in self.fs_model.language_model.parameters():
-            param.requires_grad = False
-        for param in self.fs_model.clip_model.parameters():
-            param.requires_grad = False
+        self.backbone.requires_grad_(False)
+        self.neck.requires_grad_(False)
 
     def extract_fs_features(self, batch_data_samples: SampleList, device: torch.device):
         # Extract features from the few-shot model
@@ -34,7 +39,7 @@ class FsGroundingDINO(GroundingDINO):
         for data_sample in batch_data_samples:
             ref_images_cat.extend(data_sample.ref_images)
             shots.extend([data_sample.n_images] * data_sample.n_samples)
-            texts.extend(data_sample.text)
+            texts.extend(data_sample.ref_labels)
         ref_images_cat = torch.stack(ref_images_cat, dim=0).to(device)
         align_loss, image_feats = self.fs_model(ref_images_cat, texts, shots, self.fs_model_mode)
         image_feats = self.text_feat_map(image_feats) # [bs * n_samples, visual_dim]
