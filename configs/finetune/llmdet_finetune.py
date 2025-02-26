@@ -1,4 +1,4 @@
-_base_ = '../gd_pretrain/grounding_dino_swin-t_pretrain_obj365_goldg_v3det.py'
+_base_ = '../gd_pretrain/grounding_dino_swin-t_pretrain_obj365.py'
 
 # dataset settings
 train_pipeline = [
@@ -140,7 +140,7 @@ train_cfg = dict(
     _delete_=True,
     type='IterBasedTrainLoop',
     max_iters=max_iter,
-    val_interval=30000)
+    val_interval=150000)
 
 param_scheduler = [
     dict(type='LinearLR', start_factor=0.001, by_epoch=False, begin=0, end=1000),
@@ -154,7 +154,7 @@ param_scheduler = [
 ]
 
 default_hooks = dict(
-    checkpoint=dict(by_epoch=False, interval=30000, max_keep_ckpts=30),
+    checkpoint=dict(by_epoch=False, interval=10000, max_keep_ckpts=30),
     visualization=dict(type='GroundingVisualizationHook'),
     logger=dict(type='LoggerHook', interval=100))
 log_processor = dict(by_epoch=False)

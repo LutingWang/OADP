@@ -2,7 +2,6 @@ _base_ = [
     '../_base_/datasets/coco_detection.py',
     '../_base_/schedules/schedule_1x.py', '../_base_/default_runtime.py'
 ]
-server_root = '/mnt/dolphinfs/hdd_pool/docker/user/hadoop-mtcv/weiziyu/109/OADP'
 
 pretrained = None
 lang_model_name = 'data/huggingface/bert-base-uncased/'
@@ -186,7 +185,7 @@ test_pipeline = [
 ]
 
 dataset_type = 'ODVGDataset'
-data_root = server_root + 'data/objects365v1/'
+data_root = 'data/objects365v1/'
 
 coco_od_dataset = dict(
     type=dataset_type,
