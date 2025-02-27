@@ -2,6 +2,10 @@ _base_ = '../gd_pretrain/grounding_dino_swin-t_pretrain_obj365.py'
 
 model = dict(
     type='GroundingDINOF',
+    test_cfg=dict(
+        max_per_img=300,
+        chunked_size=40,
+    )
 )
 
 # dataset settings
