@@ -50,6 +50,8 @@ class FewShotModel(BaseModel):
             self.loss = nn.MSELoss()
         else:
             raise ValueError(f"Unsupported loss type: {loss_type}")
+        
+        self.language_model.language_backbone.body.model.embeddings.word_embeddings.requires_grad_(False)
     
     def image_bert_forward(self, image_feats):
         self.bert_model: HFBertModel = self.language_model.language_backbone.body.model

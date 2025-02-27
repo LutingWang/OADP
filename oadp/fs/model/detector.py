@@ -138,7 +138,6 @@ class FsGroundingDINO(GroundingDINO):
                                                   batch_data_samples)
         losses = self.bbox_head.loss(
             **head_inputs_dict, batch_data_samples=batch_data_samples)
-        print(losses)
         return losses
 
     def predict(self, batch_inputs, batch_data_samples, rescale: bool = True):
