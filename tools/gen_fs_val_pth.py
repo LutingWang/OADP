@@ -2,7 +2,6 @@ import json
 import os
 import torch
 from tqdm import tqdm
-from tools import sample_cls
 from mmdet.datasets.lvis import LVISV1Dataset
 
 def normalize(s: str) -> str:
@@ -59,5 +58,5 @@ def gen_lvis_val(text2pth:str):
 
 
 if __name__ == "__main__":
-    text2pth = '/data/yhq/OADP/data/grounding_data/imagenet-21k/annotations/merged.json'
+    text2pth = 'data/grounding_data/imagenet-21k/annotations/merged.json'
     gen_lvis_val(text2pth)

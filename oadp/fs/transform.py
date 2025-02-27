@@ -258,6 +258,7 @@ class SampleRefImagesVG(BaseTransform):
         n_shots = random.randint(self.min_shots, self.max_shots)
         ref_images = []
         for label in labels:
+            label = label.lower()
             sample_paths = list(self.label_map[label].keys())
             # Randomly sample n_shots paths from sample_paths
             assert n_shots <= len(sample_paths)

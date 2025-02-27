@@ -1,6 +1,6 @@
 _base_ = '../gd_pretrain/grounding_dino_swin-t_pretrain_obj365.py'
 
-debug = True
+debug = False
 
 
 model = dict(
@@ -194,7 +194,7 @@ train_cfg = dict(
     _delete_=True,
     type='IterBasedTrainLoop',
     max_iters=max_iter,
-    val_interval=30000)
+    val_interval=150000)
 
 param_scheduler = [
     dict(type='LinearLR', start_factor=0.001, by_epoch=False, begin=0, end=1000),
