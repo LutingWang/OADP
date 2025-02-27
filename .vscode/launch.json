@@ -128,8 +128,8 @@
                 "--nproc_per_node=1",
                 "--nnodes=1",
                 "tools/test.py",
-                "configs/test/fs_detector.py",
-                "work_dirs/fs_detector/iter_1.pth",
+                "configs/finetune/llmdet_finetune_fs.py",
+                "work_dirs/llmdet_finetune_fs/iter_1.pth",
             ],
         }
     ]

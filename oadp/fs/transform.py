@@ -29,8 +29,6 @@ def fs_collect_fn(data_batch: list):
         "shots": batched_shots
     }
 
-
-
 @TRANSFORMS.register_module()
 class ReplaceLabel(BaseTransform):
     def __init__(self, label_map_path: str) -> None:
@@ -42,15 +40,15 @@ class ReplaceLabel(BaseTransform):
 
 @TRANSFORMS.register_module()
 class RandomLoadFromFile(BaseTransform):
-    def __init__(self, min_imgs: int, max_imgs: int) -> None:
-        self.min_imgs = min_imgs
-        self.max_imgs = max_imgs
+    def __init__(self, min_shots: int, max_shots: int) -> None:
+        self.min_shots = min_shots
+        self.max_shots = max_shots
 
     def transform(self, results: dict) -> dict:
         image_num = len(results['img_path'])
-        min_imgs = min(self.min_imgs, image_num)
-        max_imgs = min(self.max_imgs, image_num)
-        num = random.randint(min_imgs, max_imgs)
+        min_shots = min(self.min_shots, image_num)
+        max_shots = min(self.max_shots, image_num)
+        num = random.randint(min_shots, max_shots)
         imgs_path = random.choices(results['img_path'], k=num)
         imgs = []
         for img_path in imgs_path:
@@ -118,16 +116,16 @@ class InsertLvisFsInputs(BaseTransform):
 @TRANSFORMS.register_module()
 class SampleRefImages(BaseTransform):
     def __init__(self, 
-        min_imgs: int,
-        max_imgs: int,
+        min_shots: int,
+        max_shots: int,
         label_map_path: str,
         samples_data_root: str,
         samples_label_map: str,
         max_sample_num: int|None = None,
         sample_feature: bool = True
     ) -> None:
-        self.min_imgs = min_imgs
-        self.max_imgs = max_imgs
+        self.min_shots = min_shots
+        self.max_shots = max_shots
         self.max_sample_num = max_sample_num
         self.samples_data_root = samples_data_root
         self.sample_feature = sample_feature
@@ -135,7 +133,7 @@ class SampleRefImages(BaseTransform):
         self.label_map = json.load(open(label_map_path, "r")) # cate_id -> samples_id
 
     def sample_ref_images_feature(self, labels) -> list:
-        n_shots = random.randint(self.min_imgs, self.max_imgs)
+        n_shots = random.randint(self.min_shots, self.max_shots)
         ref_images = []
         text = []
         for label in labels:
@@ -154,7 +152,7 @@ class SampleRefImages(BaseTransform):
 
 
     def sample_ref_images(self, labels) -> list:
-        n_shots = random.randint(self.min_imgs, self.max_imgs)
+        n_shots = random.randint(self.min_shots, self.max_shots)
         ref_images = []
         text = []
         for label in labels:
@@ -243,22 +241,21 @@ class SampleRefImages(BaseTransform):
 @TRANSFORMS.register_module()
 class SampleRefImagesVG(BaseTransform):
     def __init__(self, 
-        min_imgs: int,
-        max_imgs: int,
+        min_shots: int,
+        max_shots: int,
         label_map_path: str,
         samples_data_root: str,
         num_classes: int = 256,
-        training: bool = True
     ) -> None:
-        self.min_imgs = min_imgs
-        self.max_imgs = max_imgs
+        super().__init__()
+        self.min_shots = min_shots
+        self.max_shots = max_shots
         self.num_classes = num_classes
         self.samples_data_root = samples_data_root
         self.label_map = json.load(open(os.path.join(samples_data_root, label_map_path), "r"))
-        self.training = training
 
     def sample_ref_images_feature(self, labels: list[str]) -> list:
-        n_shots = random.randint(self.min_imgs, self.max_imgs)
+        n_shots = random.randint(self.min_shots, self.max_shots)
         ref_images = []
         for label in labels:
             sample_paths = list(self.label_map[label].keys())
@@ -299,8 +296,8 @@ class SampleRefImagesVG(BaseTransform):
         # get gt_boxes and gt_labels
         gt_bboxes = results['gt_bboxes']
         gt_labels = results['gt_bboxes_labels']
-        phrases_dict = results['phrases']
         # sample labels
+        phrases_dict = results['phrases']
         sampled_labels = []
         sorted_gt_labels = sorted(set(gt_labels))
         for label in sorted_gt_labels:
@@ -321,4 +318,48 @@ class SampleRefImagesVG(BaseTransform):
         results['gt_bboxes'] = gt_bboxes
         results['gt_bboxes_labels'] = gt_labels
         results['tokens_positive'] = positive_maps
+        return results
+    
+
+@TRANSFORMS.register_module()
+class SampleValImages(BaseTransform):
+    def __init__(self, n_shots: int, pth_path: str):
+        super().__init__()
+        self.text2pth = torch.load(pth_path, map_location='cpu')
+        self.n_shots = n_shots
+    
+    @staticmethod
+    def normalize(s: str) -> str:
+        s, *_ = s.split('/', 1)
+        s, *_ = s.split('(', 1)
+        s, *_ = s.split('[', 1)
+        s = s.replace('_', ' ')
+        s = s.replace('-', ' ')
+        s = s.lower().strip()
+        return s
+
+    def sample_ref_images_feature(self, labels: list[str]) -> list:
+        ref_images = []
+        for label in labels:
+            label = self.normalize(label)
+            features = self.text2pth[label]
+            random_idx = torch.randint(0, features.size(0), (self.n_shots,))
+            ref_images.append(features[random_idx])
+        return ref_images
+
+    def transform(self, results: dict) -> dict:
+        # get gt_boxes and gt_labels
+        gt_bboxes = results['gt_bboxes']
+        gt_labels = results['gt_bboxes_labels']
+        sampled_labels = results['text']
+        # sample ref images
+        ref_images = self.sample_ref_images_feature(sampled_labels)
+        # add info to results
+        results['ref_images'] = ref_images
+        results['ref_labels'] = sampled_labels
+        results['n_shots'] = self.n_shots
+        results['n_samples'] = len(sampled_labels)
+        
+        results['gt_bboxes'] = gt_bboxes
+        results['gt_bboxes_labels'] = gt_labels
         return results

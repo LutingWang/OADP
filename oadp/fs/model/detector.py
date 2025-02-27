@@ -77,6 +77,8 @@ class FsGroundingDINO(GroundingDINO):
                     'text_token_mask': text_token_mask, # [bs, num_classes]
                 }, align_loss
             else:
+                n_samples = n_samples_list[0]
+                assert len(n_samples_list) == 1
                 return [{
                     'embedded': embedded, # [bs, num_classes, visual_dim]
                     'masks': masks, # [bs, num_classes, num_classes]
