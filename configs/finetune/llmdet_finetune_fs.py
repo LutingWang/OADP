@@ -47,11 +47,10 @@ train_pipeline = [
         max_tokens=256),
     dict(
         type='SampleRefImagesVG',
-        min_imgs=5,
-        max_imgs=5,
+        min_shots=5,
+        max_shots=5,
         samples_data_root='data/grounding_data/imagenet-21k',
-        label_map_path='annotations/merged.json',
-        training=True,
+        label_map_path='annotations/merged.json'
     ),
     dict(
         type='PackDetInputs',
@@ -60,6 +59,28 @@ train_pipeline = [
                    'custom_entities', 'tokens_positive', 'dataset_mode',
                    'ref_images', 'ref_labels', 'n_shots', 'n_samples')
     )
+]
+
+test_pipeline = [
+    dict(
+        type='LoadImageFromFile', backend_args=None,
+        imdecode_backend='pillow'),
+    dict(
+        type='FixScaleResize',
+        scale=(800, 1333),
+        keep_ratio=True,
+        backend='pillow'),
+    dict(type='LoadAnnotations', with_bbox=True),
+    dict(
+        type='SampleValImages',
+        n_shots=5,
+        pth_path='data/grounding_data/imagenet-21k/annotations/lvis_ref.pth'
+    ),
+    dict(
+        type='PackDetInputs',
+        meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
+                   'scale_factor', 'text', 'custom_entities',
+                   'tokens_positive', 'ref_images', 'ref_labels', 'n_shots', 'n_samples'))
 ]
 
 # --------------------------- coco2017 od dataset---------------------------
@@ -141,7 +162,7 @@ val_dataloader = dict(
         type=dataset_type,
         ann_file='annotations/lvis_v1_minival_inserted_image_name.json',
         data_prefix=dict(img=''),
-        pipeline=_base_.test_pipeline, 
+        pipeline=test_pipeline, 
         return_classes=True))
 test_dataloader = val_dataloader
 
@@ -187,7 +208,7 @@ param_scheduler = [
 ]
 
 default_hooks = dict(
-    checkpoint=dict(by_epoch=False, interval=30000, max_keep_ckpts=30),
+    checkpoint=dict(by_epoch=False, interval=10000, max_keep_ckpts=30),
     visualization=dict(type='GroundingVisualizationHook'),
     logger=dict(type='LoggerHook', interval=100))
 log_processor = dict(by_epoch=False)
