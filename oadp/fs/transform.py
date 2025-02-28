@@ -290,7 +290,7 @@ class SampleRefImagesVG(BaseTransform):
     def get_positive_map(self, gt_labels: torch.Tensor):
         positive_maps = torch.zeros((len(gt_labels), self.num_classes), dtype=torch.float32)
         for i, pos_label in enumerate(gt_labels):
-            positive_maps[i, i] = 1
+            positive_maps[i, pos_label] = 1
         return positive_maps
 
     def transform(self, results: dict) -> dict:
