@@ -295,13 +295,12 @@ class SampleRefImagesVG(BaseTransform):
 
     def transform(self, results: dict) -> dict:
         # get gt_boxes and gt_labels
-        gt_bboxes = results['gt_bboxes']
         gt_labels = results['gt_bboxes_labels']
         # sample labels
+        sampled_label_ids = list(range(len(results['phrases'])))
         phrases_dict = results['phrases']
         sampled_labels = []
-        sorted_gt_labels = sorted(set(gt_labels))
-        for label in sorted_gt_labels:
+        for label in sampled_label_ids:
             label_elem = phrases_dict[label]['phrase']
             if isinstance(label_elem, list):
                 sampled_labels.append(random.choice(label_elem))
@@ -314,9 +313,8 @@ class SampleRefImagesVG(BaseTransform):
         results['ref_images'] = ref_images
         results['ref_labels'] = sampled_labels
         results['n_shots'] = n_shots
-        results['n_samples'] = len(set(gt_labels))
+        results['n_samples'] = len(sampled_labels)
         
-        results['gt_bboxes'] = gt_bboxes
         results['gt_bboxes_labels'] = gt_labels
         results['tokens_positive'] = positive_maps
         return results
