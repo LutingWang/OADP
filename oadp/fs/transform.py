@@ -286,18 +286,26 @@ class SampleRefImagesVG(BaseTransform):
         clip_features = features['clip_features'][index].unsqueeze(0)
         dino_features = features['dino_features'][index].unsqueeze(0)
         return torch.cat([clip_features, dino_features], dim=1)
-    
-    def get_positive_map(self, gt_labels: torch.Tensor):
+
+    def reindex(self, labels, gt_labels):
         positive_maps = torch.zeros((len(gt_labels), self.num_classes), dtype=torch.float32)
+        
+        # get the positive label index
+        label_remap_dict = {}
         for i, pos_label in enumerate(gt_labels):
-            positive_maps[i, pos_label] = 1
-        return positive_maps
+            j = labels.index(pos_label)
+            positive_maps[i, j] = 1
+            label_remap_dict[pos_label] = j
+
+        # assert len(gt_labels) > 0  
+        gt_labels = np.vectorize(lambda x: label_remap_dict[x])(gt_labels)
+        return positive_maps, gt_labels
 
     def transform(self, results: dict) -> dict:
         # get gt_boxes and gt_labels
         gt_labels = results['gt_bboxes_labels']
         # sample labels
-        sampled_label_ids = list(range(len(results['phrases'])))
+        sampled_label_ids = list(results['phrases'].keys())
         phrases_dict = results['phrases']
         sampled_labels = []
         for label in sampled_label_ids:
@@ -308,7 +316,7 @@ class SampleRefImagesVG(BaseTransform):
                 sampled_labels.append(label_elem)
         # sample ref images
         ref_images, n_shots = self.sample_ref_images_feature(sampled_labels)
-        positive_maps = self.get_positive_map(gt_labels)
+        positive_maps, gt_labels = self.reindex(sampled_label_ids, gt_labels)
         # add info to results
         results['ref_images'] = ref_images
         results['ref_labels'] = sampled_labels
