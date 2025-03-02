@@ -28,3 +28,5 @@ val_evaluator = dict(
     ann_file=data_root +
     'annotations/lvis_v1_minival_inserted_image_name.json')
 test_evaluator = val_evaluator
+
+load_from = 'data/huggingface/mm_grounding_dino/grounding_dino_swin-t_pretrain_obj365_goldg_grit9m_v3det_20231204_095047-b448804b.pth'
