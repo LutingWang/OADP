@@ -54,8 +54,7 @@ class FewShotModel(BaseModel):
         self.language_model.language_backbone.body.model.embeddings.word_embeddings.requires_grad_(False)
     
     def image_bert_forward(self, image_feats):
-        self.bert_model: HFBertModel = self.language_model.language_backbone.body.model
-        outputs = self.bert_model(
+        outputs = self.language_model.language_backbone.body.model(
             inputs_embeds=image_feats.unsqueeze(1), # [batch_size, seq_length, embed_dim]
             output_hidden_states=True,
         )
