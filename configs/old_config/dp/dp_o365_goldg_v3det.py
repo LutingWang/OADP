@@ -1,6 +1,6 @@
-_base_ = '../gd_pretrain/grounding_dino_swin-t_pretrain_obj365.py'
+_base_ = '../_base_/grounding_dino_swin-t_pretrain_obj365.py'
 server_root = '/mnt/dolphinfs/hdd_pool/docker/user/hadoop-mtcv/weiziyu/109/OADP/'
-load_from = server_root + 'ckpt/grounding_dino_swin-t_pretrain_obj365_goldg_v3det_moe.pth'
+load_from = server_root + 'ckpt/grounding_dino_swin-t_pretrain_obj365_goldg_v3det_20231218_095741-e316e297.pth'
 
 model = dict(
     type='DPGroundingDino',
@@ -10,11 +10,6 @@ model = dict(
         out_channels=256,
         featmap_strides=[4, 8, 16, 32],
     ),
-    moe_cfg=dict(
-        expert_num=8,
-        inputs_dim=256,
-        topk=2,
-    )
 )
 
 

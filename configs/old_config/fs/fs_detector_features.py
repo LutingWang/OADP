@@ -1,4 +1,4 @@
-_base_ = '../gd_pretrain/grounding_dino_swin-t_pretrain_obj365.py'
+_base_ = '../_base_/grounding_dino_swin-t_pretrain_obj365.py'
 load_from = _base_.server_root + 'pretrained/grounding_dino_swin-t_pretrain_obj365_goldg_v3det_20231218_095741-e316e297.pth'
 
 model = dict(

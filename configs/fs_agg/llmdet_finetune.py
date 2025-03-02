@@ -1,4 +1,4 @@
-_base_ = '../gd_pretrain/grounding_dino_swin-t_pretrain_obj365.py'
+_base_ = '../_base_/grounding_dino_swin-t_pretrain_obj365.py'
 
 model = dict(
     type='GroundingDINOF',
