@@ -2,6 +2,11 @@ _base_ = '../gd_pretrain/grounding_dino_swin-t_pretrain_obj365.py'
 
 debug = False
 
+randomness = dict(
+    seed = 1892326125,
+    diff_rank_seed=True,
+    # deterministic=True
+)
 
 model = dict(
     type='FsGroundingDINO',
@@ -208,8 +213,8 @@ param_scheduler = [
 ]
 
 default_hooks = dict(
-    checkpoint=dict(by_epoch=False, interval=10000, max_keep_ckpts=30),
-    visualization=dict(type='GroundingVisualizationHook'),
+    checkpoint=dict(by_epoch=False, interval=4000, max_keep_ckpts=30),
+    # visualization=dict(type='GroundingVisualizationHook', draw=True, test_out_dir='images'),
     logger=dict(type='LoggerHook', interval=100))
 log_processor = dict(by_epoch=False)
 

@@ -297,8 +297,8 @@ class SampleRefImagesVG(BaseTransform):
             positive_maps[i, j] = 1
             label_remap_dict[pos_label] = j
 
-        # assert len(gt_labels) > 0  
-        gt_labels = np.vectorize(lambda x: label_remap_dict[x])(gt_labels)
+        if len(gt_labels) > 0:
+            gt_labels = np.vectorize(lambda x: label_remap_dict[x])(gt_labels)
         return positive_maps, gt_labels
 
     def transform(self, results: dict) -> dict:
