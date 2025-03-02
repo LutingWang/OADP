@@ -1,11 +1,7 @@
 import torch
 import torch.nn as nn
-import clip
-import clip.model
-from clip.clip import _tokenizer
 from mmdet.registry import MODELS
 from mmdet.models.language_models import BertModel
-from transformers import BertModel as HFBertModel
 from mmengine.model import BaseModel
 
 from .projector import VisionProjector
