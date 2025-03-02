@@ -139,11 +139,6 @@ class FsGroundingDINO(GroundingDINO):
         losses = self.bbox_head.loss(
             **head_inputs_dict, batch_data_samples=batch_data_samples)
         
-        for key, value in losses.items():
-            if isinstance(value, torch.Tensor) and value.isnan().any():
-                value[value.isnan() | value.isinf()] = 0.0
-                print("=======", batch_data_samples, "========")
-
         return losses
 
     def predict(self, batch_inputs, batch_data_samples, rescale: bool = True):
