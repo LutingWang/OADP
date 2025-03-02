@@ -5,8 +5,16 @@ from clip.model import Transformer
 from mmengine.model import BaseModel
 from mmdet.registry import MODELS
 
+@MODELS.register_module() 
+class DummyVisualAgg(BaseModel):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    
+    def forward(self, x: torch.Tensor, shots: list[int]) -> torch.Tensor:
+        return x
+
 @MODELS.register_module()
-class VisualAggregatorT(BaseModel):
+class TransformerVisualAgg(BaseModel):
     def __init__(self, max_shots:int, d_model:int, layers:int, heads:int) -> None:
         super().__init__()
         self.context_length = max_shots + 1
@@ -66,7 +74,7 @@ class VisualAggregatorT(BaseModel):
 
 
 @MODELS.register_module()
-class QFormer(nn.Module):
+class QFormerVisualAgg(BaseModel):
     def __init__(
         self,
         d_model: int,           # 输入数据的维度（如文本/图像特征的维度）
@@ -135,3 +143,8 @@ class QFormer(nn.Module):
             key_padding_mask=key_padding_mask,
         ) 
         return attn_output  # [batch, num_queries, d_query]
+
+
+@MODELS.register_module()
+class MLLMVisualAgg(BaseModel):
+    pass

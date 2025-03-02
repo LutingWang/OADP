@@ -1,5 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import oadp.fs_agg
+import oadp.fs
 
 import argparse
 import os

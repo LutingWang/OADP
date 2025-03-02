@@ -4,7 +4,7 @@ from PIL import Image
 from tqdm import tqdm
 from torch.utils.data import Dataset
 
-from oadp.fs_agg.llama import Chatbot, Captioner, Summarizer, MutiCaptioner
+from oadp.fs.llama import Chatbot, Captioner, Summarizer, MutiCaptioner
 from mmdet.datasets.lvis import LVISV1Dataset
 import uuid
 

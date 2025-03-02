@@ -5,7 +5,7 @@ from mmdet.models.language_models import BertModel
 from mmengine.model import BaseModel
 
 from .projector import VisionProjector
-from .visual_agg import VisualAggregatorT
+from .visual_agg import TransformerVisualAgg
 
 class ContrastiveLoss(nn.Module):
     def __init__(self, temperature=0.07):
@@ -33,7 +33,7 @@ class FewShotModel(BaseModel):
         self.language_model: BertModel = MODELS.build(language_model_cfg)
         self.language_dim = self.language_model.language_backbone.body.language_dim
         # visual agg model
-        self.visual_agg: VisualAggregatorT = MODELS.build(vision_agg_cfg)
+        self.visual_agg: TransformerVisualAgg = MODELS.build(vision_agg_cfg)
         self.visual_dim = self.visual_agg.d_model
         # projector
         self.vision_projector = VisionProjector(self.visual_dim, self.language_dim, projector_type)

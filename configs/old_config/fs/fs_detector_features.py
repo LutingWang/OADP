@@ -17,7 +17,7 @@ model = dict(
         ),
         clip_model_path='pretrained/clip/ViT-B-32.pt',
         vision_agg_cfg=dict(
-            type='VisualAggregatorT',
+            type='TransformerVisualAgg',
             max_shots=10,
             d_model=1536,
             layers=12,

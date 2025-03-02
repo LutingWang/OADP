@@ -22,7 +22,7 @@ model = dict(
             add_pooling_layer=False,
         ),
         vision_agg_cfg=dict(
-            type='VisualAggregatorT',
+            type='TransformerVisualAgg',
             max_shots=10,
             d_model=1536,
             layers=12,

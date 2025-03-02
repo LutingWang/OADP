@@ -9,7 +9,6 @@ from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normal
 from torchvision.transforms import InterpolationMode
 
 from mmcv.transforms import BaseTransform
-from mmengine.structures import BaseDataElement
 from mmdet.registry import TRANSFORMS
 from mmdet.structures.bbox import BaseBoxes
 from mmengine.registry import FUNCTIONS
