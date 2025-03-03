@@ -17,7 +17,7 @@ val_dataloader = dict(
         data_root=data_root,
         pipeline=fs_pipeline,
         type=dataset_type,
-        ann_file='annotations/lvis_v1_val.json',
+        ann_file='annotations/lvis_v1_minival_inserted_image_name.json',
         data_prefix=dict(img='')))
 test_dataloader = val_dataloader
 
@@ -26,7 +26,7 @@ val_evaluator = dict(
     _delete_=True,
     type='LVISFixedAPMetric',
     ann_file=data_root +
-    'annotations/lvis_v1_val.json')
+    'annotations/lvis_v1_minival_inserted_image_name.json')
 test_evaluator = val_evaluator
 
 load_from = 'data/huggingface/mm_grounding_dino/grounding_dino_swin-t_pretrain_obj365_goldg_grit9m_v3det_20231204_095047-b448804b.pth'
