@@ -69,6 +69,14 @@ data/
     └── images
 ```
 
+#### Dataset Annotations
+
+All required annotations have been uploaded to Google Drive. You can download them from:
+[占位符]
+
+After downloading, extract and place them in the corresponding directories as shown in the structure above.
+
+
 ### Pretrained Models
 
 Download the pretrained MM-Grounding-DINO models:
@@ -131,3 +139,28 @@ PYTHONPATH=$(pwd):$PYTHONPATH torchrun --nproc_per_node=8 tools/train.py \
     --launcher pytorch
 ```
 
+## Evaluation
+
+### Text-based Model Evaluation
+
+Evaluate the text-based distillation model on LVIS open-vocabulary detection:
+
+```bash
+PYTHONPATH=$(pwd):$PYTHONPATH torchrun --nproc_per_node=8 tools/test.py \
+    configs/evaluation/lvis_val_ov.py \
+    work_dirs/ov_distill_0.025_0.25_0.025_eva-clip_shortest-edge/iter_150000.pth \
+    --work-dir work_dirs/ov_distill_0.025_0.25_0.025_eva-clip_shortest-edge/150000 \
+    --launcher pytorch
+```
+
+### Image-based Model Evaluation
+
+Evaluate the image-based distillation model on LVIS validation:
+
+```bash
+PYTHONPATH=$(pwd):$PYTHONPATH torchrun --nproc_per_node=8 tools/test.py \
+    configs/evaluation/lvis_val.py \
+    mm_work_dirs/fs_distill_0.03_0.8_0.8/iter_16000.pth \
+    --work-dir work_dirs/fs_distill_0.03_0.8_0.8/iter_16000 \
+    --launcher pytorch
+```
