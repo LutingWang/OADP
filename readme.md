@@ -71,9 +71,7 @@ data/
 
 #### Dataset Annotations
 
-All required annotations have been uploaded to Google Drive. You can download them from:
-[占位符]
-
+All required annotations have been uploaded to [Google Drive](https://drive.google.com/file/d/14kAiKmBGSm8YFszbeOfBh6tHXP-8bVsx/view?usp=sharing). 
 After downloading, extract and place them in the corresponding directories as shown in the structure above.
 
 
